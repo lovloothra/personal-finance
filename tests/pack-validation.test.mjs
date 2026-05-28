@@ -76,6 +76,24 @@ test("credit-card product rows include provenance and confidence labels", async 
   }
 });
 
+test("credit-card products include common co-branded and newer Indian cards", async () => {
+  const doc = await readJson("packs/in/credit-cards.json");
+  const productIds = new Set(doc.products.map((product) => product.id));
+  const expectedIds = [
+    "hdfc-swiggy",
+    "axis-flipkart",
+    "icici-times-black",
+    "axis-airtel",
+    "hdfc-marriott-bonvoy",
+    "icici-makemytrip",
+    "sbi-simplyclick"
+  ];
+
+  for (const id of expectedIds) {
+    assert.ok(productIds.has(id), `missing credit-card product ${id}`);
+  }
+});
+
 test("merchant seed files are marked aggregator-expanded and have confidence labels", async () => {
   const merchantFiles = [
     "packs/in/merchants/ai-tools.json",
