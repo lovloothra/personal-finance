@@ -1,0 +1,15 @@
+.env
+.env.*
+node_modules/
+data/
+attachments/
+exports/
+tmp/
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+*.log

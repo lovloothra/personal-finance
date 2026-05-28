@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.personal-finance/schemas/pack-in.schema.json",
+  "title": "India Pack Master Data",
+  "type": "object",
+  "description": "Schema documentation for India pack seed files. The repo validator enforces these shapes without requiring a third-party JSON Schema runtime.",
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["source_type", "name", "url", "retrieved_at"],
+      "properties": {
+        "source_type": {
+          "enum": ["official", "provider", "trusted_aggregator", "curated"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "retrieved_at": {
+          "type": "string",
+          "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "seedRow": {
+      "type": "object",
+      "required": [
+        "id",
+        "display_name",
+        "legal_name",
+        "category",
+        "aliases",
+        "sources",
+        "confidence",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "legal_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "confidence": {
+          "enum": ["high", "medium", "low"]
+        },
+        "status": {
+          "enum": ["active", "inactive", "merged", "watch"]
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

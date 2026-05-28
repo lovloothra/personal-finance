@@ -1,0 +1,15 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "expenses.transport.cabs",
+  "merchants": [
+    {"id": "uber-india", "display_name": "Uber India", "legal_name": "Uber India Systems Private Limited", "category": "merchant", "type": "ride_hailing", "aliases": ["Uber", "Uber India", "Uber Trip"], "sources": [{"source_type": "provider", "name": "Uber India", "url": "https://www.uber.com/in/en/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "ola-cabs", "display_name": "Ola Cabs", "legal_name": "ANI Technologies Private Limited", "category": "merchant", "type": "ride_hailing", "aliases": ["Ola", "Ola Cabs", "ANI Technologies"], "sources": [{"source_type": "provider", "name": "Ola", "url": "https://www.olacabs.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "rapido", "display_name": "Rapido", "legal_name": "Roppen Transportation Services Private Limited", "category": "merchant", "type": "ride_hailing", "aliases": ["Rapido", "Rapido Bike", "Rapido Auto"], "sources": [{"source_type": "provider", "name": "Rapido", "url": "https://www.rapido.bike/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "blusmart", "display_name": "BluSmart", "legal_name": "Gensol Mobility Private Limited", "category": "merchant", "type": "ride_hailing", "aliases": ["BluSmart", "Blu Smart", "Gensol Mobility"], "sources": [{"source_type": "provider", "name": "BluSmart", "url": "https://blu-smart.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "meru-cabs", "display_name": "Meru Cabs", "legal_name": "Meru Mobility Tech Private Limited", "category": "merchant", "type": "ride_hailing", "aliases": ["Meru", "Meru Cabs"], "sources": [{"source_type": "provider", "name": "Meru", "url": "https://www.meru.in/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "subscriptions.software.ai_tools",
+  "merchants": [
+    {"id": "openai", "display_name": "OpenAI", "legal_name": "OpenAI, L.L.C.", "category": "merchant", "type": "ai_tool", "aliases": ["OpenAI", "ChatGPT", "ChatGPT Plus"], "sources": [{"source_type": "provider", "name": "OpenAI", "url": "https://openai.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "anthropic", "display_name": "Anthropic", "legal_name": "Anthropic, PBC", "category": "merchant", "type": "ai_tool", "aliases": ["Anthropic", "Claude", "Claude Pro"], "sources": [{"source_type": "provider", "name": "Anthropic", "url": "https://www.anthropic.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "perplexity", "display_name": "Perplexity", "legal_name": "Perplexity AI, Inc.", "category": "merchant", "type": "ai_tool", "aliases": ["Perplexity", "Perplexity AI", "Perplexity Pro"], "sources": [{"source_type": "provider", "name": "Perplexity", "url": "https://www.perplexity.ai/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "cursor", "display_name": "Cursor", "legal_name": "Anysphere, Inc.", "category": "merchant", "type": "developer_tool", "aliases": ["Cursor", "Anysphere"], "sources": [{"source_type": "provider", "name": "Cursor", "url": "https://cursor.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "github-copilot", "display_name": "GitHub Copilot", "legal_name": "GitHub, Inc.", "category": "merchant", "type": "developer_tool", "aliases": ["GitHub Copilot", "Copilot", "Github Copilot"], "sources": [{"source_type": "provider", "name": "GitHub Copilot", "url": "https://github.com/features/copilot", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "google-gemini", "display_name": "Google Gemini", "legal_name": "Google LLC", "category": "merchant", "type": "ai_tool", "aliases": ["Gemini", "Google Gemini", "Google One AI"], "sources": [{"source_type": "provider", "name": "Google Gemini", "url": "https://gemini.google.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"}
+  ]
+}

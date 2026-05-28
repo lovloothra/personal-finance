@@ -1,0 +1,15 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "subscriptions.fitness",
+  "merchants": [
+    {"id": "cult-fit", "display_name": "cult.fit", "legal_name": "Curefit Healthcare Private Limited", "category": "merchant", "type": "fitness_subscription", "aliases": ["cult.fit", "Cultfit", "Curefit", "Cult"], "sources": [{"source_type": "provider", "name": "cult.fit", "url": "https://www.cult.fit/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "healthify", "display_name": "Healthify", "legal_name": "HealthifyMe Wellness Private Limited", "category": "merchant", "type": "fitness_subscription", "aliases": ["Healthify", "HealthifyMe"], "sources": [{"source_type": "provider", "name": "Healthify", "url": "https://www.healthifyme.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "fittr", "display_name": "FITTR", "legal_name": "Squats Fitness Private Limited", "category": "merchant", "type": "fitness_subscription", "aliases": ["FITTR", "Fittr", "Squats"], "sources": [{"source_type": "provider", "name": "FITTR", "url": "https://www.fittr.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "golds-gym-india", "display_name": "Gold's Gym India", "legal_name": "Gold's Gym India", "category": "merchant", "type": "gym", "aliases": ["Gold's Gym", "Golds Gym", "Gold's Gym India"], "sources": [{"source_type": "provider", "name": "Gold's Gym India", "url": "https://goldsgym.in/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "anytime-fitness-india", "display_name": "Anytime Fitness India", "legal_name": "Anytime Fitness India", "category": "merchant", "type": "gym", "aliases": ["Anytime Fitness", "Anytime Fitness India"], "sources": [{"source_type": "provider", "name": "Anytime Fitness India", "url": "https://www.anytimefitness.co.in/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"}
+  ]
+}

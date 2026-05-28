@@ -1,0 +1,16 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "expenses.travel",
+  "merchants": [
+    {"id": "makemytrip", "display_name": "MakeMyTrip", "legal_name": "MakeMyTrip (India) Private Limited", "category": "merchant", "type": "travel_booking", "aliases": ["MakeMyTrip", "MMT", "Make My Trip"], "sources": [{"source_type": "provider", "name": "MakeMyTrip", "url": "https://www.makemytrip.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "goibibo", "display_name": "Goibibo", "legal_name": "Ibibo Group Private Limited", "category": "merchant", "type": "travel_booking", "aliases": ["Goibibo", "Ibibo", "Go Ibibo"], "sources": [{"source_type": "provider", "name": "Goibibo", "url": "https://www.goibibo.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "cleartrip", "display_name": "Cleartrip", "legal_name": "Cleartrip Private Limited", "category": "merchant", "type": "travel_booking", "aliases": ["Cleartrip", "Clear Trip"], "sources": [{"source_type": "provider", "name": "Cleartrip", "url": "https://www.cleartrip.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "ixigo", "display_name": "ixigo", "legal_name": "Le Travenues Technology Limited", "category": "merchant", "type": "travel_booking", "aliases": ["ixigo", "Ixigo", "Le Travenues"], "sources": [{"source_type": "provider", "name": "ixigo", "url": "https://www.ixigo.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "booking-com", "display_name": "Booking.com", "legal_name": "Booking.com B.V.", "category": "merchant", "type": "travel_booking", "aliases": ["Booking.com", "Booking Com"], "sources": [{"source_type": "provider", "name": "Booking.com", "url": "https://www.booking.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "airbnb", "display_name": "Airbnb", "legal_name": "Airbnb, Inc.", "category": "merchant", "type": "travel_booking", "aliases": ["Airbnb", "Air Bnb"], "sources": [{"source_type": "provider", "name": "Airbnb", "url": "https://www.airbnb.co.in/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"}
+  ]
+}

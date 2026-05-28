@@ -1,0 +1,16 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "expenses.quick_commerce",
+  "merchants": [
+    {"id": "blinkit", "display_name": "Blinkit", "legal_name": "Blink Commerce Private Limited", "category": "merchant", "type": "quick_commerce", "aliases": ["Blinkit", "Grofers", "Blink Commerce"], "sources": [{"source_type": "provider", "name": "Blinkit", "url": "https://blinkit.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "zepto", "display_name": "Zepto", "legal_name": "Kiranakart Technologies Private Limited", "category": "merchant", "type": "quick_commerce", "aliases": ["Zepto", "Zepto Now", "Kiranakart"], "sources": [{"source_type": "provider", "name": "Zepto", "url": "https://www.zeptonow.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "swiggy-instamart", "display_name": "Swiggy Instamart", "legal_name": "Swiggy Limited", "category": "merchant", "type": "quick_commerce", "aliases": ["Instamart", "Swiggy Instamart", "Swiggy Mart"], "sources": [{"source_type": "provider", "name": "Swiggy Instamart", "url": "https://www.swiggy.com/instamart", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "bigbasket", "display_name": "bigbasket", "legal_name": "Supermarket Grocery Supplies Private Limited", "category": "merchant", "type": "grocery", "aliases": ["bigbasket", "Big Basket", "BBNow", "Bigbasket"], "sources": [{"source_type": "provider", "name": "bigbasket", "url": "https://www.bigbasket.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "jiomart", "display_name": "JioMart", "legal_name": "Reliance Retail Limited", "category": "merchant", "type": "grocery", "aliases": ["JioMart", "Jio Mart", "Reliance Retail"], "sources": [{"source_type": "provider", "name": "JioMart", "url": "https://www.jiomart.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "amazon-fresh", "display_name": "Amazon Fresh", "legal_name": "Amazon Seller Services Private Limited", "category": "merchant", "type": "grocery", "aliases": ["Amazon Fresh", "Amazon Pantry", "Amazon Grocery"], "sources": [{"source_type": "provider", "name": "Amazon Fresh India", "url": "https://www.amazon.in/fmc/storefront", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"}
+  ]
+}

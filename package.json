@@ -1,0 +1,14 @@
+{
+  "name": "personal-finance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "validate:packs": "node tools/validate-pack-in.mjs",
+    "refresh:packs:in": "node scripts/refresh-pack-in.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

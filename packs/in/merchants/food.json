@@ -1,0 +1,16 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "expenses.food_delivery",
+  "merchants": [
+    {"id": "swiggy", "display_name": "Swiggy", "legal_name": "Swiggy Limited", "category": "merchant", "type": "food_delivery", "aliases": ["Swiggy", "Swiggy Food"], "sources": [{"source_type": "provider", "name": "Swiggy", "url": "https://www.swiggy.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "zomato", "display_name": "Zomato", "legal_name": "Zomato Limited", "category": "merchant", "type": "food_delivery", "aliases": ["Zomato", "Zomato Online"], "sources": [{"source_type": "provider", "name": "Zomato", "url": "https://www.zomato.com/india", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "eatsure", "display_name": "EatSure", "legal_name": "Rebel Foods Private Limited", "category": "merchant", "type": "food_delivery", "aliases": ["EatSure", "Rebel Foods", "Faasos", "Behrouz"], "sources": [{"source_type": "provider", "name": "EatSure", "url": "https://www.eatsure.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "dominos-india", "display_name": "Domino's India", "legal_name": "Jubilant FoodWorks Limited", "category": "merchant", "type": "restaurant", "aliases": ["Dominos", "Domino's", "Jubilant FoodWorks"], "sources": [{"source_type": "provider", "name": "Domino's India", "url": "https://www.dominos.co.in/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "mcdonalds-india", "display_name": "McDonald's India", "legal_name": "McDonald's India", "category": "merchant", "type": "restaurant", "aliases": ["McDonalds", "McDonald's", "McDelivery"], "sources": [{"source_type": "provider", "name": "McDonald's India", "url": "https://www.mcdonaldsindia.com/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "starbucks-india", "display_name": "Starbucks India", "legal_name": "Tata Starbucks Private Limited", "category": "merchant", "type": "cafe", "aliases": ["Starbucks", "Tata Starbucks"], "sources": [{"source_type": "provider", "name": "Starbucks India", "url": "https://www.starbucks.in/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "subscriptions.ott",
+  "merchants": [
+    {"id": "netflix", "display_name": "Netflix", "legal_name": "Netflix Entertainment Services India LLP", "category": "merchant", "type": "ott", "aliases": ["Netflix", "Netflix.com"], "sources": [{"source_type": "provider", "name": "Netflix India", "url": "https://www.netflix.com/in/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "prime-video", "display_name": "Prime Video", "legal_name": "Amazon Seller Services Private Limited", "category": "merchant", "type": "ott", "aliases": ["Prime Video", "Amazon Prime", "PrimeVideo"], "sources": [{"source_type": "provider", "name": "Prime Video India", "url": "https://www.primevideo.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "jiohotstar", "display_name": "JioHotstar", "legal_name": "Star India Private Limited", "category": "merchant", "type": "ott", "aliases": ["JioHotstar", "Hotstar", "Disney+ Hotstar", "Disney Hotstar"], "sources": [{"source_type": "provider", "name": "JioHotstar", "url": "https://www.hotstar.com/in", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "sonyliv", "display_name": "SonyLIV", "legal_name": "Culver Max Entertainment Private Limited", "category": "merchant", "type": "ott", "aliases": ["SonyLIV", "Sony Liv", "LIV"], "sources": [{"source_type": "provider", "name": "SonyLIV", "url": "https://www.sonyliv.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "zee5", "display_name": "ZEE5", "legal_name": "Zee Entertainment Enterprises Limited", "category": "merchant", "type": "ott", "aliases": ["ZEE5", "Zee5"], "sources": [{"source_type": "provider", "name": "ZEE5", "url": "https://www.zee5.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "apple-tv-plus", "display_name": "Apple TV+", "legal_name": "Apple India Private Limited", "category": "merchant", "type": "ott", "aliases": ["Apple TV+", "Apple TV Plus", "Apple Services"], "sources": [{"source_type": "provider", "name": "Apple TV+", "url": "https://tv.apple.com/in", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"}
+  ]
+}

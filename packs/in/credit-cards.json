@@ -1,0 +1,282 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "issuer_registry_with_product_catalog_seed",
+  "retrieved_at": "2026-05-29",
+  "notes": "Issuer rows are backed by RBI bank-wise card statistics. Product rows are best-effort consumer catalog seeds from issuer pages first and trusted aggregators where issuer pages are not stable enough for automated extraction.",
+  "issuers": [
+    {
+      "id": "hdfc-bank-cards",
+      "display_name": "HDFC Bank Cards",
+      "legal_name": "HDFC Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["HDFC Credit Card", "HDFC Bank Credit Card", "HDFC Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "HDFC Bank credit cards", "url": "https://www.hdfcbank.com/personal/pay/cards/credit-cards", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "sbi-card",
+      "display_name": "SBI Card",
+      "legal_name": "SBI Cards and Payment Services Limited",
+      "category": "credit_card_issuer",
+      "type": "card_company",
+      "aliases": ["SBI Card", "SBI Credit Card", "SBI Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "SBI Card", "url": "https://www.sbicard.com/", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "icici-bank-cards",
+      "display_name": "ICICI Bank Cards",
+      "legal_name": "ICICI Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["ICICI Credit Card", "ICICI Bank Credit Card", "ICICI Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "ICICI Bank credit cards", "url": "https://www.icicibank.com/personal-banking/cards/credit-card", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "axis-bank-cards",
+      "display_name": "Axis Bank Cards",
+      "legal_name": "Axis Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["Axis Credit Card", "Axis Bank Credit Card", "Axis Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "Axis Bank credit cards", "url": "https://www.axisbank.com/retail/cards/credit-card", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "american-express-india-cards",
+      "display_name": "American Express India Cards",
+      "legal_name": "American Express Banking Corp.",
+      "category": "credit_card_issuer",
+      "type": "foreign_bank_issuer",
+      "aliases": ["Amex", "American Express", "American Express India"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "American Express India cards", "url": "https://www.americanexpress.com/in/credit-cards/", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "kotak-mahindra-bank-cards",
+      "display_name": "Kotak Mahindra Bank Cards",
+      "legal_name": "Kotak Mahindra Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["Kotak Credit Card", "Kotak Cards", "Kotak Bank Credit Card"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "Kotak credit cards", "url": "https://www.kotak.com/en/personal-banking/cards/credit-cards.html", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "idfc-first-bank-cards",
+      "display_name": "IDFC FIRST Bank Cards",
+      "legal_name": "IDFC FIRST Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["IDFC Credit Card", "IDFC FIRST Credit Card", "IDFC Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "IDFC FIRST Bank credit cards", "url": "https://www.idfcfirstbank.com/credit-card", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "rbl-bank-cards",
+      "display_name": "RBL Bank Cards",
+      "legal_name": "RBL Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["RBL Credit Card", "RBL Bank Credit Card", "RBL Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "RBL Bank credit cards", "url": "https://www.rblbank.com/category/credit-cards", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "indusind-bank-cards",
+      "display_name": "IndusInd Bank Cards",
+      "legal_name": "IndusInd Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["IndusInd Credit Card", "IndusInd Bank Credit Card", "IndusInd Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "IndusInd Bank credit cards", "url": "https://www.indusind.com/in/en/personal/cards/credit-card.html", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "yes-bank-cards",
+      "display_name": "YES Bank Cards",
+      "legal_name": "YES Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["YES Credit Card", "YES Bank Credit Card", "YES Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "YES Bank credit cards", "url": "https://www.yesbank.in/personal-banking/yes-individual/cards/credit-cards", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "bank-of-baroda-cards",
+      "display_name": "Bank of Baroda Cards",
+      "legal_name": "BOB Financial Solutions Limited",
+      "category": "credit_card_issuer",
+      "type": "card_company",
+      "aliases": ["BOB Card", "BoB Credit Card", "Bank of Baroda Credit Card"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "BOB Card", "url": "https://www.bobcard.co.in/", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "hsbc-india-cards",
+      "display_name": "HSBC India Cards",
+      "legal_name": "The Hongkong and Shanghai Banking Corporation Limited, India",
+      "category": "credit_card_issuer",
+      "type": "foreign_bank_issuer",
+      "aliases": ["HSBC Credit Card", "HSBC India Credit Card", "HSBC Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "HSBC India credit cards", "url": "https://www.hsbc.co.in/credit-cards/", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "standard-chartered-india-cards",
+      "display_name": "Standard Chartered India Cards",
+      "legal_name": "Standard Chartered Bank, India",
+      "category": "credit_card_issuer",
+      "type": "foreign_bank_issuer",
+      "aliases": ["Standard Chartered Credit Card", "SC Credit Card", "SCB Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "Standard Chartered India credit cards", "url": "https://www.sc.com/in/credit-cards/", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "au-small-finance-bank-cards",
+      "display_name": "AU Small Finance Bank Cards",
+      "legal_name": "AU Small Finance Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["AU Credit Card", "AU Bank Credit Card", "AU Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "AU Bank credit cards", "url": "https://www.aubank.in/personal-banking/credit-cards", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "federal-bank-cards",
+      "display_name": "Federal Bank Cards",
+      "legal_name": "Federal Bank Limited",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["Federal Credit Card", "Federal Bank Credit Card", "Federal Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "Federal Bank credit card", "url": "https://www.federalbank.co.in/credit-card", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "canara-bank-cards",
+      "display_name": "Canara Bank Cards",
+      "legal_name": "Canara Bank",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["Canara Credit Card", "Canara Bank Credit Card", "Canara Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "Canara Bank credit card", "url": "https://canarabank.com/pages/credit-card", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    },
+    {
+      "id": "punjab-national-bank-cards",
+      "display_name": "PNB Cards",
+      "legal_name": "Punjab National Bank",
+      "category": "credit_card_issuer",
+      "type": "bank_issuer",
+      "aliases": ["PNB Credit Card", "Punjab National Bank Credit Card", "PNB Cards"],
+      "sources": [
+        {"source_type": "official", "name": "RBI bank-wise card statistics", "url": "https://www.rbi.org.in/Scripts/ATMView.aspx/ATMView.aspx", "retrieved_at": "2026-05-29"},
+        {"source_type": "provider", "name": "PNB Card", "url": "https://www.pnbcard.in/", "retrieved_at": "2026-05-29"}
+      ],
+      "confidence": "high",
+      "status": "active"
+    }
+  ],
+  "products": [
+    {"id": "hdfc-infinia", "issuer_id": "hdfc-bank-cards", "display_name": "HDFC Bank Infinia", "legal_name": "HDFC Bank Infinia Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["Infinia", "HDFC Infinia"], "sources": [{"source_type": "provider", "name": "HDFC Bank credit cards", "url": "https://www.hdfcbank.com/personal/pay/cards/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "hdfc-diners-club-black", "issuer_id": "hdfc-bank-cards", "display_name": "HDFC Diners Club Black", "legal_name": "HDFC Bank Diners Club Black Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["Diners Club Black", "HDFC DCB", "HDFC Diners Black"], "sources": [{"source_type": "provider", "name": "HDFC Bank credit cards", "url": "https://www.hdfcbank.com/personal/pay/cards/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "hdfc-regalia-gold", "issuer_id": "hdfc-bank-cards", "display_name": "HDFC Regalia Gold", "legal_name": "HDFC Bank Regalia Gold Credit Card", "category": "credit_card_product", "type": "rewards", "aliases": ["Regalia Gold", "HDFC Regalia"], "sources": [{"source_type": "provider", "name": "HDFC Bank credit cards", "url": "https://www.hdfcbank.com/personal/pay/cards/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "hdfc-millennia", "issuer_id": "hdfc-bank-cards", "display_name": "HDFC Millennia", "legal_name": "HDFC Bank Millennia Credit Card", "category": "credit_card_product", "type": "cashback", "aliases": ["Millennia", "HDFC Millennia"], "sources": [{"source_type": "provider", "name": "HDFC Bank credit cards", "url": "https://www.hdfcbank.com/personal/pay/cards/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "hdfc-tata-neu-infinity", "issuer_id": "hdfc-bank-cards", "display_name": "Tata Neu Infinity HDFC", "legal_name": "Tata Neu Infinity HDFC Bank Credit Card", "category": "credit_card_product", "type": "co_branded", "aliases": ["Tata Neu Infinity", "Tata Neu HDFC Infinity"], "sources": [{"source_type": "provider", "name": "HDFC Bank credit cards", "url": "https://www.hdfcbank.com/personal/pay/cards/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "sbi-card-elite", "issuer_id": "sbi-card", "display_name": "SBI Card ELITE", "legal_name": "SBI Card ELITE", "category": "credit_card_product", "type": "premium", "aliases": ["SBI Elite", "SBI Card Elite"], "sources": [{"source_type": "provider", "name": "SBI Card", "url": "https://www.sbicard.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "sbi-card-prime", "issuer_id": "sbi-card", "display_name": "SBI Card PRIME", "legal_name": "SBI Card PRIME", "category": "credit_card_product", "type": "rewards", "aliases": ["SBI Prime", "SBI Card Prime"], "sources": [{"source_type": "provider", "name": "SBI Card", "url": "https://www.sbicard.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "sbi-cashback-card", "issuer_id": "sbi-card", "display_name": "SBI Cashback Card", "legal_name": "SBI Cashback Credit Card", "category": "credit_card_product", "type": "cashback", "aliases": ["SBI Cashback", "Cashback SBI Card"], "sources": [{"source_type": "provider", "name": "SBI Card", "url": "https://www.sbicard.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "sbi-bpcl-octane", "issuer_id": "sbi-card", "display_name": "BPCL SBI Card OCTANE", "legal_name": "BPCL SBI Card OCTANE", "category": "credit_card_product", "type": "fuel", "aliases": ["BPCL Octane", "SBI BPCL Octane"], "sources": [{"source_type": "provider", "name": "SBI Card", "url": "https://www.sbicard.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "icici-amazon-pay", "issuer_id": "icici-bank-cards", "display_name": "Amazon Pay ICICI Bank", "legal_name": "Amazon Pay ICICI Bank Credit Card", "category": "credit_card_product", "type": "co_branded", "aliases": ["Amazon Pay ICICI", "Amazon ICICI Card"], "sources": [{"source_type": "provider", "name": "ICICI Bank credit cards", "url": "https://www.icicibank.com/personal-banking/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "icici-sapphiro", "issuer_id": "icici-bank-cards", "display_name": "ICICI Sapphiro", "legal_name": "ICICI Bank Sapphiro Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["Sapphiro", "ICICI Sapphiro"], "sources": [{"source_type": "provider", "name": "ICICI Bank credit cards", "url": "https://www.icicibank.com/personal-banking/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "icici-coral", "issuer_id": "icici-bank-cards", "display_name": "ICICI Coral", "legal_name": "ICICI Bank Coral Credit Card", "category": "credit_card_product", "type": "rewards", "aliases": ["Coral", "ICICI Coral"], "sources": [{"source_type": "provider", "name": "ICICI Bank credit cards", "url": "https://www.icicibank.com/personal-banking/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "icici-rubyx", "issuer_id": "icici-bank-cards", "display_name": "ICICI Rubyx", "legal_name": "ICICI Bank Rubyx Credit Card", "category": "credit_card_product", "type": "rewards", "aliases": ["Rubyx", "ICICI Rubyx"], "sources": [{"source_type": "provider", "name": "ICICI Bank credit cards", "url": "https://www.icicibank.com/personal-banking/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "axis-magnus", "issuer_id": "axis-bank-cards", "display_name": "Axis Bank Magnus", "legal_name": "Axis Bank Magnus Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["Magnus", "Axis Magnus"], "sources": [{"source_type": "provider", "name": "Axis Bank credit cards", "url": "https://www.axisbank.com/retail/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "axis-atlas", "issuer_id": "axis-bank-cards", "display_name": "Axis Bank Atlas", "legal_name": "Axis Bank Atlas Credit Card", "category": "credit_card_product", "type": "travel", "aliases": ["Atlas", "Axis Atlas"], "sources": [{"source_type": "provider", "name": "Axis Bank credit cards", "url": "https://www.axisbank.com/retail/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "axis-ace", "issuer_id": "axis-bank-cards", "display_name": "Axis Bank ACE", "legal_name": "Axis Bank ACE Credit Card", "category": "credit_card_product", "type": "cashback", "aliases": ["ACE", "Axis ACE"], "sources": [{"source_type": "provider", "name": "Axis Bank credit cards", "url": "https://www.axisbank.com/retail/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "axis-neo", "issuer_id": "axis-bank-cards", "display_name": "Axis Bank Neo", "legal_name": "Axis Bank Neo Credit Card", "category": "credit_card_product", "type": "entry", "aliases": ["Neo", "Axis Neo"], "sources": [{"source_type": "provider", "name": "Axis Bank credit cards", "url": "https://www.axisbank.com/retail/cards/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "amex-platinum-travel", "issuer_id": "american-express-india-cards", "display_name": "American Express Platinum Travel", "legal_name": "American Express Platinum Travel Credit Card", "category": "credit_card_product", "type": "travel", "aliases": ["Amex Platinum Travel", "Platinum Travel"], "sources": [{"source_type": "provider", "name": "American Express India cards", "url": "https://www.americanexpress.com/in/credit-cards/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "amex-membership-rewards", "issuer_id": "american-express-india-cards", "display_name": "American Express Membership Rewards", "legal_name": "American Express Membership Rewards Credit Card", "category": "credit_card_product", "type": "rewards", "aliases": ["Amex MRCC", "Membership Rewards Card"], "sources": [{"source_type": "provider", "name": "American Express India cards", "url": "https://www.americanexpress.com/in/credit-cards/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "amex-platinum-charge", "issuer_id": "american-express-india-cards", "display_name": "American Express Platinum Card", "legal_name": "American Express Platinum Card", "category": "credit_card_product", "type": "charge_card", "aliases": ["Amex Platinum", "Platinum Charge"], "sources": [{"source_type": "provider", "name": "American Express India cards", "url": "https://www.americanexpress.com/in/credit-cards/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "kotak-white", "issuer_id": "kotak-mahindra-bank-cards", "display_name": "Kotak White", "legal_name": "Kotak White Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["Kotak White"], "sources": [{"source_type": "provider", "name": "Kotak credit cards", "url": "https://www.kotak.com/en/personal-banking/cards/credit-cards.html", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "kotak-myntra", "issuer_id": "kotak-mahindra-bank-cards", "display_name": "Myntra Kotak", "legal_name": "Myntra Kotak Credit Card", "category": "credit_card_product", "type": "co_branded", "aliases": ["Myntra Kotak", "Kotak Myntra"], "sources": [{"source_type": "provider", "name": "Kotak credit cards", "url": "https://www.kotak.com/en/personal-banking/cards/credit-cards.html", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "idfc-first-wealth", "issuer_id": "idfc-first-bank-cards", "display_name": "IDFC FIRST Wealth", "legal_name": "IDFC FIRST Wealth Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["IDFC Wealth", "IDFC FIRST Wealth"], "sources": [{"source_type": "provider", "name": "IDFC FIRST Bank credit cards", "url": "https://www.idfcfirstbank.com/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "idfc-first-select", "issuer_id": "idfc-first-bank-cards", "display_name": "IDFC FIRST Select", "legal_name": "IDFC FIRST Select Credit Card", "category": "credit_card_product", "type": "rewards", "aliases": ["IDFC Select", "IDFC FIRST Select"], "sources": [{"source_type": "provider", "name": "IDFC FIRST Bank credit cards", "url": "https://www.idfcfirstbank.com/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "rbl-world-safari", "issuer_id": "rbl-bank-cards", "display_name": "RBL World Safari", "legal_name": "RBL Bank World Safari Credit Card", "category": "credit_card_product", "type": "travel", "aliases": ["World Safari", "RBL World Safari"], "sources": [{"source_type": "provider", "name": "RBL Bank credit cards", "url": "https://www.rblbank.com/category/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "indusind-legend", "issuer_id": "indusind-bank-cards", "display_name": "IndusInd Legend", "legal_name": "IndusInd Bank Legend Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["IndusInd Legend", "Legend Card"], "sources": [{"source_type": "provider", "name": "IndusInd Bank credit cards", "url": "https://www.indusind.com/in/en/personal/cards/credit-card.html", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "yes-marquee", "issuer_id": "yes-bank-cards", "display_name": "YES Marquee", "legal_name": "YES Bank Marquee Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["YES Marquee", "Marquee Card"], "sources": [{"source_type": "provider", "name": "YES Bank credit cards", "url": "https://www.yesbank.in/personal-banking/yes-individual/cards/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "bob-eterna", "issuer_id": "bank-of-baroda-cards", "display_name": "BOB Eterna", "legal_name": "BOB Eterna Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["Eterna", "BOB Eterna"], "sources": [{"source_type": "provider", "name": "BOB Card", "url": "https://www.bobcard.co.in/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "hsbc-live-plus", "issuer_id": "hsbc-india-cards", "display_name": "HSBC Live+", "legal_name": "HSBC Live+ Credit Card", "category": "credit_card_product", "type": "cashback", "aliases": ["HSBC Live Plus", "Live+"], "sources": [{"source_type": "provider", "name": "HSBC India credit cards", "url": "https://www.hsbc.co.in/credit-cards/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "standard-chartered-ultimate", "issuer_id": "standard-chartered-india-cards", "display_name": "Standard Chartered Ultimate", "legal_name": "Standard Chartered Ultimate Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["SC Ultimate", "Standard Chartered Ultimate"], "sources": [{"source_type": "provider", "name": "Standard Chartered India credit cards", "url": "https://www.sc.com/in/credit-cards/", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "au-zenith-plus", "issuer_id": "au-small-finance-bank-cards", "display_name": "AU Zenith+", "legal_name": "AU Zenith+ Credit Card", "category": "credit_card_product", "type": "premium", "aliases": ["AU Zenith Plus", "Zenith+"], "sources": [{"source_type": "provider", "name": "AU Bank credit cards", "url": "https://www.aubank.in/personal-banking/credit-cards", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"},
+    {"id": "federal-signet", "issuer_id": "federal-bank-cards", "display_name": "Federal Bank Signet", "legal_name": "Federal Bank Signet Credit Card", "category": "credit_card_product", "type": "rewards", "aliases": ["Federal Signet", "Signet"], "sources": [{"source_type": "provider", "name": "Federal Bank credit card", "url": "https://www.federalbank.co.in/credit-card", "retrieved_at": "2026-05-29"}], "confidence": "medium", "status": "active"}
+  ]
+}

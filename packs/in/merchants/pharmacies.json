@@ -1,0 +1,15 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.05.29",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-05-29",
+  "category": "expenses.health.pharmacy",
+  "merchants": [
+    {"id": "tata-1mg", "display_name": "Tata 1mg", "legal_name": "Tata 1mg Healthcare Solutions Private Limited", "category": "merchant", "type": "pharmacy", "aliases": ["1mg", "Tata 1mg", "Tata1mg"], "sources": [{"source_type": "provider", "name": "Tata 1mg", "url": "https://www.1mg.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "pharmeasy", "display_name": "PharmEasy", "legal_name": "API Holdings Limited", "category": "merchant", "type": "pharmacy", "aliases": ["PharmEasy", "Pharmeasy", "API Holdings"], "sources": [{"source_type": "provider", "name": "PharmEasy", "url": "https://pharmeasy.in/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "apollo-247", "display_name": "Apollo 24|7", "legal_name": "Apollo HealthCo Limited", "category": "merchant", "type": "pharmacy", "aliases": ["Apollo 24/7", "Apollo 247", "Apollo Pharmacy", "Apollo HealthCo"], "sources": [{"source_type": "provider", "name": "Apollo 24|7", "url": "https://www.apollo247.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "netmeds", "display_name": "Netmeds", "legal_name": "Reliance Retail Limited", "category": "merchant", "type": "pharmacy", "aliases": ["Netmeds", "Netmeds.com"], "sources": [{"source_type": "provider", "name": "Netmeds", "url": "https://www.netmeds.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"},
+    {"id": "medplus", "display_name": "MedPlus", "legal_name": "MedPlus Health Services Limited", "category": "merchant", "type": "pharmacy", "aliases": ["MedPlus", "MedPlus Mart"], "sources": [{"source_type": "provider", "name": "MedPlus", "url": "https://www.medplusmart.com/", "retrieved_at": "2026-05-29"}], "confidence": "high", "status": "active"}
+  ]
+}
