@@ -21,6 +21,13 @@ const sources = [
     parser: "link-list"
   },
   {
+    id: "sahamati-aa-participants",
+    label: "Sahamati FIP/FIU participants in the Account Aggregator ecosystem",
+    url: "https://sahamati.org.in/fip-fiu-in-account-aggregators-ecosystem/",
+    kind: "account-aggregator-participants",
+    parser: "sahamati-aa-table"
+  },
+  {
     id: "sebi-stock-brokers",
     label: "SEBI registered stock brokers",
     url: "https://www.sebi.gov.in/sebiweb/other/OtherAction.do?doRecognisedFpi=yes&intmId=30",
@@ -186,12 +193,38 @@ function extractSebiRows(html) {
   return rows.slice(0, 500);
 }
 
+function extractSahamatiParticipants(html) {
+  const rows = [];
+  const table = html.match(/<table\b[^>]*id=["']tablepress-35["'][^>]*>[\s\S]*?<\/table>/i)?.[0] ?? html;
+  for (const rowMatch of table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...rowMatch[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)]
+      .map((cellMatch) => compactText(cellMatch[1]).replace(/\s+/g, " ").trim());
+    if (cells.length < 8) continue;
+    const serialNumber = Number(cells[0].replace(/\D/g, ""));
+    if (!Number.isFinite(serialNumber) || serialNumber <= 0) continue;
+    rows.push({
+      serial_number: serialNumber,
+      organisation_name: cells[1],
+      member_type: cells[2],
+      category: cells[3],
+      regulator: cells[4],
+      aa_implementation_stage: cells[5],
+      fip_implementation_stage: cells[6],
+      fiu_implementation_stage: cells[7]
+    });
+  }
+  return rows;
+}
+
 function parseSnapshot(source, html) {
   if (source.parser === "bank-list") {
     return extractBankList(html);
   }
   if (source.parser === "sebi-rows") {
     return extractSebiRows(html);
+  }
+  if (source.parser === "sahamati-aa-table") {
+    return extractSahamatiParticipants(html);
   }
   return extractLinks(html);
 }
@@ -215,12 +248,13 @@ async function readCurrentPackSummary() {
     "packs/in/brokers.json",
     "packs/in/investment-platforms.json",
     "packs/in/lenders.json",
-    "packs/in/insurers.json"
+    "packs/in/insurers.json",
+    "packs/in/account-aggregator-participants.json"
   ];
   const summary = {};
   for (const file of files) {
     const doc = JSON.parse(await readFile(path.join(repoRoot, file), "utf8"));
-    const rows = doc.providers ?? doc.issuers ?? [];
+    const rows = doc.providers ?? doc.issuers ?? doc.participants ?? [];
     summary[file] = rows.map((row) => row.id).sort();
   }
   return summary;

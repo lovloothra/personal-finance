@@ -185,6 +185,54 @@ function validateGmailTemplates(doc, knownProviderIds, errors) {
   }
 }
 
+function validateAccountAggregatorParticipants(doc, knownProviderIds, errors) {
+  const relativePath = "packs/in/account-aggregator-participants.json";
+  validateMetadata(doc, relativePath, errors);
+  if (doc.coverage !== "sahamati_aa_ecosystem_seed") {
+    errors.push(`${relativePath}: coverage must be sahamati_aa_ecosystem_seed`);
+  }
+  if (!Array.isArray(doc.participants) || doc.participants.length === 0) {
+    errors.push(`${relativePath}: participants must be a non-empty array`);
+    return;
+  }
+
+  const participantIds = new Set();
+  const memberTypes = new Set(["FIP", "FIU", "FIP/FIU"]);
+  const regulators = new Set(["RBI", "SEBI", "IRDAI", "PFRDA"]);
+  const stages = new Set(["Live", "Live-enabled", "Testing", "In-Development", "Under-Evaluation", "Evaluating", "NA", "N/A"]);
+  for (const participant of doc.participants) {
+    const label = `${relativePath}:${participant?.id ?? "unknown"}`;
+    validateSeedRow(participant, label, errors);
+    if (participantIds.has(participant.id)) {
+      errors.push(`${label}: duplicate participant id`);
+    }
+    participantIds.add(participant.id);
+    if (!memberTypes.has(participant.member_type)) {
+      errors.push(`${label}: invalid member_type ${participant.member_type}`);
+    }
+    if (!regulators.has(participant.regulator)) {
+      errors.push(`${label}: invalid regulator ${participant.regulator}`);
+    }
+    for (const field of ["aa_implementation_stage", "fip_implementation_stage", "fiu_implementation_stage"]) {
+      if (!stages.has(participant[field])) {
+        errors.push(`${label}: invalid ${field} ${participant[field]}`);
+      }
+    }
+    if (!Array.isArray(participant.provider_ids) || participant.provider_ids.some((id) => typeof id !== "string")) {
+      errors.push(`${label}: provider_ids must be an array of strings`);
+    } else {
+      for (const providerId of participant.provider_ids) {
+        if (!knownProviderIds.has(providerId)) {
+          errors.push(`${label}: unknown provider_id ${providerId}`);
+        }
+      }
+    }
+    if (!participant.sources?.some((source) => source.source_type === "official")) {
+      errors.push(`${label}: account aggregator participant must include an official source`);
+    }
+  }
+}
+
 async function validateMerchants(errors) {
   const merchantDir = "packs/in/merchants";
   let files = [];
@@ -288,6 +336,11 @@ export async function validatePack() {
   const gmailTemplates = await readJson("packs/in/gmail-templates.json", errors);
   if (gmailTemplates) {
     validateGmailTemplates(gmailTemplates, providerIds, errors);
+  }
+
+  const accountAggregatorParticipants = await readJson("packs/in/account-aggregator-participants.json", errors);
+  if (accountAggregatorParticipants) {
+    validateAccountAggregatorParticipants(accountAggregatorParticipants, providerIds, errors);
   }
 
   await validateMerchants(errors);

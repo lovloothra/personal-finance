@@ -94,6 +94,51 @@ test("credit-card products include common co-branded and newer Indian cards", as
   }
 });
 
+test("IDFC FIRST credit-card catalog includes its main product family", async () => {
+  const doc = await readJson("packs/in/credit-cards.json");
+  const idfcProducts = doc.products
+    .filter((product) => product.issuer_id === "idfc-first-bank-cards")
+    .map((product) => product.id);
+  const productIds = new Set(idfcProducts);
+  const expectedIds = [
+    "idfc-first-classic",
+    "idfc-first-millennia",
+    "idfc-first-select",
+    "idfc-first-wealth",
+    "idfc-first-wow",
+    "idfc-first-mayura",
+    "idfc-first-ashva",
+    "idfc-first-swyp",
+    "idfc-first-power",
+    "idfc-first-power-plus",
+    "idfc-first-lic-classic",
+    "idfc-first-lic-select",
+    "idfc-first-earn",
+    "idfc-first-hello-cashback",
+    "idfc-first-wow-black",
+    "idfc-first-digital",
+    "idfc-first-indigo-dual",
+    "idfc-first-diamond-reserve",
+    "idfc-first-private"
+  ];
+
+  assert.ok(idfcProducts.length >= expectedIds.length, "IDFC FIRST should not be represented by only a couple of cards");
+  for (const id of expectedIds) {
+    assert.ok(productIds.has(id), `missing IDFC FIRST product ${id}`);
+  }
+});
+
+test("Sahamati AA ecosystem seed and refresh source include banks and NBFCs", async () => {
+  const doc = await readJson("packs/in/account-aggregator-participants.json");
+  const participantIds = new Set(doc.participants.map((participant) => participant.id));
+
+  assert.equal(doc.coverage, "sahamati_aa_ecosystem_seed");
+  assert.ok(participantIds.has("aa-idfc-first-bank"));
+  assert.ok(participantIds.has("aa-bajaj-finance"));
+  assert.ok(doc.participants.some((participant) => participant.category.includes("NBFC")));
+  assert.ok(doc.participants.every((participant) => participant.sources.some((source) => source.url === "https://sahamati.org.in/fip-fiu-in-account-aggregators-ecosystem/")));
+});
+
 test("merchant seed files are marked aggregator-expanded and have confidence labels", async () => {
   const merchantFiles = [
     "packs/in/merchants/ai-tools.json",
@@ -155,6 +200,7 @@ test("refresh script can list source-backed inputs without network access", () =
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   const listed = JSON.parse(result.stdout);
   assert.ok(listed.some((source) => source.id === "rbi-scheduled-banks"));
+  assert.ok(listed.some((source) => source.id === "sahamati-aa-participants"));
   assert.ok(listed.some((source) => source.id === "sebi-stock-brokers"));
   assert.ok(listed.some((source) => source.id === "irdai-life-insurers"));
   assert.ok(listed.every((source) => source.url.startsWith("https://")));
