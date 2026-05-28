@@ -81,49 +81,6 @@
         }
       },
       "additionalProperties": true
-    },
-    "accountAggregatorParticipant": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/seedRow"
-        },
-        {
-          "type": "object",
-          "required": [
-            "member_type",
-            "regulator",
-            "aa_implementation_stage",
-            "fip_implementation_stage",
-            "fiu_implementation_stage",
-            "provider_ids"
-          ],
-          "properties": {
-            "member_type": {
-              "enum": ["FIP", "FIU", "FIP/FIU"]
-            },
-            "regulator": {
-              "enum": ["RBI", "SEBI", "IRDAI", "PFRDA"]
-            },
-            "aa_implementation_stage": {
-              "type": "string"
-            },
-            "fip_implementation_stage": {
-              "type": "string"
-            },
-            "fiu_implementation_stage": {
-              "type": "string"
-            },
-            "provider_ids": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-              }
-            }
-          },
-          "additionalProperties": true
-        }
-      ]
     }
   }
 }

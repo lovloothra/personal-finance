@@ -128,15 +128,11 @@ test("IDFC FIRST credit-card catalog includes its main product family", async ()
   }
 });
 
-test("Sahamati AA ecosystem seed and refresh source include banks and NBFCs", async () => {
-  const doc = await readJson("packs/in/account-aggregator-participants.json");
-  const participantIds = new Set(doc.participants.map((participant) => participant.id));
-
-  assert.equal(doc.coverage, "sahamati_aa_ecosystem_seed");
-  assert.ok(participantIds.has("aa-idfc-first-bank"));
-  assert.ok(participantIds.has("aa-bajaj-finance"));
-  assert.ok(doc.participants.some((participant) => participant.category.includes("NBFC")));
-  assert.ok(doc.participants.every((participant) => participant.sources.some((source) => source.url === "https://sahamati.org.in/fip-fiu-in-account-aggregators-ecosystem/")));
+test("Sahamati is a refresh-time coverage proxy, not a runtime pack group", async () => {
+  await assert.rejects(
+    () => readJson("packs/in/account-aggregator-participants.json"),
+    /ENOENT/
+  );
 });
 
 test("merchant seed files are marked aggregator-expanded and have confidence labels", async () => {
@@ -200,7 +196,10 @@ test("refresh script can list source-backed inputs without network access", () =
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   const listed = JSON.parse(result.stdout);
   assert.ok(listed.some((source) => source.id === "rbi-scheduled-banks"));
-  assert.ok(listed.some((source) => source.id === "sahamati-aa-participants"));
+  const sahamatiSource = listed.find((source) => source.id === "sahamati-entity-coverage-proxy");
+  assert.ok(sahamatiSource);
+  assert.equal(sahamatiSource.kind, "coverage-proxy");
+  assert.ok(!listed.some((source) => source.kind === "account-aggregator-participants"));
   assert.ok(listed.some((source) => source.id === "sebi-stock-brokers"));
   assert.ok(listed.some((source) => source.id === "irdai-life-insurers"));
   assert.ok(listed.every((source) => source.url.startsWith("https://")));

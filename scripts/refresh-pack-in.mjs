@@ -21,11 +21,11 @@ const sources = [
     parser: "link-list"
   },
   {
-    id: "sahamati-aa-participants",
-    label: "Sahamati FIP/FIU participants in the Account Aggregator ecosystem",
+    id: "sahamati-entity-coverage-proxy",
+    label: "Sahamati AA ecosystem page as a coverage proxy for missing regulated entities",
     url: "https://sahamati.org.in/fip-fiu-in-account-aggregators-ecosystem/",
-    kind: "account-aggregator-participants",
-    parser: "sahamati-aa-table"
+    kind: "coverage-proxy",
+    parser: "sahamati-ecosystem-table"
   },
   {
     id: "sebi-stock-brokers",
@@ -193,7 +193,7 @@ function extractSebiRows(html) {
   return rows.slice(0, 500);
 }
 
-function extractSahamatiParticipants(html) {
+function extractSahamatiCoverageCandidates(html) {
   const rows = [];
   const table = html.match(/<table\b[^>]*id=["']tablepress-35["'][^>]*>[\s\S]*?<\/table>/i)?.[0] ?? html;
   for (const rowMatch of table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
@@ -223,8 +223,8 @@ function parseSnapshot(source, html) {
   if (source.parser === "sebi-rows") {
     return extractSebiRows(html);
   }
-  if (source.parser === "sahamati-aa-table") {
-    return extractSahamatiParticipants(html);
+  if (source.parser === "sahamati-ecosystem-table") {
+    return extractSahamatiCoverageCandidates(html);
   }
   return extractLinks(html);
 }
@@ -248,13 +248,12 @@ async function readCurrentPackSummary() {
     "packs/in/brokers.json",
     "packs/in/investment-platforms.json",
     "packs/in/lenders.json",
-    "packs/in/insurers.json",
-    "packs/in/account-aggregator-participants.json"
+    "packs/in/insurers.json"
   ];
   const summary = {};
   for (const file of files) {
     const doc = JSON.parse(await readFile(path.join(repoRoot, file), "utf8"));
-    const rows = doc.providers ?? doc.issuers ?? doc.participants ?? [];
+    const rows = doc.providers ?? doc.issuers ?? [];
     summary[file] = rows.map((row) => row.id).sort();
   }
   return summary;
