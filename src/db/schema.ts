@@ -239,6 +239,20 @@ export const gmailRuns = sqliteTable('gmail_runs', {
   error: text('error'),
 });
 
+/**
+ * Gmail OAuth token store. A single row holds the libsodium-sealed OAuth token
+ * JSON (access + refresh + expiry), wrapped under the keychain passphrase. The
+ * sealed blob is useless without both the SQLCipher key and the passphrase.
+ */
+export const gmailAuth = sqliteTable('gmail_auth', {
+  id: text('id').primaryKey().default('default'),
+  wrappedToken: text('wrapped_token').notNull(),
+  email: text('email'),
+  scope: text('scope'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const gmailMessages = sqliteTable(
   'gmail_messages',
   {

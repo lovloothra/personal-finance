@@ -11,19 +11,25 @@
     "validate:packs": "node tools/validate-pack-in.mjs",
     "refresh:packs:in": "node scripts/refresh-pack-in.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:load-packs": "tsx --conditions=react-server scripts/load-packs.ts"
+    "db:load-packs": "tsx --conditions=react-server scripts/load-packs.ts",
+    "profile:seed": "tsx --conditions=react-server scripts/profile-seed.ts",
+    "gmail:auth": "tsx --conditions=react-server scripts/gmail-auth.ts",
+    "gmail:fetch": "tsx --conditions=react-server scripts/gmail-fetch.ts"
   },
   "dependencies": {
     "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.10.0",
     "better-sqlite3-multiple-ciphers": "^12.10.0",
     "drizzle-orm": "^0.45.2",
+    "googleapis": "^173.0.0",
     "keytar": "^7.9.0",
     "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^0.469.0",
     "next": "^16.2.6",
+    "pdfjs-dist": "^6.0.227",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "server-only": "^0.0.1",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -27,6 +27,23 @@ Then open <http://127.0.0.1:3000>.
 - `npm run refresh:packs:in` — refresh India institution seeds from upstream sources
 - `npm run db:generate` — generate Drizzle SQL migrations from the schema
 - `npm run db:load-packs` — load India pack seeds into the encrypted local DB
+- `npm run profile:seed` — load `secrets/profile.local.json` into the encrypted DB
+- `npm run gmail:auth` — authorize read-only Gmail via your Desktop OAuth client
+- `npm run gmail:fetch -- --fy=2025-26 [--all] [--yes]` — fetch + download statements for a financial year
+
+## Connect your data (local, read-only)
+
+1. **Load the institution packs:** `npm run db:load-packs`
+2. **Create your profile:** copy `secrets/profile.example.json` → `secrets/profile.local.json`, fill in your
+   details (names, DOB, PAN, banks/cards/brokers with their pack `institutionId`s), then `npm run profile:seed`.
+   The profile drives salary/rent/EMI detection, Gmail query scoping, and locked-PDF password candidates.
+3. **Add your Google OAuth client:** create a *Desktop app* OAuth client in Google Cloud Console, enable the
+   Gmail API, add yourself as a test user, download the JSON to `secrets/google-oauth-client.json`, then
+   `npm run gmail:auth`. Only the `gmail.readonly` scope is requested; tokens are sealed in the encrypted DB.
+4. **Fetch a year:** `npm run gmail:fetch -- --fy=2025-26`. A metadata pass estimates size; downloads over 1 GB
+   require `--yes`. Attachments land in the gitignored `./attachments` with SHA-256 dedupe.
+5. **(Optional) install qpdf** to unlock password-protected statements: `brew install qpdf`
+   (macOS) / `sudo apt install qpdf` (Debian/Ubuntu).
 
 ## Privacy guarantees
 
@@ -45,19 +62,24 @@ Then open <http://127.0.0.1:3000>.
 - `src/packs/` — country-pack loader (packs → `institutions` + `merchant_aliases`)
 - `src/classifier/` — deterministic 7-layer transaction classifier (pure, golden-tested)
 - `src/tax/` — India FY 2025-26 / 2026-27 regime comparison, deductions, slabs (golden-tested)
-- `src/gmail/` — read-only Gmail query builder (consumes `gmail-templates.json`)
+- `src/gmail/` — read-only Gmail OAuth, query builder, fetcher, consent gate
+- `src/pdf/` — password candidates, qpdf unlock, pdf.js text extraction, tesseract OCR
+- `src/parsers/` — provider-dispatched statement parsers (balance-delta debit/credit inference)
+- `src/profile/` — profile seed schema, DB loader, and classifier/query/password signal adapters
 - `src/ledger/` — financial-year date utilities and rollups
 - `packs/in/` — India institution seeds (banks, credit cards, brokers, insurers, lenders, merchants)
 - `schemas/`, `tools/`, `scripts/`, `tests/` — pack schema, validator, refresh/load scripts, and tests
 
 ## Status
 
-v0.2 — the workbench UI runs against fixture data; the local-first core is being built underneath it:
+v0.3 — the workbench UI runs against fixture data; the local-first ingestion + logic core is in place:
 
 - **Done:** encrypted SQLite (SQLCipher) + keychain unlock + Drizzle schema/migrations; pack loader
   (218 institutions, 121 merchant aliases); deterministic 7-layer classifier; India tax module
-  (both regimes, 87A + marginal relief, surcharge, cess); FY utilities; read-only Gmail query builder.
-- **Next:** Gmail OAuth + fetcher, PDF unlock/extract/OCR pipeline, India provider parsers, onboarding
-  route group, and wiring the dashboard selectors to the DB.
+  (both regimes, 87A + marginal relief, surcharge, cess); FY utilities; read-only Gmail OAuth + query
+  builder + fetcher (SHA-256 dedupe, consent gate); PDF pipeline (password candidates, qpdf unlock,
+  pdf.js extraction, OCR); provider statement parsers; profile seed + signals.
+- **Next:** onboarding route group, the import SSE progress route, and wiring the dashboard selectors to
+  the DB (replacing fixtures), plus the Settings danger zone (passphrase rotation, backup, wipe).
 
 See `/Users/lovloothra/.claude/plans/` for the approved implementation plan.
