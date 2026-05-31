@@ -53,15 +53,17 @@ export async function POST(req: Request): Promise<Response> {
   try {
     assertSameOrigin(req);
     const body = (await req.json()) as EssentialsPayload;
-    if (!body.fullName?.trim()) return badRequest('Your name is required.');
 
-    const patch: Partial<ProfileSeed> = {
-      personal: {
-        fullName: body.fullName.trim(),
-        pan: body.pan?.trim() || undefined,
-        dob: body.dob?.trim() || undefined,
-      },
-    };
+    // Build a patch from only the fields the user actually provided. Blank
+    // fields are omitted so the existing saved value is preserved on merge;
+    // overall validity (name required) is enforced by writeProfileSeed's schema.
+    const patch: Partial<ProfileSeed> = {};
+    const personal: Record<string, string> = {};
+    if (body.fullName?.trim()) personal.fullName = body.fullName.trim();
+    if (body.pan?.trim()) personal.pan = body.pan.trim().toUpperCase();
+    if (body.dob?.trim()) personal.dob = body.dob.trim();
+    if (Object.keys(personal).length) patch.personal = personal as ProfileSeed['personal'];
+
     if (body.employer?.trim()) {
       patch.employer = { name: body.employer.trim(), aliases: [body.employer.trim().toLowerCase()] };
     }

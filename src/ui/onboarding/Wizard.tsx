@@ -77,13 +77,39 @@ function Welcome({ onNext }: { onNext: () => void }) {
 
 // --- Step 1: Essentials ----------------------------------------------------
 
+interface Hints {
+  fullName: string;
+  pan: string;
+  dob: string;
+  employer: string;
+  bankLabel: string;
+  bankLast4: string;
+  cardLabel: string;
+  cardLast4: string;
+}
+const EXAMPLE: Hints = {
+  fullName: 'e.g. Lov Loothra',
+  pan: 'e.g. ABCDE1234F',
+  dob: '',
+  employer: 'e.g. Nexora Systems',
+  bankLabel: 'e.g. HDFC Bank',
+  bankLast4: 'e.g. 4821',
+  cardLabel: 'e.g. HDFC Bank Cards',
+  cardLast4: 'e.g. 7702',
+};
+
 function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  // Inputs stay EMPTY; saved/example values show as placeholders (hints) so the
+  // user can just continue. Blank fields are omitted on save and the existing
+  // saved value (if any) is preserved server-side.
   const [fullName, setFullName] = useState('');
   const [pan, setPan] = useState('');
   const [dob, setDob] = useState('');
   const [employer, setEmployer] = useState('');
-  const [bank, setBank] = useState<{ id: string; last4: string; label: string }>({ id: '', last4: '', label: '' });
-  const [card, setCard] = useState<{ id: string; last4: string; label: string }>({ id: '', last4: '', label: '' });
+  const [bank, setBank] = useState<{ id: string; last4: string }>({ id: '', last4: '' });
+  const [card, setCard] = useState<{ id: string; last4: string }>({ id: '', last4: '' });
+  const [hint, setHint] = useState<Hints>(EXAMPLE);
+  const [hasSaved, setHasSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,12 +117,17 @@ function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void
     fetch('/api/profile')
       .then((r) => r.json())
       .then((p) => {
-        setFullName(p.fullName ?? '');
-        setPan(p.pan ?? '');
-        setDob(p.dob ?? '');
-        setEmployer(p.employer ?? '');
-        setBank({ id: p.primaryBankId ?? '', last4: p.primaryBankLast4 ?? '', label: p.primaryBankLabel ?? '' });
-        setCard({ id: p.creditCardId ?? '', last4: p.creditCardLast4 ?? '', label: p.creditCardLabel ?? '' });
+        if (p.fullName) setHasSaved(true);
+        setHint({
+          fullName: p.fullName || EXAMPLE.fullName,
+          pan: p.pan || EXAMPLE.pan,
+          dob: p.dob || '',
+          employer: p.employer || EXAMPLE.employer,
+          bankLabel: p.primaryBankLabel || EXAMPLE.bankLabel,
+          bankLast4: p.primaryBankLast4 || EXAMPLE.bankLast4,
+          cardLabel: p.creditCardLabel || EXAMPLE.cardLabel,
+          cardLast4: p.creditCardLast4 || EXAMPLE.cardLast4,
+        });
       })
       .catch(() => {});
   }, []);
@@ -104,19 +135,20 @@ function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void
   const save = async () => {
     setSaving(true);
     setError(null);
+    const v = (s: string) => (s.trim() ? s.trim() : undefined);
     try {
       const res = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          fullName,
-          pan,
-          dob,
-          employer,
-          primaryBankId: bank.id,
-          primaryBankLast4: bank.last4,
-          creditCardId: card.id,
-          creditCardLast4: card.last4,
+          fullName: v(fullName),
+          pan: v(pan),
+          dob: v(dob),
+          employer: v(employer),
+          primaryBankId: bank.id || undefined,
+          primaryBankLast4: v(bank.last4),
+          creditCardId: card.id || undefined,
+          creditCardLast4: v(card.last4),
         }),
       });
       const data = await res.json();
@@ -128,6 +160,9 @@ function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void
       setSaving(false);
     }
   };
+
+  // Can continue if a name is already saved or the user typed one.
+  const canContinue = hasSaved || fullName.trim().length > 0;
 
   return (
     <>
@@ -141,27 +176,27 @@ function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void
         </div>
       </div>
       <p className="lead" style={{ fontSize: 14, marginBottom: 20 }}>
-        Just enough to recognise your salary, rent, and statements. You can fill in the rest later.
+        Just enough to recognise your salary, rent, and statements. {hasSaved ? 'These are already on file — edit any to change, or just continue.' : 'You can fill in the rest later.'}
       </p>
 
       <div className="field">
         <label>Your name</label>
-        <input className="inp" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Aditya Iyer" />
+        <input className="inp" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={hint.fullName} />
       </div>
       <div className="row2">
         <div className="field">
           <label>PAN</label>
-          <input className="inp" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="ABCDE1234F" />
+          <input className="inp" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder={hint.pan} />
           <div className="hint">Used only to derive statement passwords, on-device.</div>
         </div>
         <div className="field">
-          <label>Date of birth</label>
+          <label>Date of birth{hint.dob ? ` · on file: ${hint.dob}` : ''}</label>
           <input className="inp" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
         </div>
       </div>
       <div className="field">
         <label>Employer</label>
-        <input className="inp" value={employer} onChange={(e) => setEmployer(e.target.value)} placeholder="Nexora Systems Pvt Ltd" />
+        <input className="inp" value={employer} onChange={(e) => setEmployer(e.target.value)} placeholder={hint.employer} />
         <div className="hint">Lets us spot your salary credits.</div>
       </div>
       <div className="row2">
@@ -169,15 +204,13 @@ function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void
           <label>Primary bank</label>
           <InstitutionPicker
             category="bank"
-            placeholder="Search banks…"
-            value={bank.id}
-            valueLabel={bank.label}
-            onSelect={(inst) => setBank((b) => ({ ...b, id: inst?.id ?? '', label: inst?.displayName ?? '' }))}
+            placeholder={hint.bankLabel}
+            onSelect={(inst) => setBank((b) => ({ ...b, id: inst?.id ?? '' }))}
           />
         </div>
         <div className="field">
           <label>Bank a/c last 4</label>
-          <input className="inp" value={bank.last4} maxLength={4} onChange={(e) => setBank((b) => ({ ...b, last4: e.target.value.replace(/\D/g, '') }))} placeholder="4821" />
+          <input className="inp" value={bank.last4} maxLength={4} onChange={(e) => setBank((b) => ({ ...b, last4: e.target.value.replace(/\D/g, '') }))} placeholder={hint.bankLast4} />
         </div>
       </div>
       <div className="row2">
@@ -185,15 +218,13 @@ function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void
           <label>Credit card issuer</label>
           <InstitutionPicker
             category="credit_card_issuer"
-            placeholder="Search card issuers…"
-            value={card.id}
-            valueLabel={card.label}
-            onSelect={(inst) => setCard((c) => ({ ...c, id: inst?.id ?? '', label: inst?.displayName ?? '' }))}
+            placeholder={hint.cardLabel}
+            onSelect={(inst) => setCard((c) => ({ ...c, id: inst?.id ?? '' }))}
           />
         </div>
         <div className="field">
           <label>Card last 4</label>
-          <input className="inp" value={card.last4} maxLength={4} onChange={(e) => setCard((c) => ({ ...c, last4: e.target.value.replace(/\D/g, '') }))} placeholder="7702" />
+          <input className="inp" value={card.last4} maxLength={4} onChange={(e) => setCard((c) => ({ ...c, last4: e.target.value.replace(/\D/g, '') }))} placeholder={hint.cardLast4} />
         </div>
       </div>
 
@@ -202,7 +233,7 @@ function Essentials({ onNext, onBack }: { onNext: () => void; onBack: () => void
         <span>Saved to an encrypted database on your disk. Open it without your passphrase and it&apos;s gibberish.</span>
       </div>
       {error && <div className="note warn" style={{ marginBottom: 14 }}><span className="ic"><Icon name="triangle-alert" size={16} /></span><span>{error}</span></div>}
-      <button className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={saving || !fullName.trim()} onClick={save}>
+      <button className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={saving || !canContinue} onClick={save}>
         {saving ? 'Saving…' : 'Save & continue'}
       </button>
     </>
@@ -344,16 +375,40 @@ function GmailConnect({ onNext, onBack, initialError }: { onNext: () => void; on
       {hasClient === false ? (
         <>
           <p className="lead" style={{ fontSize: 14, marginBottom: 14 }}>
-            One-time setup: create your own <b>Desktop</b> OAuth client so the connection is entirely yours.
+            One-time setup (~5 min): create your own <b>Desktop</b> OAuth client in Google Cloud so the connection is
+            entirely yours. Follow these exactly — the most common slip is choosing the wrong client type.
           </p>
-          <ol className="muted" style={{ fontSize: 13, lineHeight: 1.7, paddingLeft: 18, marginBottom: 14 }}>
-            <li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud → Credentials</a> and create a project.</li>
-            <li>Enable the <b>Gmail API</b>, and add yourself as a test user on the OAuth consent screen.</li>
-            <li>Create credentials → <b>OAuth client ID</b> → application type <b>Desktop app</b>.</li>
-            <li>Download the JSON and paste its contents below.</li>
+          <ol className="muted onb-steplist" style={{ fontSize: 13, lineHeight: 1.6, paddingLeft: 20, margin: '0 0 14px' }}>
+            <li style={{ marginBottom: 7 }}>
+              Open the <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noreferrer">Google Cloud Console</a> and
+              create a project (any name), then make sure it&apos;s selected in the top bar.
+            </li>
+            <li style={{ marginBottom: 7 }}>
+              Go to <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noreferrer">APIs &amp; Services → Library</a>,
+              open <b>Gmail API</b>, and click <b>Enable</b>.
+            </li>
+            <li style={{ marginBottom: 7 }}>
+              Open <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noreferrer">OAuth consent screen</a> →
+              choose <b>External</b> → fill app name + your email → on the <b>Test users</b> step, <b>add your own Gmail address</b> → Save.
+            </li>
+            <li style={{ marginBottom: 7 }}>
+              Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Credentials</a> →
+              <b> + Create credentials</b> → <b>OAuth client ID</b>.
+            </li>
+            <li style={{ marginBottom: 7 }}>
+              Application type: select <b style={{ color: 'var(--brand)' }}>Desktop app</b> — <u>not</u> &ldquo;Web application&rdquo;.
+              Name it anything → <b>Create</b>. (Desktop clients don&apos;t need a redirect URI; the loopback flow is built in.)
+            </li>
+            <li>
+              In the popup, click <b>Download JSON</b>, open the file, and paste its full contents below.
+            </li>
           </ol>
+          <div className="note warn" style={{ marginBottom: 14 }}>
+            <span className="ic"><Icon name="info" size={16} /></span>
+            <span>Must be a <b>Desktop app</b> client. A &ldquo;Web application&rdquo; client will be rejected because its redirect URIs can&apos;t use the local loopback flow.</span>
+          </div>
           <div className="field">
-            <label>OAuth client JSON</label>
+            <label>Paste the downloaded OAuth client JSON</label>
             <textarea
               className="inp"
               style={{ minHeight: 96, fontFamily: 'var(--mono, monospace)', fontSize: 12 }}
@@ -365,7 +420,7 @@ function GmailConnect({ onNext, onBack, initialError }: { onNext: () => void; on
           <button className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={savingClient || !clientJson.trim()} onClick={saveClient}>
             {savingClient ? 'Saving…' : 'Save client & continue'}
           </button>
-          <div className="onb-note"><Icon name="lock" size={14} />Stored in a gitignored secrets folder — never committed.</div>
+          <div className="onb-note"><Icon name="lock" size={14} />Stored in a gitignored secrets folder — never committed, never uploaded.</div>
         </>
       ) : (
         <>
