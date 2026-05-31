@@ -11,8 +11,8 @@
  * endpoint only — never any third-party host.
  */
 import 'server-only';
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { google } from 'googleapis';
 import type { OAuth2Client, Credentials } from 'google-auth-library';
 import { eq } from 'drizzle-orm';
@@ -56,6 +56,37 @@ export function loadClientCredentials(path = clientCredsPath()): DesktopClientCr
     throw new Error(`OAuth client JSON at ${path} is missing client_id/client_secret.`);
   }
   return { clientId, clientSecret };
+}
+
+/** Whether the user has supplied an OAuth client yet. */
+export function hasClientCredentials(path = clientCredsPath()): boolean {
+  return existsSync(path);
+}
+
+/**
+ * Validate and persist an OAuth client JSON (as downloaded from Google Cloud)
+ * to the gitignored secrets path. Returns the parsed client id for display.
+ * Throws if the JSON is not a usable Desktop/installed client.
+ */
+export function saveClientCredentials(jsonText: string, path = clientCredsPath()): { clientId: string } {
+  let raw: Record<string, any>;
+  try {
+    raw = JSON.parse(jsonText);
+  } catch {
+    throw new Error('That does not look like valid JSON. Paste the full contents of the downloaded client file.');
+  }
+  const node = raw.installed ?? raw.web ?? raw;
+  const clientId = node.client_id ?? node.clientId;
+  const clientSecret = node.client_secret ?? node.clientSecret;
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing client_id / client_secret. Make sure you created a "Desktop app" OAuth client and downloaded its JSON.');
+  }
+  if (raw.web && !raw.installed) {
+    throw new Error('This is a "Web application" client. Create a "Desktop app" OAuth client instead so the loopback redirect works.');
+  }
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, jsonText, { mode: 0o600 });
+  return { clientId };
 }
 
 /** Create an OAuth2 client bound to a (loopback) redirect URI. */
