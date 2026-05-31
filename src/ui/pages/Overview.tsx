@@ -1,31 +1,60 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { categories, fys, household, txns } from '../lib/fixtures';
+import { categories, fys, household, txns, type Txn } from '../lib/fixtures';
 import { Glyph } from '../primitives/Glyph';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead, TxnRow } from './shared';
 import type { WorkbenchPage } from '../shell/Sidebar';
+import { useOverview, recentToTxn } from '../data/useOverview';
 
 interface OverviewProps {
   setPage: (p: WorkbenchPage) => void;
 }
 
-const TOP_MERCHANTS: Array<[string, number, string, string]> = [
-  ['Prestige Property', 660000, '#FF8A6B', 'P'],
-  ['Nexora payroll', 4218000, '#6354E6', 'N'],
-  ['Zepto', 168200, '#15A877', 'Z'],
-  ['Amazon', 98400, '#3B82F6', 'A'],
+interface CatView {
+  name: string;
+  amt: number;
+  color: string;
+  recurring: boolean;
+}
+interface MerchantView {
+  name: string;
+  amt: number;
+  color: string;
+  glyph: string;
+}
+
+const FIXTURE_MERCHANTS: MerchantView[] = [
+  { name: 'Prestige Property', amt: 660000, color: '#FF8A6B', glyph: 'P' },
+  { name: 'Nexora payroll', amt: 4218000, color: '#6354E6', glyph: 'N' },
+  { name: 'Zepto', amt: 168200, color: '#15A877', glyph: 'Z' },
+  { name: 'Amazon', amt: 98400, color: '#3B82F6', glyph: 'A' },
 ];
 
 export function Overview({ setPage }: OverviewProps) {
   const { fy } = useFy();
+  const { data } = useOverview(fy);
+  const live = data?.hasData ? data : null;
   const f = fys[fy];
-  const net = f.income - f.expenses;
-  const topCats = [...categories].sort((a, b) => b.amt - a.amt).slice(0, 5);
-  const maxCat = topCats[0].amt;
-  const recent = txns.slice(0, 6);
+
+  // Real DB rollups when an import has produced data, otherwise the demo fixtures.
+  const income = live ? live.income : f.income;
+  const expenses = live ? live.expenses : f.expenses;
+  const net = live ? live.net : f.income - f.expenses;
+  const savingsRate = live ? live.savingsRate : f.savingsRate;
+  const prevSavingsRate = live ? live.prevSavingsRate : f.prevSavingsRate;
+
+  const topCats: CatView[] = live
+    ? live.topCategories.map((c) => ({ name: c.name, amt: c.amount, color: c.color, recurring: true }))
+    : [...categories].sort((a, b) => b.amt - a.amt).slice(0, 5).map((c) => ({ name: c.name, amt: c.amt, color: c.color, recurring: c.recurring }));
+  const maxCat = topCats.length ? topCats[0].amt : 1;
+
+  const recent: Txn[] = live ? live.recent.map(recentToTxn) : txns.slice(0, 6);
+  const merchants: MerchantView[] = live
+    ? live.topMerchants.map((m) => ({ name: m.name, amt: m.amount, color: m.color, glyph: m.glyph }))
+    : FIXTURE_MERCHANTS;
 
   return (
     <div className="content-wrap fade-in">
@@ -37,10 +66,10 @@ export function Overview({ setPage }: OverviewProps) {
       </PageHead>
 
       <div className="grid-4" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Income" icon="arrow-down-to-line" val={<Money amount={f.income} pos />} delta="vs prior FY" dir="up" />
-        <StatCard lbl="Expenses" icon="arrow-up-from-line" val={<Money amount={f.expenses} />} sub="CC payments de-duped" />
+        <StatCard lbl="Income" icon="arrow-down-to-line" val={<Money amount={income} pos />} delta="vs prior FY" dir="up" />
+        <StatCard lbl="Expenses" icon="arrow-up-from-line" val={<Money amount={expenses} />} sub="CC payments de-duped" />
         <StatCard lbl="Money kept" icon="piggy-bank" val={<Money amount={net} pos />} accent="var(--mint-600)" />
-        <StatCard lbl="Savings rate" icon="percent" val={`${f.savingsRate}%`} delta={`+${f.savingsRate - f.prevSavingsRate} pts`} dir="up" />
+        <StatCard lbl="Savings rate" icon="percent" val={`${savingsRate}%`} delta={`${savingsRate - prevSavingsRate >= 0 ? '+' : ''}${savingsRate - prevSavingsRate} pts`} dir={savingsRate - prevSavingsRate >= 0 ? 'up' : 'down'} />
       </div>
 
       <div className="grid-2" style={{ marginBottom: 16 }}>
@@ -54,7 +83,7 @@ export function Overview({ setPage }: OverviewProps) {
           </div>
           <div className="card-list">
             {topCats.map((c) => (
-              <div key={c.id} className="catrow" style={{ cursor: 'default' }}>
+              <div key={c.name} className="catrow" style={{ cursor: 'default' }}>
                 <div className="top">
                   <span className="nm">
                     <span className="swatch" style={{ background: c.color }} />
@@ -83,7 +112,7 @@ export function Overview({ setPage }: OverviewProps) {
             <div className="fig" style={{ fontSize: 34, margin: '8px 0 2px' }}>
               <Money amount={net} className="onmint" />
             </div>
-            <div style={{ fontSize: 13, opacity: 0.92 }}>{f.savingsRate}% of everything you earned this year.</div>
+            <div style={{ fontSize: 13, opacity: 0.92 }}>{savingsRate}% of everything you earned this year.</div>
           </div>
           <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('tax')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -133,12 +162,12 @@ export function Overview({ setPage }: OverviewProps) {
           </div>
           <div className="card card-pad">
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '0 0 12px' }}>Top merchants</h3>
-            {TOP_MERCHANTS.map(([n, a, c, g]) => (
-              <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
-                <Glyph ch={g} color={c} size={30} />
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{n}</span>
+            {merchants.map((m) => (
+              <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
+                <Glyph ch={m.glyph} color={m.color} size={30} />
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.name}</span>
                 <span style={{ marginLeft: 'auto' }}>
-                  <Money amount={a} />
+                  <Money amount={m.amt} />
                 </span>
               </div>
             ))}

@@ -30,6 +30,7 @@ Then open <http://127.0.0.1:3000>.
 - `npm run profile:seed` — load `secrets/profile.local.json` into the encrypted DB
 - `npm run gmail:auth` — authorize read-only Gmail via your Desktop OAuth client
 - `npm run gmail:fetch -- --fy=2025-26 [--all] [--yes]` — fetch + download statements for a financial year
+- `npm run ingest` — process downloaded attachments into classified transactions (unlock→extract→parse→classify→store)
 
 ## Connect your data (local, read-only)
 
@@ -44,6 +45,10 @@ Then open <http://127.0.0.1:3000>.
    require `--yes`. Attachments land in the gitignored `./attachments` with SHA-256 dedupe.
 5. **(Optional) install qpdf** to unlock password-protected statements: `brew install qpdf`
    (macOS) / `sudo apt install qpdf` (Debian/Ubuntu).
+
+The whole flow above is also available as a **guided in-app wizard** — just run `npm run dev` and open the app;
+a fresh install is routed to onboarding (Welcome → Essentials with institution pickers → Connect Gmail → live
+import → Done), after which the workbench shows your real numbers.
 
 ## Privacy guarantees
 
@@ -66,20 +71,26 @@ Then open <http://127.0.0.1:3000>.
 - `src/pdf/` — password candidates, qpdf unlock, pdf.js text extraction, tesseract OCR
 - `src/parsers/` — provider-dispatched statement parsers (balance-delta debit/credit inference)
 - `src/profile/` — profile seed schema, DB loader, and classifier/query/password signal adapters
-- `src/ledger/` — financial-year date utilities and rollups
+- `src/ingest/` — orchestration: attachments → unlock → extract → parse → classify → stored transactions
+- `src/ledger/` — financial-year date utilities and FY rollups (DB → dashboard shapes)
+- `src/server/` + `app/api/` — onboarding/import/dashboard route handlers (Node runtime, loopback-only)
 - `packs/in/` — India institution seeds (banks, credit cards, brokers, insurers, lenders, merchants)
 - `schemas/`, `tools/`, `scripts/`, `tests/` — pack schema, validator, refresh/load scripts, and tests
 
 ## Status
 
-v0.3 — the workbench UI runs against fixture data; the local-first ingestion + logic core is in place:
+v0.4 — clone → guided onboarding → real numbers works end to end on the local machine:
 
 - **Done:** encrypted SQLite (SQLCipher) + keychain unlock + Drizzle schema/migrations; pack loader
   (218 institutions, 121 merchant aliases); deterministic 7-layer classifier; India tax module
-  (both regimes, 87A + marginal relief, surcharge, cess); FY utilities; read-only Gmail OAuth + query
-  builder + fetcher (SHA-256 dedupe, consent gate); PDF pipeline (password candidates, qpdf unlock,
-  pdf.js extraction, OCR); provider statement parsers; profile seed + signals.
-- **Next:** onboarding route group, the import SSE progress route, and wiring the dashboard selectors to
-  the DB (replacing fixtures), plus the Settings danger zone (passphrase rotation, backup, wipe).
+  (both regimes, 87A + marginal relief, surcharge, cess); read-only Gmail OAuth + query builder +
+  fetcher (SHA-256 dedupe, consent gate); PDF pipeline (password candidates, qpdf unlock, pdf.js
+  extraction, OCR); provider statement parsers; **guided in-app onboarding wizard** (profile +
+  institution pickers + OAuth + live SSE import); **ingest orchestration** (attachments → classified
+  transactions); **FY rollups wired into the Overview dashboard** (real income/expenses/savings/
+  categories/merchants with provenance).
+- **Next:** wire the remaining dashboard pages (Income, Expenses, Investments, Liabilities,
+  Subscriptions, Tax, Review, Sources) to DB selectors; the Settings danger zone (passphrase rotation,
+  encrypted backup, full wipe); OCR rasterisation backend for scanned statements.
 
 See `/Users/lovloothra/.claude/plans/` for the approved implementation plan.

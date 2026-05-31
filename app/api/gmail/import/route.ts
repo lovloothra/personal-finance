@@ -3,6 +3,7 @@ import { getAuthedClient } from '@/gmail/oauth';
 import { estimateRun, fetchRun } from '@/gmail/fetcher';
 import { evaluateConsent } from '@/gmail/consent-gate';
 import { buildProfileQueries } from '@/server/import';
+import { runIngest } from '@/ingest/pipeline';
 import { sse } from '@/server/api';
 import type { FyKey } from '@/ledger/fy';
 
@@ -49,6 +50,19 @@ export async function GET(req: Request): Promise<Response> {
       bytesEstimated: estimate.bytesEstimated,
       onProgress: (e) => send(e),
     });
-    send({ phase: 'done', message: 'Import complete', ...result });
+
+    // Turn the downloaded attachments into classified transactions.
+    send({ phase: 'fetch', message: `Downloaded ${result.attachmentCount} attachments — processing…`, messageCount: result.messageCount, attachmentCount: result.attachmentCount });
+    const ingest = await runIngest(db, { onProgress: (e) => send(e) });
+
+    send({
+      phase: 'done',
+      message: 'Import complete',
+      messageCount: result.messageCount,
+      attachmentCount: result.attachmentCount,
+      documents: ingest.documents,
+      transactions: ingest.transactions,
+      reviewItems: ingest.reviewItems,
+    });
   });
 }

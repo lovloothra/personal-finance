@@ -41,6 +41,8 @@ export async function getSetupStatus(): Promise<SetupStatus> {
     hasProfile,
     hasGmailAuth,
     hasData,
-    ready: hasProfile && hasGmailAuth,
+    // Workbench is usable once there's a profile and either a Gmail connection
+    // or already-imported data (so a populated install never re-runs onboarding).
+    ready: hasProfile && (hasGmailAuth || hasData),
   };
 }

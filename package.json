@@ -14,7 +14,8 @@
     "db:load-packs": "tsx --conditions=react-server scripts/load-packs.ts",
     "profile:seed": "tsx --conditions=react-server scripts/profile-seed.ts",
     "gmail:auth": "tsx --conditions=react-server scripts/gmail-auth.ts",
-    "gmail:fetch": "tsx --conditions=react-server scripts/gmail-fetch.ts"
+    "gmail:fetch": "tsx --conditions=react-server scripts/gmail-fetch.ts",
+    "ingest": "tsx --conditions=react-server scripts/ingest.ts"
   },
   "dependencies": {
     "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.10.0",
