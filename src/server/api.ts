@@ -17,12 +17,24 @@ export function badRequest(message: string, status = 400): Response {
   return json({ error: message }, { status });
 }
 
-/** Reject cross-origin mutations (loopback-only origin check). */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1', '0.0.0.0']);
+
+/**
+ * Reject mutations that don't originate from the local app. The security
+ * property is "loopback only" — we accept any localhost/127.0.0.1 origin
+ * (the dev server and browser may disagree on which one they use, and proxies
+ * can rewrite the request host) and reject anything that isn't loopback.
+ */
 export function assertSameOrigin(req: Request): void {
   const origin = req.headers.get('origin');
-  if (!origin) return; // same-origin fetches from server components omit Origin
-  const url = new URL(req.url);
-  if (new URL(origin).host !== url.host) {
+  if (!origin) return; // same-origin fetches without an Origin header
+  let host: string;
+  try {
+    host = new URL(origin).hostname;
+  } catch {
+    throw new Error('Cross-origin request rejected.');
+  }
+  if (!LOOPBACK_HOSTS.has(host)) {
     throw new Error('Cross-origin request rejected.');
   }
 }

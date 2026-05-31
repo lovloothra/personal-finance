@@ -58,7 +58,7 @@ export function Overview({ setPage }: OverviewProps) {
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title={`Hello, ${household.name.split(' ')[0]}`} sub={`${f.label} · ${f.sub}`}>
+      <PageHead title={`Hello, ${(data?.name ?? household.name).split(' ')[0]}`} sub={`${f.label} · ${f.sub}`}>
         <button className="btn btn-secondary" onClick={() => setPage('sources')}>
           <Icon name="refresh-cw" size={15} />
           Re-run import

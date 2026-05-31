@@ -24,10 +24,22 @@ export function readRawSeed(path = seedPath()): Partial<ProfileSeed> {
 
 /**
  * Merge `patch` over the existing seed, validate the result, and write it back.
+ * The `personal` and `home` objects are deep-merged so an essentials save never
+ * drops fields it doesn't collect (mobile, city, email, DOB). Array sections
+ * (banks, cards, …) are replaced wholesale when present in the patch.
  * Returns the validated seed.
  */
 export function writeProfileSeed(patch: Partial<ProfileSeed>, path = seedPath()): ProfileSeed {
-  const merged = { ...readRawSeed(path), ...patch };
+  const existing = readRawSeed(path);
+  // Drop undefined keys so a blank optional field doesn't clobber a saved one.
+  const defined = <T extends object>(o?: T): Partial<T> =>
+    Object.fromEntries(Object.entries(o ?? {}).filter(([, v]) => v !== undefined)) as Partial<T>;
+  const merged = {
+    ...existing,
+    ...patch,
+    personal: { ...existing.personal, ...defined(patch.personal) },
+    ...(patch.home || existing.home ? { home: { ...existing.home, ...defined(patch.home) } } : {}),
+  };
   const parsed = ProfileSeedSchema.safeParse(merged);
   if (!parsed.success) {
     throw new Error(`Profile is incomplete or invalid: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);

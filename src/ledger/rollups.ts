@@ -10,7 +10,7 @@
 import 'server-only';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { transactions, gmailMessages } from '@/db/schema';
+import { transactions, gmailMessages, profilePersonal } from '@/db/schema';
 import type { Flow } from '@/classifier/types';
 import { fyKey as makeFyKey, type FyKey } from './fy';
 
@@ -47,6 +47,7 @@ export interface RecentTxn {
 export interface OverviewRollup {
   fy: FyKey;
   hasData: boolean;
+  name: string | null;
   income: number;
   expenses: number;
   invested: number;
@@ -161,9 +162,12 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
       source: { from: r.from, subject: r.subject },
     }));
 
+  const name = db.select({ n: profilePersonal.fullName }).from(profilePersonal).limit(1).get()?.n ?? null;
+
   return {
     fy,
     hasData: txnCount > 0,
+    name,
     income,
     expenses,
     invested,
