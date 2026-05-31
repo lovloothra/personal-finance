@@ -1,0 +1,253 @@
+/* ============================================================
+   PERSONAL FINANCE — Design Tokens (colors + type)
+   Local-first, India-first personal finance. Stripe-grade polish, B2C warmth.
+   Fonts loaded from Google Fonts (substitutes — see README).
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* -------- Font families -------- */
+  --font-display: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
+  --font-text:    'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono:    'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ============================================================
+     COLOR — RAW PALETTE
+     ============================================================ */
+
+  /* Brand indigo (primary) */
+  --indigo-50:  #EEEDFC;
+  --indigo-100: #DEDBFA;
+  --indigo-200: #C3BCF6;
+  --indigo-300: #9F93F0;
+  --indigo-400: #7E6FEA;
+  --indigo-500: #6354E6;   /* base brand */
+  --indigo-600: #5341DA;   /* primary action */
+  --indigo-700: #4334B0;
+  --indigo-800: #332888;
+  --indigo-900: #241C60;
+
+  /* Mint — "money / growth / positive" (the B2C finance accent) */
+  --mint-50:  #E4F8F0;
+  --mint-100: #C5F0E0;
+  --mint-200: #92E4C6;
+  --mint-300: #5AD3A6;
+  --mint-400: #2FBE8B;
+  --mint-500: #15A877;   /* positive base */
+  --mint-600: #0E8C62;
+  --mint-700: #0B6E4D;
+
+  /* Coral — warm B2C accent (highlights, friendly emphasis) */
+  --coral-50:  #FFEEE8;
+  --coral-100: #FFDACD;
+  --coral-300: #FFA98A;
+  --coral-400: #FF8A6B;
+  --coral-500: #F56A45;
+  --coral-600: #DC512D;
+
+  /* Amber — cash / pending / caution */
+  --amber-50:  #FDF3E2;
+  --amber-100: #FBE6BF;
+  --amber-400: #F2A93B;
+  --amber-500: #E8930C;
+  --amber-600: #C2790A;
+
+  /* Red — spending / negative / danger */
+  --red-50:  #FCEBEC;
+  --red-100: #F9D5D7;
+  --red-400: #EE6669;
+  --red-500: #E5484D;
+  --red-600: #CB2F34;
+
+  /* Neutral — warm-tinted slate */
+  --neutral-0:   #FFFFFF;
+  --neutral-25:  #FBFBFD;
+  --neutral-50:  #F6F7FB;
+  --neutral-100: #EEF0F6;
+  --neutral-200: #E2E5EE;
+  --neutral-300: #CDD2DF;
+  --neutral-400: #A7AEC1;
+  --neutral-500: #7E8597;
+  --neutral-600: #5C6376;
+  --neutral-700: #424A5C;
+  --neutral-800: #2A3142;
+  --neutral-900: #16192A;   /* ink */
+
+  /* ============================================================
+     COLOR — SEMANTIC
+     ============================================================ */
+  --fg-1: var(--neutral-900);   /* primary text */
+  --fg-2: var(--neutral-600);   /* secondary text */
+  --fg-3: var(--neutral-500);   /* muted / captions */
+  --fg-on-dark: #FFFFFF;
+  --fg-on-dark-2: rgba(255,255,255,0.72);
+
+  --bg-page:    var(--neutral-0);
+  --bg-subtle:  var(--neutral-50);
+  --bg-sunken:  var(--neutral-100);
+  --bg-dark:    #14152A;        /* footers / dark sections */
+
+  --border:        var(--neutral-200);
+  --border-strong: var(--neutral-300);
+  --border-focus:  var(--indigo-500);
+
+  --brand:        var(--indigo-500);
+  --brand-strong: var(--indigo-600);
+  --brand-subtle: var(--indigo-50);
+
+  --positive:        var(--mint-500);
+  --positive-subtle: var(--mint-50);
+  --negative:        var(--red-500);
+  --negative-subtle: var(--red-50);
+  --caution:         var(--amber-500);
+  --caution-subtle:  var(--amber-50);
+  --accent:          var(--coral-400);
+  --accent-subtle:   var(--coral-50);
+
+  /* Signature gradients (the B2C twist on Stripe's cool hero) */
+  --gradient-hero: linear-gradient(135deg, #6354E6 0%, #8E7BF0 42%, #FF8A6B 100%);
+  --gradient-mint: linear-gradient(135deg, #15A877 0%, #2FBE8B 60%, #92E4C6 100%);
+  --gradient-soft: linear-gradient(180deg, #F6F7FB 0%, #FFFFFF 100%);
+
+  /* ============================================================
+     RADII
+     ============================================================ */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* ============================================================
+     SHADOWS — layered, Stripe-style soft elevation
+     ============================================================ */
+  --shadow-xs: 0 1px 2px rgba(22,25,42,0.06);
+  --shadow-sm: 0 1px 2px rgba(22,25,42,0.06), 0 2px 6px rgba(22,25,42,0.05);
+  --shadow-md: 0 2px 4px rgba(22,25,42,0.05), 0 8px 20px rgba(22,25,42,0.08);
+  --shadow-lg: 0 4px 8px rgba(22,25,42,0.05), 0 16px 40px rgba(22,25,42,0.12);
+  --shadow-brand: 0 6px 18px rgba(99,84,230,0.32);
+  --shadow-focus: 0 0 0 3px rgba(99,84,230,0.30);
+
+  /* ============================================================
+     SPACING (4px base)
+     ============================================================ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 360ms;
+}
+
+/* ============================================================
+   TYPE SCALE — semantic element styling
+   Apply via classes or use the custom-prop values directly.
+   ============================================================ */
+
+.t-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(40px, 6vw, 72px);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  color: var(--fg-1);
+}
+.t-h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(32px, 4vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+}
+.t-h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.15;
+  letter-spacing: -0.018em;
+  color: var(--fg-1);
+}
+.t-h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.012em;
+  color: var(--fg-1);
+}
+.t-h4 {
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 1.4;
+  letter-spacing: -0.006em;
+  color: var(--fg-1);
+}
+.t-lead {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+.t-body {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--fg-1);
+}
+.t-small {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+.t-caption {
+  font-family: var(--font-text);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg-3);
+}
+.t-overline {
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+/* Financial figures — tabular, mono-ish. Use for amounts. */
+.t-figure {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--fg-1);
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: var(--fg-2);
+}

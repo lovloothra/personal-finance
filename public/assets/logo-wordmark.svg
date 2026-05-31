@@ -1,0 +1,8 @@
+<svg width="288" height="48" viewBox="0 0 288 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="personal finance">
+  <rect x="2" y="30" width="8" height="16" rx="4" fill="#6354E6"></rect>
+  <rect x="16" y="22" width="8" height="24" rx="4" fill="#6354E6"></rect>
+  <rect x="30" y="12" width="8" height="34" rx="4" fill="#6354E6"></rect>
+  <rect x="44" y="4" width="8" height="42" rx="4" fill="#6354E6"></rect>
+  <path d="M4 42 L52 9" stroke="#FF8A6B" stroke-width="7" stroke-linecap="round"></path>
+  <text x="68" y="34" font-family="&#39;Schibsted Grotesk&#39;, sans-serif" font-size="25" font-weight="700" letter-spacing="-0.01em" fill="#16192A">personal finance</text>
+</svg>

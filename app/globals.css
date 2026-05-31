@@ -1,0 +1,7 @@
+@import url('../src/styles/colors_and_type.css');
+@import url('../src/styles/workbench.css');
+
+@keyframes bootslide {
+  0% { margin-left: -40%; }
+  100% { margin-left: 120%; }
+}

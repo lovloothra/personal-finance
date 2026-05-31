@@ -1,11 +1,17 @@
 .env
 .env.*
 node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
 data/
 attachments/
 exports/
 tmp/
 *.db
+*.db-journal
 *.sqlite
 *.sqlite3
 *.db-shm
@@ -13,3 +19,7 @@ tmp/
 *.sqlite-shm
 *.sqlite-wal
 *.log
+.DS_Store
+secrets/
+oauth-token*.json
+google-credentials*.json
