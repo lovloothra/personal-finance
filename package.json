@@ -7,20 +7,33 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "next lint",
-    "test": "node --test",
+    "test": "node --import tsx --test \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\" \"src/**/*.test.ts\"",
     "validate:packs": "node tools/validate-pack-in.mjs",
-    "refresh:packs:in": "node scripts/refresh-pack-in.mjs"
+    "refresh:packs:in": "node scripts/refresh-pack-in.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:load-packs": "tsx --conditions=react-server scripts/load-packs.ts"
   },
   "dependencies": {
+    "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.10.0",
+    "better-sqlite3-multiple-ciphers": "^12.10.0",
+    "drizzle-orm": "^0.45.2",
+    "keytar": "^7.9.0",
+    "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^0.469.0",
     "next": "^16.2.6",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "22.10.5",
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.22.4",
     "typescript": "5.7.2"
   },
   "engines": {
