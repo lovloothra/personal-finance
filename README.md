@@ -2,95 +2,99 @@
 
 > Local-first Gmail-backed personal finance workbench.
 
-A free, open-source, local-first personal finance and financial-evidence workbench for power users. Clone the repo, run it
-locally, connect Gmail with read-only OAuth, define your financial profile, and the app builds a household ledger,
-categorised expenses, subscriptions, investments, liabilities, and tax-regime comparisons — all on your machine.
+`personal-finance` is a free, open-source workbench for rebuilding a household ledger from financial evidence you
+already receive in Gmail. It runs on your machine, uses your own read-only Google OAuth client, downloads statements
+and receipts locally, and turns them into categorized expenses, income, subscriptions, investments, liabilities, and
+India tax-regime comparisons with source provenance.
 
-This is **not** a SaaS app, **not** an account aggregator, and **not** a hosted finance app. Nothing leaves your laptop.
+This is not a SaaS app, not an account aggregator, and not a hosted finance product. The database, attachments,
+profile, OAuth client, and tokens stay on your device.
 
-## Run
+## Quick Start
+
+Requirements: Node.js 20 or newer, npm, and a Google account whose Gmail contains the statements or receipts you want
+to import. `qpdf` is optional but recommended for password-protected PDFs.
 
 ```sh
 npm install
+npm run db:load-packs
 npm run dev
 ```
 
-Then open <http://127.0.0.1:3000>.
+Open <http://127.0.0.1:3000>. A fresh install is routed to `/onboarding`, where the app walks you through setup:
 
-## Scripts
+1. Enter the essentials: name, PAN, date of birth, employer, primary bank, and credit card issuer.
+2. Create a Google Cloud Desktop OAuth client, enable the Gmail API, and paste the downloaded client JSON into the app.
+3. Connect Gmail with the `gmail.readonly` scope. The app can read matching messages but cannot send, delete, or modify mail.
+4. Review the FY import estimate. Downloads over the 1 GB consent threshold require explicit approval.
+5. Import statements and receipts. Attachments are stored under `attachments/`, parsed, classified, and indexed locally.
 
-- `npm run dev` — Next.js dev server on `127.0.0.1:3000`
-- `npm run build` — production build
-- `npm start` — production server
-- `npm test` — run the Node test suite (pack validators + classifier/tax/query golden tests)
-- `npm run validate:packs` — validate India pack JSON against `schemas/pack-in.schema.json`
-- `npm run refresh:packs:in` — refresh India institution seeds from upstream sources
-- `npm run db:generate` — generate Drizzle SQL migrations from the schema
-- `npm run db:load-packs` — load India pack seeds into the encrypted local DB
-- `npm run profile:seed` — load `secrets/profile.local.json` into the encrypted DB
-- `npm run gmail:auth` — authorize read-only Gmail via your Desktop OAuth client
-- `npm run gmail:fetch -- --fy=2025-26 [--all] [--yes]` — fetch + download statements for a financial year
-- `npm run ingest` — process downloaded attachments into classified transactions (unlock→extract→parse→classify→store)
+After onboarding, the workbench opens with the overview dashboard and provenance links back to the imported evidence.
 
-## Connect your data (local, read-only)
+## Local Data And Privacy
 
-1. **Load the institution packs:** `npm run db:load-packs`
-2. **Create your profile:** copy `secrets/profile.example.json` → `secrets/profile.local.json`, fill in your
-   details (names, DOB, PAN, banks/cards/brokers with their pack `institutionId`s), then `npm run profile:seed`.
-   The profile drives salary/rent/EMI detection, Gmail query scoping, and locked-PDF password candidates.
-3. **Add your Google OAuth client:** create a *Desktop app* OAuth client in Google Cloud Console, enable the
-   Gmail API, add yourself as a test user, download the JSON to `secrets/google-oauth-client.json`, then
-   `npm run gmail:auth`. Only the `gmail.readonly` scope is requested; tokens are sealed in the encrypted DB.
-4. **Fetch a year:** `npm run gmail:fetch -- --fy=2025-26`. A metadata pass estimates size; downloads over 1 GB
-   require `--yes`. Attachments land in the gitignored `./attachments` with SHA-256 dedupe.
-5. **(Optional) install qpdf** to unlock password-protected statements: `brew install qpdf`
-   (macOS) / `sudo apt install qpdf` (Debian/Ubuntu).
-
-The whole flow above is also available as a **guided in-app wizard** — just run `npm run dev` and open the app;
-a fresh install is routed to onboarding (Welcome → Essentials with institution pickers → Connect Gmail → live
-import → Done), after which the workbench shows your real numbers.
-
-## Privacy guarantees
-
-- Gmail is accessed **read-only**.
-- No telemetry, no hosted backend, no external enrichment API.
-- All downloaded attachments, the SQLite database, OAuth tokens, exports, and the editable profile are gitignored.
+- Gmail access is read-only through your own Desktop OAuth client.
+- The SQLite database is encrypted with SQLCipher and stored under `data/`.
+- OAuth tokens are additionally sealed before they are written to the encrypted database.
+- Downloaded files live under `attachments/`; generated exports belong under `exports/`.
+- Profile and OAuth client files live under `secrets/`.
+- `data/`, `attachments/`, `exports/`, and `secrets/` are gitignored.
+- There is no telemetry, hosted backend, or external enrichment API.
 - Sensitive values are masked in the UI by default.
 
-## Repo layout
+## Advanced CLI
 
-- `app/` — Next.js App Router pages and route handlers
-- `src/ui/` — shell, primitives, page components (workbench UI)
-- `src/styles/` — design tokens and workbench CSS (ported from the design handoff)
-- `src/db/` — Drizzle schema + SQLCipher-encrypted connection (keychain-unlocked) + migrations
-- `src/secrets/` — OS-keychain passphrase storage + libsodium row-level token wrapping
-- `src/packs/` — country-pack loader (packs → `institutions` + `merchant_aliases`)
-- `src/classifier/` — deterministic 7-layer transaction classifier (pure, golden-tested)
-- `src/tax/` — India FY 2025-26 / 2026-27 regime comparison, deductions, slabs (golden-tested)
-- `src/gmail/` — read-only Gmail OAuth, query builder, fetcher, consent gate
-- `src/pdf/` — password candidates, qpdf unlock, pdf.js text extraction, tesseract OCR
-- `src/parsers/` — provider-dispatched statement parsers (balance-delta debit/credit inference)
-- `src/profile/` — profile seed schema, DB loader, and classifier/query/password signal adapters
-- `src/ingest/` — orchestration: attachments → unlock → extract → parse → classify → stored transactions
-- `src/ledger/` — financial-year date utilities and FY rollups (DB → dashboard shapes)
-- `src/server/` + `app/api/` — onboarding/import/dashboard route handlers (Node runtime, loopback-only)
-- `packs/in/` — India institution seeds (banks, credit cards, brokers, insurers, lenders, merchants)
-- `schemas/`, `tools/`, `scripts/`, `tests/` — pack schema, validator, refresh/load scripts, and tests
+The guided onboarding flow is the recommended path for new users. These scripts are useful for repeatable local setup,
+debugging, pack maintenance, and developer workflows.
 
-## Status
+- `npm run dev` - start the local web server on `127.0.0.1:3000`
+- `npm run build` - create a production build
+- `npm start` - serve the production build on `127.0.0.1:3000`
+- `npm run lint` - run the configured lint command
+- `npm test` - run pack validator, pack loader, classifier, parser, tax, Gmail query, PDF, profile, and FY tests
+- `npm run validate:packs` - validate India pack JSON against `schemas/pack-in.schema.json`
+- `npm run refresh:packs:in` - refresh India institution seeds from upstream sources
+- `npm run db:generate` - generate Drizzle SQL migrations from `src/db/schema.ts`
+- `npm run db:load-packs` - load India institution and merchant seeds into the encrypted local database
+- `npm run profile:seed` - load `secrets/profile.local.json` into the encrypted database
+- `npm run gmail:auth` - authorize read-only Gmail from the CLI using `secrets/google-oauth-client.json`
+- `npm run gmail:fetch -- --fy=2025-26 [--all] [--yes]` - fetch matching Gmail messages and attachments for a financial year
+- `npm run ingest` - process downloaded attachments into parsed documents, classified transactions, and review items
 
-v0.4 — clone → guided onboarding → real numbers works end to end on the local machine:
+Advanced users can maintain `secrets/profile.local.json` directly. Its shape is defined in `src/profile/types.ts`; the
+same profile feeds Gmail query scoping, PDF password candidates, salary/rent/EMI detection, and classifier context.
 
-- **Done:** encrypted SQLite (SQLCipher) + keychain unlock + Drizzle schema/migrations; pack loader
-  (218 institutions, 121 merchant aliases); deterministic 7-layer classifier; India tax module
-  (both regimes, 87A + marginal relief, surcharge, cess); read-only Gmail OAuth + query builder +
-  fetcher (SHA-256 dedupe, consent gate); PDF pipeline (password candidates, qpdf unlock, pdf.js
-  extraction, OCR); provider statement parsers; **guided in-app onboarding wizard** (profile +
-  institution pickers + OAuth + live SSE import); **ingest orchestration** (attachments → classified
-  transactions); **FY rollups wired into the Overview dashboard** (real income/expenses/savings/
-  categories/merchants with provenance).
-- **Next:** wire the remaining dashboard pages (Income, Expenses, Investments, Liabilities,
-  Subscriptions, Tax, Review, Sources) to DB selectors; the Settings danger zone (passphrase rotation,
-  encrypted backup, full wipe); OCR rasterisation backend for scanned statements.
+## Current Capabilities
 
-See `/Users/lovloothra/.claude/plans/` for the approved implementation plan.
+- Encrypted local SQLite storage with Drizzle schema and migrations.
+- India-focused institution packs for banks, credit card issuers, brokers, insurers, lenders, merchants, and Gmail templates.
+- Guided browser onboarding for profile essentials, OAuth client capture, Gmail authorization, import estimates, and live import progress.
+- Read-only Gmail query building, metadata estimation, 1 GB consent gate, attachment download, and SHA-256 dedupe.
+- PDF handling with profile-derived password candidates, optional `qpdf` unlock, text extraction, and OCR support.
+- Provider-dispatched statement parsing and an ingest pipeline that stores parsed documents, transactions, and review items.
+- Deterministic transaction classification using provider rules, merchant aliases, profile signals, recurrence, internal-transfer detection, and project isolation.
+- India financial-year utilities and FY 2025-26 / 2026-27 income-tax comparison logic.
+- Workbench UI for overview, income, expenses, investments, liabilities, subscriptions, tax, review queue, sources, profile, and settings.
+- Overview rollups that use imported transactions when available and fall back to demo fixtures before the first import.
+
+## Repo Layout
+
+- `app/` - web pages and route handlers
+- `app/api/` - local API routes for setup, OAuth, Gmail import, institutions, profile, and dashboard data
+- `src/ui/` - shell, onboarding, primitives, page components, contexts, and UI data hooks
+- `src/styles/` - design tokens and workbench CSS
+- `src/db/` - Drizzle schema, SQLCipher connection, and migrations
+- `src/secrets/` - OS-keychain passphrase storage and libsodium token wrapping
+- `src/packs/` - country-pack loader for institutions and merchant aliases
+- `src/classifier/` - deterministic transaction classification pipeline
+- `src/tax/` - India tax regimes, deductions, and comparison logic
+- `src/gmail/` - read-only Gmail OAuth, query builder, fetcher, and consent gate
+- `src/pdf/` - password candidates, unlock support, text extraction, and OCR
+- `src/parsers/` - provider-dispatched statement parsers
+- `src/profile/` - profile seed schema, database persistence, and signal adapters
+- `src/ingest/` - orchestration from downloaded attachments to classified transactions
+- `src/ledger/` - financial-year helpers and dashboard rollups
+- `src/server/` - shared server helpers for setup, imports, JSON responses, and SSE
+- `packs/in/` - India pack seed data
+- `schemas/` - JSON schemas for pack validation
+- `tools/`, `scripts/`, `tests/` - validation tools, operational scripts, and automated tests
