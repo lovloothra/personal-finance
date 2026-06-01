@@ -221,6 +221,17 @@ export const insurancePolicies = sqliteTable('insurance_policies', {
   updatedAt: updatedAt(),
 });
 
+/**
+ * User-supplied statement passwords, tried alongside the profile-derived
+ * candidates when unlocking PDFs. Stored inside the SQLCipher-encrypted DB.
+ */
+export const documentPasswords = sqliteTable('document_passwords', {
+  id: text('id').primaryKey(),
+  value: text('value').notNull(),
+  label: text('label'),
+  createdAt: createdAt(),
+});
+
 // ---------------------------------------------------------------------------
 // Gmail ingestion + attachments + parsed documents
 // ---------------------------------------------------------------------------

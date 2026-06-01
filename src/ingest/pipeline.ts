@@ -14,7 +14,7 @@ import 'server-only';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, subscriptionsDetected } from '@/db/schema';
+import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, subscriptionsDetected, documentPasswords } from '@/db/schema';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
@@ -63,6 +63,7 @@ function addCadence(iso: string, cadence: string): string {
 }
 
 interface PendingTxn {
+  id: string;
   docId: string;
   providerId: string | null;
   messageId: string | null;
@@ -83,6 +84,9 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   } catch {
     candidates = [];
   }
+  // Append any passwords the user added manually (tried first — they're exact).
+  const userPasswords = db.select({ v: documentPasswords.value }).from(documentPasswords).all().map((r) => r.v);
+  candidates = [...userPasswords, ...candidates];
 
   const pending = db
     .select({
@@ -110,6 +114,8 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     db.update(attachments).set({ status, ...extra }).where(eq(attachments.id, id)).run();
 
   for (const att of pending) {
+    // Clear any stale review items for this attachment before reprocessing.
+    db.delete(reviewItems).where(eq(reviewItems.refId, att.id)).run();
     if (!att.pathOnDisk || (att.mimeType && !att.mimeType.includes('pdf') && !att.filename?.toLowerCase().endsWith('.pdf'))) {
       setStatus(att.id, 'unsupported');
       continue;
@@ -172,7 +178,11 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     // 4. Parse → parsed_documents + collect transactions.
     const providerId = att.providerId ?? 'unknown';
     const statement = parseStatement(text, { providerId, docType: 'bank_statement' });
-    const docId = rid('doc');
+    // Deterministic doc id keyed to the attachment so re-ingest is idempotent.
+    const docId = `doc_${att.id}`;
+    // Clear any prior output for this attachment before re-inserting.
+    db.delete(transactions).where(eq(transactions.documentId, docId)).run();
+    db.delete(parsedDocuments).where(eq(parsedDocuments.id, docId)).run();
     db.insert(parsedDocuments)
       .values({
         id: docId,
@@ -187,16 +197,16 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       .run();
     docCount++;
 
-    for (const t of statement.txns) {
-      parsed.push({ docId, providerId: att.providerId, messageId: att.messageId, date: t.date, amount: t.amount, currency: t.currency, rawDescription: t.rawDescription });
-    }
+    statement.txns.forEach((t, j) => {
+      parsed.push({ id: `txn_${docId}_${j}`, docId, providerId: att.providerId, messageId: att.messageId, date: t.date, amount: t.amount, currency: t.currency, rawDescription: t.rawDescription });
+    });
     setStatus(att.id, 'extracted', unlockMethod ? { locked: true, unlockMethod } : {});
     onProgress({ phase: 'parse', message: `Parsed ${att.filename ?? 'statement'} — ${statement.txns.length} transactions`, documents: docCount });
   }
 
   // 5. Build recurrence over the whole batch, then classify + insert.
-  const rawTxns: RawTxn[] = parsed.map((p, i) => ({
-    id: `txn_${p.docId}_${i}`,
+  const rawTxns: RawTxn[] = parsed.map((p) => ({
+    id: p.id,
     date: p.date,
     amount: p.amount,
     currency: p.currency,
@@ -237,7 +247,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           profileSignalUsed: c.signal,
           layer: c.layer,
           reviewRequired: c.reviewRequired,
-          isInternalTransfer: c.isInternalTransfer ?? false,
+          isInternalTransfer: c.isInternalTransfer ?? c.flow === 'transfer',
           isRecurring: c.isRecurring ?? false,
           projectId: c.projectId ?? null,
           taxSection: c.taxSection ?? null,

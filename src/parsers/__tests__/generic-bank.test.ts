@@ -59,3 +59,44 @@ test('registry falls back to generic for unknown providers', () => {
   const st = parseStatement(STATEMENT, { providerId: 'some-unknown-bank', docType: 'bank_statement', openingBalance: 5000000 });
   assert.equal(st.txns.length, 4);
 });
+
+// A flattened credit-card statement: single amount per row, NO running balance.
+// Purchases are debits; "Payment received" / refunds are credits.
+const CARD_STATEMENT = `
+HDFC Bank Infinia Credit Card Statement
+Card Number: XXXX XXXX XXXX 7702   Statement Date: 31/03/2026
+Date Transaction Description Amount
+02/03/2026 AMAZON IN BANGALORE Ref 560123456789012 2,499.00
+05/03/2026 SWIGGY ORDER BLR 845.50
+11/03/2026 PAYMENT RECEIVED THANK YOU 45000.00 Cr
+18/03/2026 MAKEMYTRIP FLIGHT 12,340.00
+22/03/2026 AMAZON REFUND 1,200.00 Cr
+`;
+
+test('card statement (no balance): purchases debit, payments/refunds credit', () => {
+  const st = parseStatement(CARD_STATEMENT, { providerId: 'hdfc-bank-cards', docType: 'card_statement' });
+  const byDesc = (q: string) => st.txns.find((t) => t.rawDescription.toUpperCase().includes(q));
+
+  const amazon = byDesc('AMAZON IN')!;
+  assert.equal(amazon.amount, -249900); // debit, and the 15-digit ref is NOT read as the amount
+  const swiggy = byDesc('SWIGGY')!;
+  assert.equal(swiggy.amount, -84550);
+  const payment = byDesc('PAYMENT RECEIVED')!;
+  assert.equal(payment.amount, 4500000); // credit
+  const mmt = byDesc('MAKEMYTRIP')!;
+  assert.equal(mmt.amount, -1234000);
+  const refund = byDesc('REFUND')!;
+  assert.equal(refund.amount, 120000); // credit
+});
+
+test('long reference numbers are never parsed as amounts', () => {
+  const st = parseStatement(CARD_STATEMENT, { providerId: 'hdfc-bank-cards', docType: 'card_statement' });
+  // No transaction should have an absurd amount from a ref/card number.
+  for (const t of st.txns) assert.ok(Math.abs(t.amount) < 5_000_000_00, `amount sane: ${t.amount}`);
+});
+
+test('mode auto-detects: bank statement still uses balance-delta', () => {
+  const st = parseStatement(STATEMENT, { providerId: 'hdfc-bank', docType: 'bank_statement', openingBalance: 5000000 });
+  assert.equal(st.txns.length, 4);
+  assert.equal(st.txns[0].amount, 18000000); // salary credit via balance delta
+});

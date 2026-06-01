@@ -1,23 +1,42 @@
 /**
- * Generic Indian bank-statement parser.
+ * Universal Indian statement parser (bank + credit-card).
  *
- * Bank PDFs use multi-column layouts (Date | Narration | Withdrawal | Deposit |
- * Balance) that collapse when extracted to plain text, losing the column that
- * tells debit from credit. Instead of guessing columns, we use the most
- * reliable signal available: the running balance. Each row carries the txn
- * amount and the post-transaction balance; the SIGN of (balance − prevBalance)
- * tells us debit vs credit deterministically.
+ * Statement PDFs come in two broad shapes once flattened to text:
+ *   - Bank statements: each row carries the transaction amount AND a running
+ *     balance. Direction (debit/credit) is read from the SIGN of the balance
+ *     delta — the most reliable signal available.
+ *   - Card statements: each row carries a single amount and no running balance.
+ *     Direction comes from explicit Cr/Dr markers or credit keywords (payment,
+ *     refund, reversal, cashback), defaulting to a debit (a purchase).
  *
- * Pure: text in, ParsedStatement out.
+ * The parser auto-detects which shape a statement is and applies the right
+ * strategy, so one parser covers both. It is defensive about what counts as a
+ * money value: reference/card/cheque numbers (long bare digit runs) are NOT
+ * treated as amounts, which prevents absurd parsed values.
  */
 import type { ParseContext, ParsedStatement, ParsedTxn } from '../types';
 
-// DD/MM/YYYY or DD-MM-YYYY or DD/MM/YY at the start of a row.
+// DD/MM/YYYY or DD-MM-YYYY or DD/MM/YY at (or near) the start of a row.
 const DATE_RE = /\b(\d{2})[/-](\d{2})[/-](\d{2}(?:\d{2})?)\b/;
-// Indian-grouped money: 1,80,000.00 / 1234.56 / 12,345. The grouped form needs
-// at least one comma (+), so a plain number like 180000.00 matches the second
-// alternative in full instead of being chopped to its first 3 digits.
-const MONEY_RE = /\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?/g;
+
+// A money token is one of:
+//   - comma-grouped (1,80,000 or 1,80,000.00)
+//   - a decimal number (1234.56)
+//   - a short plain integer (≤ 6 digits, e.g. 2400) — longer bare runs are
+//     reference/card/cheque numbers, not amounts.
+const MONEY_RE = /\b\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?\b|\b\d+\.\d{1,2}\b|\b\d{1,6}\b/g;
+
+// Guard against parse noise: ignore "amounts" beyond ₹2 crore for a single line.
+const MAX_PAISE = 200_000_000_00;
+
+// Lines that look like transactions (have a date + number) but are actually
+// summaries, balances, page furniture, or account metadata — never real txns.
+const NON_TXN_RE =
+  /\b(b\/f|c\/f|brought forward|carried forward|opening balance|closing balance|balance forward|market value|financial summary|statement summary|account summary|sub[- ]?total|grand total|\btotal\b|reward point|credit limit|available (credit|balance|limit)|minimum amount due|total amount due|account related|page \d+|statement of account|interest rate|annual percentage)\b/i;
+
+// Tokens marking a credit (inflow) on a card/bank line.
+const CREDIT_RE = /\b(cr|credit|refund|reversal|reversed|cashback|received|repayment)\b|\(cr\)|\+\s*$/i;
+const DEBIT_RE = /\b(dr|debit)\b|\(dr\)/i;
 
 /** Parse an Indian-formatted amount string to paise. */
 export function amountToPaise(s: string): number {
@@ -34,8 +53,6 @@ function isoDate(dd: string, mm: string, yy: string): string {
 export function splitRows(text: string): string[] {
   const normalized = text.replace(/\r/g, '').replace(/[ \t]+/g, ' ');
   const lines = normalized.split('\n').map((l) => l.trim()).filter(Boolean);
-
-  // Re-stitch wrapped narration lines onto the preceding dated row.
   const rows: string[] = [];
   for (const line of lines) {
     if (DATE_RE.test(line.slice(0, 12))) rows.push(line);
@@ -44,50 +61,97 @@ export function splitRows(text: string): string[] {
   return rows;
 }
 
+/** Money tokens in a row AFTER its leading date is removed. Prefers tokens that
+ * carry a decimal or comma (real amounts) over bare integers (often ref nos). */
+function moneyTokens(rowAfterDate: string): { all: string[]; preferred: string[] } {
+  const all = rowAfterDate.match(MONEY_RE) ?? [];
+  const decimalLike = all.filter((t) => t.includes('.') || t.includes(','));
+  return { all, preferred: decimalLike.length ? decimalLike : all };
+}
+
 export function parseGenericBank(text: string, ctx: ParseContext): ParsedStatement {
   const rows = splitRows(text);
   const txns: ParsedTxn[] = [];
   const unparsedLines: string[] = [];
 
-  let prevBalance = ctx.openingBalance ?? null;
+  // Pre-scan to decide balance vs no-balance layout.
+  interface Row {
+    raw: string;
+    date: string;
+    toks: string[];
+  }
+  const dated: Row[] = [];
+  for (const raw of rows) {
+    const dm = DATE_RE.exec(raw);
+    if (!dm) {
+      unparsedLines.push(raw);
+      continue;
+    }
+    // Skip summary / balance / page-furniture lines that merely look like txns.
+    if (NON_TXN_RE.test(raw)) {
+      unparsedLines.push(raw);
+      continue;
+    }
+    const afterDate = raw.replace(DATE_RE, ' ');
+    const { preferred } = moneyTokens(afterDate);
+    if (preferred.length === 0) {
+      unparsedLines.push(raw);
+      continue;
+    }
+    dated.push({ raw, date: isoDate(dm[1], dm[2], dm[3]), toks: preferred });
+  }
 
-  for (const row of rows) {
-    const dateMatch = DATE_RE.exec(row);
-    const monies = row.match(MONEY_RE) ?? [];
-    // Need a date and at least two money tokens (amount + balance).
-    if (!dateMatch || monies.length < 2) {
-      unparsedLines.push(row);
+  // Balance mode if a clear majority of rows have ≥2 money values (amount + balance).
+  const multi = dated.filter((r) => r.toks.length >= 2).length;
+  const balanceMode = dated.length > 0 && multi / dated.length >= 0.6;
+
+  let prevBalance: number | null = ctx.openingBalance ?? null;
+  const seen = new Set<string>(); // dedupe identical rows within a statement
+
+  for (const r of dated) {
+    let magnitude: number;
+    let balance: number | undefined;
+    let signed: number;
+
+    if (balanceMode && r.toks.length >= 2) {
+      balance = amountToPaise(r.toks[r.toks.length - 1]);
+      magnitude = amountToPaise(r.toks[r.toks.length - 2]);
+      if (prevBalance != null) {
+        signed = balance >= prevBalance ? magnitude : -magnitude;
+      } else {
+        signed = CREDIT_RE.test(r.raw) && !DEBIT_RE.test(r.raw) ? magnitude : -magnitude;
+      }
+      prevBalance = balance;
+    } else {
+      // No-balance (card) layout: amount is the trailing money token.
+      magnitude = amountToPaise(r.toks[r.toks.length - 1]);
+      signed = CREDIT_RE.test(r.raw) && !DEBIT_RE.test(r.raw) ? magnitude : -magnitude;
+    }
+
+    if (!Number.isFinite(magnitude) || Math.abs(signed) > MAX_PAISE || magnitude === 0) {
+      unparsedLines.push(r.raw);
       continue;
     }
 
-    const [, dd, mm, yy] = dateMatch;
-    const date = isoDate(dd, mm, yy);
-
-    // The last money token is the running balance; the one before is the amount.
-    const balance = amountToPaise(monies[monies.length - 1]);
-    const magnitude = amountToPaise(monies[monies.length - 2]);
-
-    // Direction from balance delta when we have a previous balance; otherwise
-    // fall back to explicit Cr/Dr markers, defaulting to debit.
-    let signed: number;
-    if (prevBalance != null) {
-      signed = balance >= prevBalance ? magnitude : -magnitude;
-    } else if (/\bcr\b|credit/i.test(row)) {
-      signed = magnitude;
-    } else {
-      signed = -magnitude;
-    }
-    prevBalance = balance;
-
-    // Description: strip the leading date and trailing money tokens.
-    const description = row
-      .replace(DATE_RE, '')
-      .replace(new RegExp(`${monies[monies.length - 2]}\\s+${monies[monies.length - 1]}\\s*$`), '')
+    // Description: drop date, the money tokens we consumed, and Dr/Cr markers.
+    let description = r.raw.replace(DATE_RE, ' ');
+    for (const t of r.toks) description = description.replace(t, ' ');
+    description = description
       .replace(/\b(dr|cr)\b/gi, '')
+      .replace(/[|]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-    txns.push({ date, amount: signed, currency: 'INR', rawDescription: description, balance });
+    // Drop duplicate rows (same date + amount + description signature) that
+    // repeat across statement sections (e.g. summary + detail).
+    const sig = `${r.date}|${signed}|${description.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40)}`;
+    if (seen.has(sig)) {
+      unparsedLines.push(r.raw);
+      continue;
+    }
+    seen.add(sig);
+
+    txns.push({ date: r.date, amount: signed, currency: 'INR', rawDescription: description, balance });
   }
 
   return { providerId: ctx.providerId, docType: ctx.docType, txns, unparsedLines };

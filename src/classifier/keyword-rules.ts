@@ -10,6 +10,12 @@ import { LAYER } from './types';
 import { clean } from './normalize';
 
 export const DEFAULT_KEYWORD_RULES: KeywordRule[] = [
+  // Internal transfers — excluded from income/expense rollups to avoid
+  // double-counting a credit-card bill (the card spend + the bank payment).
+  { keyword: 'credit card payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'high' },
+  { keyword: 'cc payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'high' },
+  { keyword: 'card payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'med' },
+  { keyword: 'autopay', category: 'Transfer', subcategory: 'Card autopay', flow: 'transfer', confidence: 'med' },
   { keyword: 'salary', category: 'Salary', flow: 'income', confidence: 'med' },
   { keyword: 'atm', category: 'Cash', subcategory: 'ATM withdrawal', flow: 'expense', confidence: 'med' },
   { keyword: 'fuel', category: 'Transport', subcategory: 'Fuel', flow: 'expense', confidence: 'med' },
