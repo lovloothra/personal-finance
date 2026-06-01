@@ -7,21 +7,29 @@ import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
+import { useDashboard, type InvestmentsDTO } from '../data/useDashboard';
 
 export function Investments() {
   const { fy } = useFy();
-  const totInvested = investments.reduce((s, i) => s + i.invested, 0);
-  const totValue = investments.reduce((s, i) => s + i.value, 0);
-  const gain = totValue - totInvested;
-  const gainPct = ((gain / totInvested) * 100).toFixed(1);
+  const { data } = useDashboard<InvestmentsDTO>('investments', fy);
+  const live = data?.hasData ? data : null;
+
+  const rows: { platform: string; kind: string; invested: number; value: number | null; glyph: string; color: string }[] = live
+    ? live.platforms
+    : investments.map((i) => ({ platform: i.platform, kind: i.kind, invested: i.invested, value: i.value, glyph: i.glyph, color: i.color }));
+  const totInvested = rows.reduce((s, i) => s + i.invested, 0);
+  const haveValues = rows.length > 0 && rows.every((i) => i.value != null);
+  const totValue = haveValues ? rows.reduce((s, i) => s + (i.value ?? 0), 0) : null;
+  const gain = totValue != null ? totValue - totInvested : null;
+  const gainPct = gain != null && totInvested > 0 ? ((gain / totInvested) * 100).toFixed(1) : null;
 
   return (
     <div className="content-wrap fade-in">
       <PageHead title="Investments" sub={`${fys[fy].label} · reconstructed from broker & platform emails`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Invested" icon="banknote" val={<Money amount={totInvested} />} sub="Contributions detected" />
-        <StatCard lbl="Current value" icon="trending-up" val={<Money amount={totValue} pos />} accent="var(--mint-600)" />
-        <StatCard lbl="Unrealised gain" icon="sparkles" val={<Money amount={gain} pos />} delta={`+${gainPct}%`} dir="up" />
+        <StatCard lbl="Current value" icon="trending-up" val={totValue != null ? <Money amount={totValue} pos /> : '—'} accent="var(--mint-600)" sub={totValue == null ? 'No holdings data in statements' : undefined} />
+        <StatCard lbl="Unrealised gain" icon="sparkles" val={gain != null ? <Money amount={gain} pos /> : '—'} delta={gainPct != null ? `+${gainPct}%` : undefined} dir="up" />
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -43,8 +51,8 @@ export function Investments() {
               </tr>
             </thead>
             <tbody>
-              {investments.map((i) => {
-                const g = i.value - i.invested;
+              {rows.map((i) => {
+                const g = i.value != null ? i.value - i.invested : null;
                 return (
                   <tr key={i.platform}>
                     <td>
@@ -58,10 +66,10 @@ export function Investments() {
                       <Money amount={i.invested} />
                     </td>
                     <td className="r figure">
-                      <Money amount={i.value} />
+                      {i.value != null ? <Money amount={i.value} /> : <span className="muted">—</span>}
                     </td>
                     <td className="r">
-                      <span className="delta up">+{inr(g)}</span>
+                      {g != null ? <span className="delta up">+{inr(g)}</span> : <span className="muted">—</span>}
                     </td>
                   </tr>
                 );

@@ -14,12 +14,13 @@ import 'server-only';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems } from '@/db/schema';
+import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, subscriptionsDetected } from '@/db/schema';
 import { tryUnlock, QPDF_INSTALL_HINT } from '@/pdf/unlock';
 import { extractText } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
 import { parseStatement } from '@/parsers/registry';
 import { buildRecurrenceIndex } from '@/classifier/recurrence';
+import { signature } from '@/classifier/normalize';
 import { classify } from '@/classifier/pipeline';
 import type { RawTxn, ClassifyContext } from '@/classifier/types';
 import { fyForDate } from '@/ledger/fy';
@@ -43,6 +44,15 @@ export interface IngestResult {
 
 let seq = 0;
 const rid = (p: string) => `${p}_${Date.now().toString(36)}_${(seq++).toString(36)}`;
+
+/** Add one cadence period to an ISO date, returning the next expected charge. */
+function addCadence(iso: string, cadence: string): string {
+  const d = new Date(iso + 'T00:00:00Z');
+  if (cadence === 'yearly') d.setUTCFullYear(d.getUTCFullYear() + 1);
+  else if (cadence === 'quarterly') d.setUTCMonth(d.getUTCMonth() + 3);
+  else d.setUTCMonth(d.getUTCMonth() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 interface PendingTxn {
   docId: string;
@@ -200,7 +210,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           amount: raw.amount,
           currency: raw.currency,
           rawDescription: raw.rawDescription,
-          merchant: c.subcategory ?? null,
+          merchant: c.merchant ?? c.subcategory ?? null,
           flow: c.flow,
           category: c.category,
           subcategory: c.subcategory,
@@ -235,6 +245,52 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       'info',
     );
   }
+
+  // 7. Materialise detected subscriptions. A subscription is any RECURRING
+  // debit (per the recurrence index) that isn't a structural commitment like
+  // rent, an EMI, insurance, an investment, or an internal transfer — those
+  // belong on their own pages. This catches merchant-aliased recurring charges
+  // (Netflix, gym, cloud) that matched before the recurrence layer.
+  const NON_SUBSCRIPTION = new Set(['Housing', 'Loan', 'Insurance', 'Salary', 'Investment', 'Transfer']);
+  const subGroups = new Map<string, { merchant: string; category: string; cadence: string; occurrences: number; amounts: number[]; dates: string[] }>();
+  for (const { raw, c } of results) {
+    if (c.flow !== 'expense' || raw.amount >= 0) continue;
+    if (NON_SUBSCRIPTION.has(c.category)) continue;
+    const sig = signature(raw.merchant ?? raw.rawDescription);
+    const hit = recurrence.get(sig);
+    if (!hit) continue; // only recurring charges
+    const merchant = (raw.merchant ?? c.merchant ?? c.subcategory ?? raw.rawDescription).trim().slice(0, 60);
+    const g = subGroups.get(sig) ?? { merchant, category: c.category, cadence: hit.cadence, occurrences: hit.occurrences, amounts: [], dates: [] };
+    g.amounts.push(Math.abs(raw.amount));
+    g.dates.push(raw.date);
+    subGroups.set(sig, g);
+  }
+  db.transaction((tx) => {
+    for (const [sig, g] of subGroups) {
+      const dates = [...g.dates].sort();
+      const lastSeen = dates[dates.length - 1];
+      const id = `sub_${sig.replace(/\s+/g, '-').slice(0, 40)}`;
+      tx
+        .insert(subscriptionsDetected)
+        .values({
+          id,
+          merchant: g.merchant,
+          amount: g.amounts[g.amounts.length - 1],
+          cadence: g.cadence,
+          status: g.occurrences >= 6 ? 'confirmed' : 'likely',
+          firstSeen: dates[0],
+          lastSeen,
+          nextChargeEta: addCadence(lastSeen, g.cadence),
+          occurrences: g.occurrences || g.dates.length,
+          category: g.category,
+        })
+        .onConflictDoUpdate({
+          target: subscriptionsDetected.id,
+          set: { amount: g.amounts[g.amounts.length - 1], cadence: g.cadence, lastSeen, nextChargeEta: addCadence(lastSeen, g.cadence), occurrences: g.occurrences || g.dates.length, updatedAt: Date.now() },
+        })
+        .run();
+    }
+  });
 
   onProgress({ phase: 'done', message: 'Ingest complete', documents: docCount, transactions: txnCount });
   return { documents: docCount, transactions: txnCount, reviewItems: reviewCount, byFy };

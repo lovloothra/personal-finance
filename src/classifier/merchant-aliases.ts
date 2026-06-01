@@ -52,6 +52,7 @@ export function classifyByMerchantAlias(
     flow,
     category,
     subcategory: best.subcategory,
+    merchant: best.canonicalMerchant,
     confidence: best.confidence,
     reason: `Merchant alias: "${txn.rawDescription.trim()}" → ${best.canonicalMerchant} (${best.source === 'user' ? 'your alias' : 'pack'}). Category ${category} from pack default.`,
     signal:

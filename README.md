@@ -75,7 +75,8 @@ same profile feeds Gmail query scoping, PDF password candidates, salary/rent/EMI
 - Deterministic transaction classification using provider rules, merchant aliases, profile signals, recurrence, internal-transfer detection, and project isolation.
 - India financial-year utilities and FY 2025-26 / 2026-27 income-tax comparison logic.
 - Workbench UI for overview, income, expenses, investments, liabilities, subscriptions, tax, review queue, sources, profile, and settings.
-- DB-backed Overview, Income, Expenses, and Tax pages that use imported transactions when available and fall back to demo fixtures before the first import (Investments, Liabilities, Subscriptions, Review, and Sources remain on fixtures for now).
+- DB-backed Overview, Income, Expenses, Tax, Investments, Liabilities, Subscriptions, and Sources pages that use imported data when available and fall back to demo fixtures before the first import (the Review queue is the remaining fixture-backed page).
+- Subscription detection: recurring debits (excluding rent/EMI/insurance/investment) are materialised into the Subscriptions page with cadence and next-charge estimates.
 
 ## Repo Layout
 

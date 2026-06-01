@@ -54,6 +54,8 @@ export interface Classification {
   flow: Flow;
   category: string;
   subcategory: string | null;
+  /** Canonical merchant/payee name for display, when known. */
+  merchant?: string | null;
   confidence: Confidence;
   /** Human-readable explanation rendered verbatim in the drawer. */
   reason: string;

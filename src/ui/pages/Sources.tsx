@@ -4,10 +4,18 @@ import { fys, runs } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
+import { useDashboard, type SourcesDTO } from '../data/useDashboard';
 
 export function Sources() {
   const { fy } = useFy();
   const f = fys[fy];
+  const { data } = useDashboard<SourcesDTO>('sources', fy);
+  const live = data?.hasData ? data : null;
+
+  const runList = live ? live.runs : runs;
+  const messages = live ? live.messagesScanned : f.messages;
+  const coverage = live ? live.coverage : f.coverage;
+  const lastRun = live ? live.lastRunDate ?? '—' : f.runDate;
 
   return (
     <div className="content-wrap fade-in">
@@ -19,15 +27,15 @@ export function Sources() {
       </PageHead>
 
       <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Messages scanned" icon="mail" val={f.messages.toLocaleString('en-IN')} />
+        <StatCard lbl="Messages scanned" icon="mail" val={messages.toLocaleString('en-IN')} />
         <StatCard
           lbl="Source coverage"
           icon="target"
-          val={`${f.coverage}%`}
+          val={coverage != null ? `${coverage}%` : '—'}
           accent="var(--mint-600)"
           sub="of your money explained"
         />
-        <StatCard lbl="Last run" icon="clock" val="2 mins" sub={f.runDate} />
+        <StatCard lbl="Last run" icon="clock" val={live ? 'latest' : '2 mins'} sub={lastRun} />
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -38,7 +46,7 @@ export function Sources() {
           </span>
         </div>
         <div className="card-list">
-          {runs.map((r, i) => (
+          {runList.map((r, i) => (
             <div key={i} className="run">
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="q">{r.q}</div>

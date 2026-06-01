@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { subscriptions as seed, type Subscription } from '../lib/fixtures';
 import { Glyph } from '../primitives/Glyph';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
+import { useDashboard, type SubscriptionsDTO } from '../data/useDashboard';
 
 interface SubRowProps {
   s: Subscription;
@@ -50,7 +51,18 @@ function SubRow({ s, likelyMode, setStatus }: SubRowProps) {
 }
 
 export function Subscriptions() {
+  const { data } = useDashboard<SubscriptionsDTO>('subscriptions', 'all');
   const [subs, setSubs] = useState<Subscription[]>(seed);
+  const [initialized, setInitialized] = useState(false);
+
+  // Seed from the DB once it loads; keep demo fixtures until the first import.
+  useEffect(() => {
+    if (data && !initialized) {
+      if (data.hasData) setSubs(data.subscriptions as Subscription[]);
+      setInitialized(true);
+    }
+  }, [data, initialized]);
+
   const setStatus = (id: string, status: Subscription['status']) =>
     setSubs((arr) => arr.map((x) => (x.id === id ? { ...x, status } : x)));
 

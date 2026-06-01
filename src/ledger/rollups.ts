@@ -10,7 +10,7 @@
 import 'server-only';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { transactions, gmailMessages, profilePersonal } from '@/db/schema';
+import { transactions, gmailMessages, profilePersonal, subscriptionsDetected, gmailRuns, attachments } from '@/db/schema';
 import type { Flow } from '@/classifier/types';
 import { compareRegimes, type TaxComparison, type DetectedDeduction, type Section } from '@/tax';
 import { loadProfileSeed } from '@/profile/signals';
@@ -394,4 +394,220 @@ export function taxRollup(db: DB, fy: FyKey): TaxRollup {
     .orderBy(desc(transactions.txnDate)).limit(50).all().map(rowToRecent);
 
   return { fy, hasData, comparison, evidence };
+}
+
+// ---------------------------------------------------------------------------
+// Investments — contributions detected from transactions (no live NAV)
+// ---------------------------------------------------------------------------
+
+export interface InvestmentRow {
+  platform: string;
+  kind: string;
+  invested: number;
+  value: number | null; // current value unknown without holdings data
+  glyph: string;
+  color: string;
+}
+export interface InvestmentsRollup {
+  fy: FyKey;
+  hasData: boolean;
+  totalInvested: number;
+  platforms: InvestmentRow[];
+}
+
+export function investmentsRollup(db: DB, fy: FyKey): InvestmentsRollup {
+  const rows = db
+    .select({
+      platform: sql<string>`coalesce(${transactions.subcategory}, ${transactions.institutionId}, 'Investments')`,
+      invested: sql<number>`sum(abs(${transactions.amount}))`,
+    })
+    .from(transactions)
+    .where(and(eq(transactions.fyKey, fy), eq(transactions.flow, 'investment')))
+    .groupBy(sql`coalesce(${transactions.subcategory}, ${transactions.institutionId}, 'Investments')`)
+    .orderBy(desc(sql`sum(abs(${transactions.amount}))`))
+    .all();
+
+  const platforms = rows.map((r, i) => ({
+    platform: r.platform ?? 'Investments',
+    kind: 'Contributions',
+    invested: toR(r.invested),
+    value: null,
+    glyph: (r.platform ?? 'I').charAt(0).toUpperCase(),
+    color: PALETTE[i % PALETTE.length],
+  }));
+  return { fy, hasData: rows.length > 0, totalInvested: platforms.reduce((s, p) => s + p.invested, 0), platforms };
+}
+
+// ---------------------------------------------------------------------------
+// Liabilities — loans/insurance on file, enriched with detected amounts
+// ---------------------------------------------------------------------------
+
+export interface LiabilityRow {
+  name: string;
+  kind: string;
+  detail: string;
+  outstanding: number;
+  emi: number;
+  taxSection?: string;
+  glyph: string;
+  color: string;
+}
+export interface InsuranceRow {
+  name: string;
+  premium: number;
+  section: string;
+  glyph: string;
+  color: string;
+}
+export interface LiabilitiesRollup {
+  fy: FyKey;
+  hasData: boolean;
+  loans: LiabilityRow[];
+  insurance: InsuranceRow[];
+}
+
+export function liabilitiesRollup(db: DB, fy: FyKey): LiabilitiesRollup {
+  // Loans: detected EMI payments grouped by subcategory (e.g. "home EMI").
+  const loanRows = db
+    .select({
+      name: sql<string>`coalesce(${transactions.subcategory}, ${transactions.category})`,
+      emi: sql<number>`max(abs(${transactions.amount}))`,
+      tax: sql<string | null>`max(${transactions.taxSection})`,
+    })
+    .from(transactions)
+    .where(and(eq(transactions.fyKey, fy), eq(transactions.category, 'Loan')))
+    .groupBy(sql`coalesce(${transactions.subcategory}, ${transactions.category})`)
+    .all();
+  const loans: LiabilityRow[] = loanRows.map((r, i) => ({
+    name: r.name ?? 'Loan',
+    kind: 'Loan',
+    detail: 'EMI detected from statements',
+    outstanding: 0,
+    emi: toR(r.emi),
+    taxSection: r.tax ?? undefined,
+    glyph: (r.name ?? 'L').charAt(0).toUpperCase(),
+    color: PALETTE[i % PALETTE.length],
+  }));
+
+  // Insurance: detected premiums grouped by subcategory/merchant.
+  const insRows = db
+    .select({
+      name: sql<string>`coalesce(${transactions.merchant}, ${transactions.subcategory}, 'Insurance')`,
+      premium: sql<number>`sum(abs(${transactions.amount}))`,
+      section: sql<string | null>`max(${transactions.taxSection})`,
+    })
+    .from(transactions)
+    .where(and(eq(transactions.fyKey, fy), eq(transactions.category, 'Insurance')))
+    .groupBy(sql`coalesce(${transactions.merchant}, ${transactions.subcategory}, 'Insurance')`)
+    .all();
+  const insurance: InsuranceRow[] = insRows.map((r, i) => ({
+    name: r.name ?? 'Insurance',
+    premium: toR(r.premium),
+    section: r.section ?? '80D',
+    glyph: (r.name ?? 'I').charAt(0).toUpperCase(),
+    color: PALETTE[(i + 3) % PALETTE.length],
+  }));
+
+  return { fy, hasData: loans.length > 0 || insurance.length > 0, loans, insurance };
+}
+
+// ---------------------------------------------------------------------------
+// Subscriptions — from subscriptions_detected
+// ---------------------------------------------------------------------------
+
+export interface SubscriptionRow {
+  id: string;
+  name: string;
+  cat: string;
+  amt: number;
+  cadence: string; // Monthly | Quarterly | Yearly
+  next: string;
+  last: string;
+  status: 'confirmed' | 'likely' | 'dismissed';
+  glyph: string;
+  color: string;
+}
+export interface SubscriptionsRollup {
+  hasData: boolean;
+  subscriptions: SubscriptionRow[];
+}
+
+const cadenceLabel: Record<string, string> = { monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' };
+function fmtShort(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T00:00:00');
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
+
+export function subscriptionsRollup(db: DB): SubscriptionsRollup {
+  const rows = db.select().from(subscriptionsDetected).orderBy(desc(subscriptionsDetected.amount)).all();
+  const subscriptions: SubscriptionRow[] = rows.map((r, i) => ({
+    id: r.id,
+    name: r.merchant,
+    cat: r.category ?? 'Subscription',
+    amt: toR(r.amount),
+    cadence: cadenceLabel[r.cadence ?? 'monthly'] ?? 'Monthly',
+    next: fmtShort(r.nextChargeEta),
+    last: fmtShort(r.lastSeen),
+    status: (r.status ?? 'likely') as SubscriptionRow['status'],
+    glyph: (r.merchant || '?').charAt(0).toUpperCase(),
+    color: PALETTE[i % PALETTE.length],
+  }));
+  return { hasData: rows.length > 0, subscriptions };
+}
+
+// ---------------------------------------------------------------------------
+// Sources — Gmail import runs
+// ---------------------------------------------------------------------------
+
+export interface SourceRun {
+  date: string;
+  q: string;
+  msgs: number;
+  bytes: string;
+  status: 'ok' | 'warn';
+}
+export interface SourcesRollup {
+  hasData: boolean;
+  messagesScanned: number;
+  coverage: number | null;
+  lastRunDate: string | null;
+  runs: SourceRun[];
+}
+
+function humanBytes(n: number): string {
+  if (!n) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
+}
+function fmtRunDate(ms: number | null): string {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+export function sourcesRollup(db: DB): SourcesRollup {
+  const runRows = db.select().from(gmailRuns).orderBy(desc(gmailRuns.startedAt)).all();
+  const runs: SourceRun[] = runRows.map((r) => ({
+    date: fmtRunDate(r.finishedAt ?? r.startedAt),
+    q: `FY ${r.fyKey ?? '—'} · ${r.queryCount ?? 0} queries`,
+    msgs: r.messageCount ?? 0,
+    bytes: humanBytes(r.bytesDownloaded ?? 0),
+    status: r.status === 'done' ? 'ok' : 'warn',
+  }));
+  const messagesScanned = runRows.reduce((s, r) => s + (r.messageCount ?? 0), 0);
+
+  // Coverage: share of attachments that were successfully extracted.
+  const att = db.select({ total: sql<number>`count(*)`, ok: sql<number>`sum(case when ${attachments.status} = 'extracted' then 1 else 0 end)` }).from(attachments).get();
+  const coverage = att && att.total > 0 ? Math.round((att.ok / att.total) * 100) : null;
+
+  return {
+    hasData: runRows.length > 0,
+    messagesScanned,
+    coverage,
+    lastRunDate: runRows[0] ? fmtRunDate(runRows[0].finishedAt ?? runRows[0].startedAt) : null,
+    runs,
+  };
 }
