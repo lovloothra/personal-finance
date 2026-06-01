@@ -80,6 +80,8 @@ same profile feeds Gmail query scoping, PDF password candidates, salary/rent/EMI
 - Review queue surfaces locked statements, uncategorised transactions, and low-confidence classifications, with an inline password entry that retries every locked statement on-device and re-ingests.
 - Universal statement parser handles both running-balance (bank) and single-amount (card) layouts, ignores reference/card numbers and summary/balance-forward lines, and de-duplicates repeated rows.
 - Re-ingestion is idempotent (deterministic per-attachment document ids), so reprocessing after adding a password never duplicates transactions.
+- Cross-statement de-duplication: identical transactions appearing in overlapping statements (e.g. a monthly and an annual statement) are counted once.
+- Internal-transfer detection links debit↔credit pairs across accounts (same amount, close dates, different statements, with a transfer/own-name signal) plus credit-card bill payments, and excludes both legs from income/expense rollups to avoid double-counting.
 
 ## Repo Layout
 

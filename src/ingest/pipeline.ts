@@ -14,7 +14,7 @@ import 'server-only';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, subscriptionsDetected, documentPasswords } from '@/db/schema';
+import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, subscriptionsDetected, documentPasswords, internalTransferLinks } from '@/db/schema';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
@@ -22,6 +22,7 @@ import { parseStatement } from '@/parsers/registry';
 import { buildRecurrenceIndex } from '@/classifier/recurrence';
 import { signature } from '@/classifier/normalize';
 import { classify } from '@/classifier/pipeline';
+import { linkInternalTransfers } from '@/classifier/transfers';
 import type { RawTxn, ClassifyContext } from '@/classifier/types';
 import { fyForDate } from '@/ledger/fy';
 import { loadProfileSeed, passwordInputs } from '@/profile/signals';
@@ -40,6 +41,7 @@ export interface IngestResult {
   transactions: number;
   reviewItems: number;
   byFy: Record<string, number>;
+  duplicatesDropped: number;
 }
 
 let seq = 0;
@@ -87,6 +89,10 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   // Append any passwords the user added manually (tried first — they're exact).
   const userPasswords = db.select({ v: documentPasswords.value }).from(documentPasswords).all().map((r) => r.v);
   candidates = [...userPasswords, ...candidates];
+
+  // Clear transfer links up front — they reference transactions that the
+  // per-attachment cleanup may delete, and they're rebuilt at the end.
+  db.delete(internalTransferLinks).run();
 
   const pending = db
     .select({
@@ -205,7 +211,20 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   }
 
   // 5. Build recurrence over the whole batch, then classify + insert.
-  const rawTxns: RawTxn[] = parsed.map((p) => ({
+  // Global cross-statement dedup: the same transaction often appears in
+  // overlapping statements (e.g. a monthly AND an annual statement covering the
+  // same period). Collapse identical (date + amount + description signature)
+  // rows so they're counted once.
+  const seenGlobal = new Set<string>();
+  const dedupedParsed = parsed.filter((p) => {
+    const sig = `${p.date}|${p.amount}|${signature(p.rawDescription)}`;
+    if (seenGlobal.has(sig)) return false;
+    seenGlobal.add(sig);
+    return true;
+  });
+  const duplicatesDropped = parsed.length - dedupedParsed.length;
+
+  const rawTxns: RawTxn[] = dedupedParsed.map((p) => ({
     id: p.id,
     date: p.date,
     amount: p.amount,
@@ -221,12 +240,33 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   onProgress({ phase: 'classify', message: `Classifying ${rawTxns.length} transactions…`, documents: docCount });
 
   // Classify once; reuse for both inserts and review flagging.
-  const results = rawTxns.map((raw, i) => ({ raw, meta: parsed[i], c: classify(raw, ctx) }));
+  const results = rawTxns.map((raw, i) => ({ raw, meta: dedupedParsed[i], c: classify(raw, ctx) }));
+
+  // Link internal transfers (CC bill payments + self-transfers) across the
+  // whole batch so both legs are excluded from income/expense rollups.
+  // Pass the household's own name tokens so "IMPS .../Self/LOV" style transfers
+  // are recognised.
+  let selfNames: string[] = [];
+  try {
+    const seed = loadProfileSeed();
+    selfNames = [seed.personal.fullName, seed.spouse?.fullName]
+      .filter(Boolean)
+      .flatMap((n) => (n as string).split(/\s+/))
+      .filter((tok) => tok.length >= 3);
+  } catch {
+    selfNames = [];
+  }
+  const transfer = linkInternalTransfers(
+    results.map(({ raw, meta, c }) => ({ id: raw.id, date: raw.date, amount: raw.amount, rawDescription: raw.rawDescription, documentId: meta.docId, flow: c.flow })),
+    { selfNames },
+  );
 
   db.transaction((tx) => {
     for (const { raw, meta, c } of results) {
       const fyKey = fyForDate(raw.date);
       byFy[fyKey] = (byFy[fyKey] ?? 0) + 1;
+      const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
+      const flow = isTransfer ? 'transfer' : c.flow;
 
       tx.insert(transactions)
         .values({
@@ -239,15 +279,15 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           currency: raw.currency,
           rawDescription: raw.rawDescription,
           merchant: c.merchant ?? c.subcategory ?? null,
-          flow: c.flow,
-          category: c.category,
+          flow,
+          category: isTransfer ? 'Transfer' : c.category,
           subcategory: c.subcategory,
           confidence: c.confidence,
           classificationReason: c.reason,
           profileSignalUsed: c.signal,
           layer: c.layer,
-          reviewRequired: c.reviewRequired,
-          isInternalTransfer: c.isInternalTransfer ?? c.flow === 'transfer',
+          reviewRequired: isTransfer ? false : c.reviewRequired,
+          isInternalTransfer: isTransfer,
           isRecurring: c.isRecurring ?? false,
           projectId: c.projectId ?? null,
           taxSection: c.taxSection ?? null,
@@ -255,10 +295,19 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
         })
         .onConflictDoUpdate({
           target: transactions.id,
-          set: { flow: c.flow, category: c.category, subcategory: c.subcategory, confidence: c.confidence, classificationReason: c.reason, profileSignalUsed: c.signal, layer: c.layer, reviewRequired: c.reviewRequired, fyKey },
+          set: { flow, category: isTransfer ? 'Transfer' : c.category, subcategory: c.subcategory, confidence: c.confidence, classificationReason: c.reason, profileSignalUsed: c.signal, layer: c.layer, reviewRequired: isTransfer ? false : c.reviewRequired, isInternalTransfer: isTransfer, fyKey },
         })
         .run();
       txnCount++;
+    }
+
+    // Record the matched transfer pairs for provenance.
+    tx.delete(internalTransferLinks).run();
+    for (const link of transfer.links) {
+      tx.insert(internalTransferLinks)
+        .values({ id: `lnk_${link.debitId}_${link.creditId}`.slice(0, 80), kind: link.kind, debitTxnId: link.debitId, creditTxnId: link.creditId, confidence: 'high' })
+        .onConflictDoNothing()
+        .run();
     }
   });
 
@@ -320,6 +369,6 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     }
   });
 
-  onProgress({ phase: 'done', message: 'Ingest complete', documents: docCount, transactions: txnCount });
-  return { documents: docCount, transactions: txnCount, reviewItems: reviewCount, byFy };
+  onProgress({ phase: 'done', message: `Ingest complete (${duplicatesDropped} duplicates removed)`, documents: docCount, transactions: txnCount });
+  return { documents: docCount, transactions: txnCount, reviewItems: reviewCount, byFy, duplicatesDropped };
 }
