@@ -1,8 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { review as seed, type ReviewItem, type ReviewKind } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { FootMeta, PageHead } from './shared';
+import { useDashboard, type ReviewDTO } from '../data/useDashboard';
 
 type Filter = 'all' | ReviewKind;
 
@@ -22,15 +23,26 @@ const ICON_CLASS: Record<ReviewKind, string> = {
 };
 
 export function Review() {
+  const { data } = useDashboard<ReviewDTO>('review', 'all');
   const [items, setItems] = useState<ReviewItem[]>(seed);
+  const [initialized, setInitialized] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const resolve = (id: string) => setItems((it) => it.filter((x) => x.id !== id));
+
+  // Seed from the DB once it loads; keep demo fixtures until the first import.
+  useEffect(() => {
+    if (data && !initialized) {
+      if (data.hasData) setItems(data.items as ReviewItem[]);
+      else setItems([]); // imported but nothing to review → genuinely all-clear
+      setInitialized(true);
+    }
+  }, [data, initialized]);
 
   const shown = filter === 'all' ? items : items.filter((i) => i.kind === filter);
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Review queue" sub="A few things need your eye to push coverage past 98%" />
+      <PageHead title="Review queue" sub={data?.hasData ? `${data.total} item${data.total === 1 ? '' : 's'} need your eye` : 'A few things need your eye to push coverage past 98%'} />
       <div className="chips" style={{ marginBottom: 18 }}>
         {(Object.entries(KIND_LABELS) as Array<[Filter, string]>).map(([k, lbl]) => (
           <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>

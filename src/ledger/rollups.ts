@@ -10,7 +10,7 @@
 import 'server-only';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { transactions, gmailMessages, profilePersonal, subscriptionsDetected, gmailRuns, attachments } from '@/db/schema';
+import { transactions, gmailMessages, profilePersonal, subscriptionsDetected, gmailRuns, attachments, reviewItems } from '@/db/schema';
 import type { Flow } from '@/classifier/types';
 import { compareRegimes, type TaxComparison, type DetectedDeduction, type Section } from '@/tax';
 import { loadProfileSeed } from '@/profile/signals';
@@ -610,4 +610,67 @@ export function sourcesRollup(db: DB): SourcesRollup {
     lastRunDate: runRows[0] ? fmtRunDate(runRows[0].finishedAt ?? runRows[0].startedAt) : null,
     runs,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Review queue — group open review_items into actionable rows
+// ---------------------------------------------------------------------------
+
+export interface ReviewItemRow {
+  id: string;
+  kind: 'locked_pdf' | 'uncategorised' | 'low_confidence' | 'missing_profile';
+  icon: string;
+  title: string;
+  desc: string;
+  action: string;
+  count?: number;
+}
+export interface ReviewRollup {
+  hasData: boolean;
+  total: number;
+  items: ReviewItemRow[];
+}
+
+export function reviewRollup(db: DB): ReviewRollup {
+  const open = db
+    .select({ id: reviewItems.id, kind: reviewItems.kind, title: reviewItems.title, detail: reviewItems.detail })
+    .from(reviewItems)
+    .where(eq(reviewItems.status, 'open'))
+    .all();
+
+  const items: ReviewItemRow[] = [];
+
+  // Locked/scanned PDFs: one actionable row each (they need per-file attention).
+  const locked = open.filter((r) => r.kind === 'locked_pdf');
+  for (const r of locked.slice(0, 25)) {
+    items.push({ id: r.id, kind: 'locked_pdf', icon: 'lock-keyhole', title: r.title ?? 'A statement needs attention', desc: r.detail ?? '', action: 'Add password' });
+  }
+
+  // Uncategorised + low-confidence: aggregate into a single summary row each.
+  const uncat = open.filter((r) => r.kind === 'uncategorised').length;
+  if (uncat > 0) {
+    items.push({
+      id: 'agg-uncat',
+      kind: 'uncategorised',
+      icon: 'help-circle',
+      title: `${uncat} transaction${uncat === 1 ? '' : 's'} ${uncat === 1 ? 'is' : 'are'} uncategorised`,
+      desc: 'Mostly raw UPI handles with no merchant name. Bulk-assign categories to clear them in one pass.',
+      action: 'Bulk assign',
+      count: uncat,
+    });
+  }
+  const lowConf = open.filter((r) => r.kind === 'low_confidence').length;
+  if (lowConf > 0) {
+    items.push({
+      id: 'agg-lowconf',
+      kind: 'low_confidence',
+      icon: 'gauge',
+      title: `${lowConf} classification${lowConf === 1 ? '' : 's'} ${lowConf === 1 ? 'is' : 'are'} low-confidence`,
+      desc: 'These matched only on weak keyword signals. A quick confirm teaches the classifier for next time.',
+      action: `Review ${lowConf}`,
+      count: lowConf,
+    });
+  }
+
+  return { hasData: open.length > 0, total: open.length, items };
 }

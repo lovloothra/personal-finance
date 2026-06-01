@@ -15,8 +15,8 @@ import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
 import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, subscriptionsDetected } from '@/db/schema';
-import { tryUnlock, QPDF_INSTALL_HINT } from '@/pdf/unlock';
-import { extractText } from '@/pdf/extract';
+import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
+import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
 import { parseStatement } from '@/parsers/registry';
 import { buildRecurrenceIndex } from '@/classifier/recurrence';
@@ -44,6 +44,14 @@ export interface IngestResult {
 
 let seq = 0;
 const rid = (p: string) => `${p}_${Date.now().toString(36)}_${(seq++).toString(36)}`;
+
+/** Last-resort qpdf unlock (only when the binary is present). Returns the
+ * decrypted path, or null if qpdf couldn't open it with any candidate. */
+function tryQpdf(path: string, candidates: string[]): string | null {
+  const out = path.replace(/\.pdf$/i, '') + '.unlocked.pdf';
+  const r = tryUnlock(path, candidates, out);
+  return r.status === 'unlocked' ? r.outPath ?? out : null;
+}
 
 /** Add one cadence period to an ISO date, returning the next expected charge. */
 function addCadence(iso: string, cadence: string): string {
@@ -106,42 +114,52 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       setStatus(att.id, 'unsupported');
       continue;
     }
-    let path = att.pathOnDisk;
+    const path = att.pathOnDisk;
 
-    // 1. Unlock if encrypted.
-    const unlockedPath = join(path.replace(/\.pdf$/i, '') + '.unlocked.pdf');
-    const unlock = tryUnlock(path, candidates, unlockedPath);
-    if (unlock.status === 'unlocked') {
-      path = unlock.outPath!;
-      setStatus(att.id, 'pending', { locked: true, unlockMethod: 'qpdf_candidate' });
-    } else if (unlock.status === 'failed') {
-      addReview('locked_pdf', att.id, `${att.filename ?? 'A statement'} is password-protected`, `Tried ${unlock.triedCandidates ?? 0} profile-derived passwords without success. Add a hint to unlock.`, 'alert');
-      setStatus(att.id, 'review', { locked: true });
-      continue;
-    } else if (unlock.status === 'qpdf_missing') {
-      // Only a problem if the file is actually encrypted; extraction below will
-      // tell us. Try extraction; if it throws we treat as locked.
-    }
-
-    // 2. Extract text.
+    // 1. Extract text. Encrypted PDFs are decrypted in pure JS by pdf.js using
+    //    the profile-derived password candidates — no external qpdf needed.
+    //    If pdf.js can't (rare: certificate security), fall back to qpdf when
+    //    it happens to be installed.
     let text = '';
     let likelyScanned = false;
+    let unlockMethod: string | null = null;
     try {
-      const res = await extractText(path);
+      const res = await extractText(path, { passwords: candidates });
       text = res.text;
       likelyScanned = res.likelyScanned;
+      if (res.decrypted) unlockMethod = 'pdfjs_candidate';
     } catch (err) {
-      const msg = (err as Error).message ?? '';
-      const looksLocked = /password|encrypt/i.test(msg);
-      addReview(
-        'locked_pdf',
-        att.id,
-        `${att.filename ?? 'A statement'} could not be read`,
-        looksLocked ? `Looks password-protected. ${QPDF_INSTALL_HINT}` : `Extraction failed: ${msg}`,
-        'alert',
-      );
-      setStatus(att.id, 'failed');
-      continue;
+      if (err instanceof LockedPdfError) {
+        // Last-resort: qpdf, only if the user happens to have it installed.
+        const viaQpdf = qpdfAvailable() ? tryQpdf(path, candidates) : null;
+        if (viaQpdf) {
+          try {
+            const res = await extractText(viaQpdf);
+            text = res.text;
+            likelyScanned = res.likelyScanned;
+            unlockMethod = 'qpdf_candidate';
+          } catch {
+            text = '';
+          }
+        }
+        if (!text) {
+          addReview(
+            'locked_pdf',
+            att.id,
+            `${att.filename ?? 'A statement'} is password-protected`,
+            candidates.length
+              ? `Tried ${candidates.length} profile-derived passwords (DOB, PAN, account/card last-4, customer id) without success. Add the document password under Profile to unlock it.`
+              : 'Add your DOB, PAN and account/card last-4 under Profile so we can derive its password.',
+            'alert',
+          );
+          setStatus(att.id, 'review', { locked: true });
+          continue;
+        }
+      } else {
+        addReview('locked_pdf', att.id, `${att.filename ?? 'A statement'} could not be read`, `Extraction failed: ${(err as Error).message}`, 'alert');
+        setStatus(att.id, 'failed');
+        continue;
+      }
     }
 
     // 3. Scanned image → OCR (deferred: needs a raster backend) → review.
@@ -172,7 +190,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     for (const t of statement.txns) {
       parsed.push({ docId, providerId: att.providerId, messageId: att.messageId, date: t.date, amount: t.amount, currency: t.currency, rawDescription: t.rawDescription });
     }
-    setStatus(att.id, 'extracted');
+    setStatus(att.id, 'extracted', unlockMethod ? { locked: true, unlockMethod } : {});
     onProgress({ phase: 'parse', message: `Parsed ${att.filename ?? 'statement'} — ${statement.txns.length} transactions`, documents: docCount });
   }
 
