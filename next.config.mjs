@@ -8,6 +8,12 @@ const nextConfig = {
     'better-sqlite3',
     'better-sqlite3-multiple-ciphers',
     'keytar',
+    // Node-oriented libraries that must not be bundled by the server compiler —
+    // pdf.js especially fails when bundled (it expects a Node/runtime context).
+    'pdfjs-dist',
+    'tesseract.js',
+    'googleapis',
+    'libsodium-wrappers',
   ],
 };
 
