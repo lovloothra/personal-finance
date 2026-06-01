@@ -1,4 +1,5 @@
 'use client';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFy } from '../contexts/FyCtx';
 import { fys, runs } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
@@ -10,6 +11,7 @@ export function Sources() {
   const { fy } = useFy();
   const f = fys[fy];
   const { data } = useDashboard<SourcesDTO>('sources', fy);
+  const [importOpen, setImportOpen] = useState(false);
   const live = data?.hasData ? data : null;
 
   const runList = live ? live.runs : runs;
@@ -20,11 +22,13 @@ export function Sources() {
   return (
     <div className="content-wrap fade-in">
       <PageHead title="Sources" sub="Every Gmail query we ran, and what came back">
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" onClick={() => setImportOpen(true)}>
           <Icon name="refresh-cw" size={15} />
           Run new import
         </button>
       </PageHead>
+
+      {importOpen && <ReimportPanel fy={fy} onClose={() => setImportOpen(false)} />}
 
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Messages scanned" icon="mail" val={messages.toLocaleString('en-IN')} />
@@ -92,6 +96,101 @@ export function Sources() {
         </span>
       </div>
       <FootMeta />
+    </div>
+  );
+}
+
+function ReimportPanel({ fy, onClose }: { fy: string; onClose: () => void }) {
+  const [phase, setPhase] = useState<'idle' | 'consent' | 'running' | 'done'>('idle');
+  const [pct, setPct] = useState(0);
+  const [lines, setLines] = useState<{ text: string; kind: string }[]>([]);
+  const [consent, setConsent] = useState<{ human: string; messageCount: number } | null>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const esRef = useRef<EventSource | null>(null);
+  const totalRef = useRef(0);
+
+  const log = (text: string, kind = '') => setLines((p) => [...p, { text, kind }]);
+
+  const run = useCallback((yes: boolean) => {
+    setPhase('running');
+    setLines([]);
+    setPct(0);
+    const es = new EventSource(`/api/gmail/import?fy=${encodeURIComponent(fy)}${yes ? '&yes=1' : ''}`);
+    esRef.current = es;
+    es.onmessage = (ev) => {
+      const e = JSON.parse(ev.data) as { phase: string; message?: string; messageCount?: number; attachmentCount?: number };
+      switch (e.phase) {
+        case 'estimate':
+          if (e.messageCount) totalRef.current = e.messageCount;
+          log(e.message ?? 'Estimating with latest profile...', 'dim');
+          break;
+        case 'consent_required':
+          es.close();
+          setConsent({ human: e.message?.replace(/^.*about /, '') ?? 'over 1 GB', messageCount: e.messageCount ?? 0 });
+          setPhase('consent');
+          break;
+        case 'fetch':
+          if (e.messageCount && totalRef.current) setPct(Math.min(99, Math.round((e.messageCount / totalRef.current) * 100)));
+          log(e.message ?? `Fetched ${e.messageCount ?? 0} messages`);
+          break;
+        case 'attachment':
+          log(e.message ?? 'attachment', 'ok');
+          break;
+        case 'done':
+          es.close();
+          setPct(100);
+          log(e.message ?? 'Import complete', 'ok');
+          setPhase('done');
+          break;
+        case 'error':
+          es.close();
+          setPhase('done');
+          log(`Error: ${e.message}`, 'warn');
+          break;
+      }
+    };
+    es.onerror = () => es.close();
+  }, [fy]);
+
+  useEffect(() => {
+    run(false);
+    return () => esRef.current?.close();
+  }, [run]);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = 9999;
+  }, [lines]);
+
+  return (
+    <div className="card card-pad fade-in" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 17 }}>Re-import Gmail evidence</h3>
+          <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>Queries are rebuilt from your latest saved profile.</div>
+        </div>
+        <button className="icon-btn" onClick={onClose} aria-label="Close import runner"><Icon name="x" size={18} /></button>
+      </div>
+      {phase === 'consent' && consent ? (
+        <>
+          <div className="note warn" style={{ marginBottom: 14 }}>
+            <span className="ic"><Icon name="hard-drive-download" size={16} /></span>
+            <span>This import will download about {consent.human} locally.</span>
+          </div>
+          <button className="btn btn-primary" onClick={() => run(true)}>Download & continue</button>
+        </>
+      ) : (
+        <>
+          <div className="imp-bar"><i style={{ width: pct + '%' }} /></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 14 }}>
+            <span className="muted">{phase === 'done' ? 'Done' : 'Working locally'}</span>
+            <span className="fig">{pct}%</span>
+          </div>
+          <div className="imp-log" ref={logRef}>
+            {lines.map((l, i) => <div key={i} className={l.kind}>{l.kind === 'ok' ? 'ok ' : l.kind === 'warn' ? 'err ' : '> '}{l.text}</div>)}
+            {phase === 'running' && <div className="dim">...</div>}
+          </div>
+        </>
+      )}
     </div>
   );
 }

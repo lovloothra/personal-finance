@@ -67,24 +67,33 @@ export function buildClassifierSignals(seed: ProfileSeed): ProfileSignals {
       last4: c.last4,
       label: c.nickname ?? (c.last4 ? `··${c.last4}` : undefined),
     })),
-    brokers: seed.brokers.map((b) => ({
-      institutionId: b.institutionId,
-      name: b.name,
-      taxSection: b.taxSection ?? null,
-    })),
+    brokers: [
+      ...seed.brokers.map((b) => ({
+        institutionId: b.institutionId,
+        name: b.name,
+        taxSection: b.taxSection ?? null,
+      })),
+      ...seed.investmentPlatforms.map((p) => ({
+        institutionId: p.institutionId,
+        name: p.name,
+        taxSection: p.taxSection ?? null,
+      })),
+    ],
     insurers: seed.insurers.map((i) => ({
       institutionId: i.institutionId,
       name: i.name,
       kind: i.kind,
       taxSection: i.taxSection ?? null,
     })),
-    projects: seed.projects.map((p) => ({
-      id: p.id,
-      name: p.name,
-      startDate: p.startDate,
-      endDate: p.endDate,
-      categoryHints: p.categoryHints,
-    })),
+    projects: seed.projects
+      .filter((p) => p.startDate && p.endDate)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        startDate: p.startDate!,
+        endDate: p.endDate!,
+        categoryHints: p.categoryHints,
+      })),
   };
 }
 
@@ -94,6 +103,7 @@ export function providerIds(seed: ProfileSeed): string[] {
   for (const b of seed.banks) ids.add(b.institutionId);
   for (const c of seed.cards) ids.add(c.institutionId);
   for (const b of seed.brokers) ids.add(b.institutionId);
+  for (const p of seed.investmentPlatforms) ids.add(p.institutionId);
   for (const i of seed.insurers) if (i.institutionId) ids.add(i.institutionId);
   for (const l of seed.loans) if (l.institutionId) ids.add(l.institutionId);
   return [...ids];
@@ -110,7 +120,7 @@ export interface PasswordInputs {
 }
 
 export function passwordInputs(seed: ProfileSeed): PasswordInputs {
-  const people = [seed.personal, seed.spouse].filter(Boolean) as NonNullable<typeof seed.spouse>[];
+  const people = [seed.personal, seed.spouse, ...seed.dependents].filter(Boolean) as NonNullable<typeof seed.spouse>[];
   const dobs = people.map((p) => p.dob).filter(Boolean) as string[];
   const pans = people.map((p) => p.pan).filter(Boolean) as string[];
   const mobiles = people.map((p) => p.mobile).filter(Boolean) as string[];

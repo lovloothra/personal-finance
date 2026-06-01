@@ -280,6 +280,7 @@ a { color: inherit; }
 
 /* onboarding (forks kit) */
 .onb { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(80% 60% at 50% 0%, rgba(99,84,230,0.09), transparent 70%), var(--bg-subtle); padding: 32px 24px; }
+.onb.onb-wide { align-items: stretch; background: var(--bg-subtle); }
 .onb-card { width: 520px; max-width: 100%; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 38px; }
 .onb-card.center { text-align: center; }
 .onb-logo { display: flex; justify-content: center; margin-bottom: 24px; }
@@ -305,6 +306,30 @@ a { color: inherit; }
 .inp:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--shadow-focus); }
 .inp::placeholder { color: var(--neutral-400); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+
+/* chaptered onboarding quest */
+.quest-shell { width: min(1120px, 100%); min-height: calc(100vh - 64px); display: grid; grid-template-columns: 260px minmax(0, 1fr); background: #fff; border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden; }
+.quest-rail { background: var(--bg-dark); color: var(--fg-on-dark); padding: 24px 18px; display: flex; flex-direction: column; gap: 8px; }
+.quest-rail .onb-logo { justify-content: flex-start; margin: 0 0 16px; color: var(--mint-300); }
+.quest-step { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; width: 100%; border: 0; background: transparent; color: rgba(255,255,255,0.72); text-align: left; border-radius: 8px; padding: 10px; cursor: pointer; transition: background var(--dur), color var(--dur); }
+.quest-step:hover, .quest-step.on { background: rgba(255,255,255,0.08); color: #fff; }
+.quest-step span { width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.08); color: currentColor; }
+.quest-step.done span { background: var(--mint-500); color: #fff; }
+.quest-step b { font-size: 13.5px; font-weight: 650; }
+.quest-step em { font-style: normal; font-size: 11.5px; opacity: 0.72; }
+.quest-privacy { margin-top: auto; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.12); font-size: 12px; line-height: 1.45; color: rgba(255,255,255,0.62); display: flex; gap: 7px; align-items: center; }
+.quest-main { padding: 34px; overflow: auto; }
+.quest-head { display: grid; grid-template-columns: 46px 1fr; gap: 14px; align-items: start; margin-bottom: 16px; }
+.quest-emblem { width: 46px; height: 46px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--indigo-50); color: var(--brand); }
+.quest-score { display: grid; grid-template-columns: minmax(170px, 250px) 1fr; gap: 18px; align-items: center; padding: 12px 14px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 22px; }
+.quest-score b { display: block; font-size: 13.5px; }
+.quest-score span { display: block; margin-top: 2px; font-size: 12px; color: var(--fg-3); }
+.quest-bar { height: 8px; border-radius: 999px; background: var(--neutral-200); overflow: hidden; }
+.quest-bar i { display: block; height: 100%; border-radius: inherit; background: var(--mint-500); transition: width var(--dur); }
+.quest-subhead { font-size: 12px; font-weight: 750; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.04em; margin: 16px 0 10px; }
+.quest-block { padding-top: 2px; border-top: 1px solid var(--border); }
+.quest-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 
 /* import progress */
 .imp-log { font-family: var(--font-mono); font-size: 12px; background: var(--bg-dark); color: var(--fg-on-dark-2); border-radius: var(--radius-md); padding: 14px 16px; height: 168px; overflow-y: auto; line-height: 1.7; }
@@ -323,3 +348,14 @@ a { color: inherit; }
 .fig { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
 .divider { height: 1px; background: var(--border); margin: 16px 0; border: 0; }
 .tooltip-wrap { position: relative; display: inline-flex; }
+
+@media (max-width: 760px) {
+  .onb { padding: 16px; }
+  .row2, .row3 { grid-template-columns: 1fr; }
+  .quest-shell { min-height: auto; grid-template-columns: 1fr; }
+  .quest-rail { padding: 16px; }
+  .quest-main { padding: 22px; }
+  .quest-score { grid-template-columns: 1fr; gap: 10px; }
+  .quest-actions { align-items: stretch; flex-direction: column; }
+  .quest-actions .btn, .quest-actions .gbtn { width: 100%; justify-content: center; }
+}

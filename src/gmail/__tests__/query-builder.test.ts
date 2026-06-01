@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildQueries, loadGmailTemplates, type GmailTemplate } from '../query-builder';
+import { ProfileSeedSchema } from '@/profile/types';
+import { providerIds } from '@/profile/signals';
 
 const sampleTemplates: GmailTemplate[] = [
   {
@@ -49,6 +51,37 @@ test('filters to only the providers the household uses', () => {
   const qs = buildQueries({ templates: sampleTemplates, fy: '2025-26', providerIds: ['icici-bank'] });
   assert.equal(qs.length, 1);
   assert.equal(qs[0].providerId, 'icici-bank');
+});
+
+test('provider-scoped Gmail queries reflect the latest saved profile providers', () => {
+  const first = ProfileSeedSchema.parse({
+    personal: { fullName: 'Lov Loothra' },
+    banks: [{ institutionId: 'hdfc-bank', isPrimary: true }],
+  });
+  const updated = ProfileSeedSchema.parse({
+    personal: { fullName: 'Lov Loothra' },
+    banks: [{ institutionId: 'icici-bank', isPrimary: true }],
+    investmentPlatforms: [{ institutionId: 'groww-invest-platform', name: 'Groww', kind: 'mutual_fund' }],
+  });
+
+  const profileTemplates: GmailTemplate[] = [
+    ...sampleTemplates,
+    {
+      id: 'groww-investments',
+      provider_id: 'groww-invest-platform',
+      doc_type: 'investment_statement',
+      sender_hints: ['groww.in'],
+      subject_hints: ['statement'],
+      query_fragments: ['has:attachment', '(from:groww.in)'],
+      password_rule_tags: [],
+    },
+  ];
+
+  const firstQueries = buildQueries({ templates: profileTemplates, fy: '2025-26', providerIds: providerIds(first) });
+  const updatedQueries = buildQueries({ templates: profileTemplates, fy: '2025-26', providerIds: providerIds(updated) });
+
+  assert.deepEqual(firstQueries.map((q) => q.providerId), ['hdfc-bank']);
+  assert.deepEqual(updatedQueries.map((q) => q.providerId), ['icici-bank', 'groww-invest-platform']);
 });
 
 test('loads the real India gmail templates from packs/in', () => {

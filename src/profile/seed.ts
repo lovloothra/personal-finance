@@ -8,12 +8,17 @@ import { inArray } from 'drizzle-orm';
 import type { DB } from '@/db/client';
 import {
   profilePersonal,
+  profileFamily,
   profileHome,
+  profileLifestyle,
   profileHouseHelp,
+  profileSubscriptions,
+  profileAnnualExpenses,
   profileOneTimeProjects,
   accountsBank,
   accountsCard,
   accountsBroker,
+  accountsInvestmentPlatform,
   loans,
   insurancePolicies,
   institutions,
@@ -98,6 +103,34 @@ export function persistProfile(db: DB, seed: ProfileSeed): Record<string, number
         .run();
     }
 
+    tx.delete(profileFamily).run();
+    if (seed.spouse) {
+      tx
+        .insert(profileFamily)
+        .values({
+          id: rid('family'),
+          relation: 'spouse',
+          fullName: seed.spouse.fullName,
+          dob: seed.spouse.dob ?? null,
+          isDependent: false,
+          hasIncome: false,
+        })
+        .run();
+    }
+    for (const d of seed.dependents) {
+      tx
+        .insert(profileFamily)
+        .values({
+          id: rid('family'),
+          relation: d.relation,
+          fullName: d.fullName,
+          dob: d.dob ?? null,
+          isDependent: d.isDependent,
+          hasIncome: d.hasIncome,
+        })
+        .run();
+    }
+
     // List tables: replace wholesale for a clean re-seed.
     tx.delete(accountsBank).run();
     for (const b of seed.banks) {
@@ -116,10 +149,15 @@ export function persistProfile(db: DB, seed: ProfileSeed): Record<string, number
 
     tx.delete(accountsCard).run();
     for (const c of seed.cards) {
-      tx
-        .insert(accountsCard)
-        .values({ id: rid('card'), institutionId: c.institutionId, nickname: c.nickname ?? null, last4: c.last4 ?? null, network: c.network ?? null })
-        .run();
+      tx.insert(accountsCard).values({
+        id: rid('card'),
+        institutionId: c.institutionId,
+        nickname: c.nickname ?? null,
+        last4: c.last4 ?? null,
+        network: c.network ?? null,
+        creditLimit: toPaise(c.creditLimit),
+        statementDay: c.statementDay ?? null,
+      }).run();
     }
 
     tx.delete(accountsBroker).run();
@@ -127,14 +165,46 @@ export function persistProfile(db: DB, seed: ProfileSeed): Record<string, number
       tx.insert(accountsBroker).values({ id: rid('broker'), institutionId: b.institutionId, nickname: b.name }).run();
     }
 
+    tx.delete(accountsInvestmentPlatform).run();
+    for (const p of seed.investmentPlatforms) {
+      tx.insert(accountsInvestmentPlatform).values({
+        id: rid('platform'),
+        institutionId: p.institutionId,
+        nickname: p.name,
+        kind: p.kind ?? null,
+      }).run();
+    }
+
     tx.delete(loans).run();
     for (const l of seed.loans) {
-      tx.insert(loans).values({ id: rid('loan'), institutionId: l.institutionId ?? null, kind: l.kind, emiAmount: toPaise(l.emiAmount) }).run();
+      tx.insert(loans).values({
+        id: rid('loan'),
+        institutionId: l.institutionId ?? null,
+        kind: l.kind,
+        principal: toPaise(l.principal),
+        outstanding: toPaise(l.outstanding),
+        emiAmount: toPaise(l.emiAmount),
+        emiDay: l.emiDay ?? null,
+        interestRate: l.interestRate ?? null,
+        startDate: l.startDate ?? null,
+        endDate: l.endDate ?? null,
+      }).run();
     }
 
     tx.delete(insurancePolicies).run();
     for (const i of seed.insurers) {
-      tx.insert(insurancePolicies).values({ id: rid('ins'), institutionId: i.institutionId ?? null, kind: i.kind }).run();
+      tx.insert(insurancePolicies).values({
+        id: rid('ins'),
+        institutionId: i.institutionId ?? null,
+        kind: i.kind,
+        policyNumberLast4: i.policyNumberLast4 ?? null,
+        premium: toPaise(i.premium),
+        cadence: i.cadence ?? null,
+        sumAssured: toPaise(i.sumAssured),
+        renewalMonth: i.renewalMonth ?? null,
+        coversSelf: i.coversSelf ?? true,
+        coversParents: i.coversParents ?? false,
+      }).run();
     }
 
     tx.delete(profileHouseHelp).run();
@@ -145,21 +215,73 @@ export function persistProfile(db: DB, seed: ProfileSeed): Record<string, number
         .run();
     }
 
+    tx.delete(profileSubscriptions).run();
+    for (const s of seed.subscriptions) {
+      tx.insert(profileSubscriptions).values({
+        id: rid('sub'),
+        name: s.name,
+        amount: toPaise(s.amount),
+        cadence: s.cadence ?? null,
+        category: s.category ?? null,
+      }).run();
+    }
+
+    tx.delete(profileAnnualExpenses).run();
+    for (const e of seed.annualExpenses) {
+      tx.insert(profileAnnualExpenses).values({
+        id: rid('annual'),
+        name: e.name,
+        amount: toPaise(e.amount),
+        month: e.month ?? null,
+        category: e.category ?? null,
+      }).run();
+    }
+
     tx.delete(profileOneTimeProjects).run();
     for (const p of seed.projects) {
       tx
         .insert(profileOneTimeProjects)
-        .values({ id: p.id, name: p.name, startDate: p.startDate, endDate: p.endDate, status: 'planned' })
+        .values({ id: p.id, name: p.name, budget: toPaise(p.budget), startDate: p.startDate ?? null, endDate: p.endDate ?? null, status: p.status ?? 'planned' })
         .run();
     }
+
+    tx
+      .insert(profileLifestyle)
+      .values({
+        id: 'lifestyle',
+        data: {
+          goals: seed.goals,
+          tax: seed.tax,
+          onboarding: seed.onboarding,
+          home: seed.home ? { landlordName: seed.home.landlordName, hraInSalary: seed.home.hraInSalary } : undefined,
+        },
+        updatedAt: ts,
+      })
+      .onConflictDoUpdate({
+        target: profileLifestyle.id,
+        set: {
+          data: {
+            goals: seed.goals,
+            tax: seed.tax,
+            onboarding: seed.onboarding,
+            home: seed.home ? { landlordName: seed.home.landlordName, hraInSalary: seed.home.hraInSalary } : undefined,
+          },
+          updatedAt: ts,
+        },
+      })
+      .run();
 
     return {
       banks: seed.banks.length,
       cards: seed.cards.length,
       brokers: seed.brokers.length,
+      investmentPlatforms: seed.investmentPlatforms.length,
       loans: seed.loans.length,
       insurers: seed.insurers.length,
+      dependents: seed.dependents.length,
       houseHelp: seed.houseHelp.length,
+      subscriptions: seed.subscriptions.length,
+      annualExpenses: seed.annualExpenses.length,
       projects: seed.projects.length,
     };
   });
