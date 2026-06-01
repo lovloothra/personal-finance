@@ -10,6 +10,27 @@ import type { Classification, ClassifyContext, RawTxn, Flow } from './types';
 import { LAYER } from './types';
 import { clean } from './normalize';
 
+/** Domain prefixes in the pack taxonomy that aren't useful as display categories. */
+const TAXONOMY_DOMAINS = new Set(['expenses', 'subscriptions', 'income', 'transfer', 'investment']);
+
+function titleCase(s: string): string {
+  return s
+    .replace(/[._-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Turn a dotted pack taxonomy ("expenses.transport", "expenses.quick_commerce")
+ * into a human display category. Drops the generic domain prefix and title-cases
+ * the most specific meaningful segment, falling back to the subcategory.
+ */
+function displayCategory(taxonomy: string | null, subcategory: string | null): string {
+  const segments = (taxonomy ?? '').split('.').filter((s) => s && !TAXONOMY_DOMAINS.has(s));
+  const pick = segments[0] ?? subcategory ?? taxonomy ?? 'Uncategorised';
+  return titleCase(pick);
+}
+
 export function classifyByMerchantAlias(
   txn: RawTxn,
   ctx: ClassifyContext,
@@ -25,14 +46,14 @@ export function classifyByMerchantAlias(
   if (!best) return null;
 
   const flow: Flow = txn.amount > 0 ? 'income' : 'expense';
-  const human = best.category ? best.category.split('.').slice(1).join(' / ') || best.category : 'Uncategorised';
+  const category = displayCategory(best.category, best.subcategory);
 
   return {
     flow,
-    category: best.category ?? 'Uncategorised',
+    category,
     subcategory: best.subcategory,
     confidence: best.confidence,
-    reason: `Merchant alias: "${txn.rawDescription.trim()}" → ${best.canonicalMerchant} (${best.source === 'user' ? 'your alias' : 'pack'}). Category ${human} from pack default.`,
+    reason: `Merchant alias: "${txn.rawDescription.trim()}" → ${best.canonicalMerchant} (${best.source === 'user' ? 'your alias' : 'pack'}). Category ${category} from pack default.`,
     signal:
       best.source === 'user'
         ? 'user.merchant_alias'

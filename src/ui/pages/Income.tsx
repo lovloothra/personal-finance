@@ -5,22 +5,29 @@ import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead, TxnRow } from './shared';
+import { useDashboard, type IncomeDTO } from '../data/useDashboard';
+import { recentToTxn } from '../data/useOverview';
 
 export function Income() {
   const { fy } = useFy();
+  const { data } = useDashboard<IncomeDTO>('income', fy);
+  const live = data?.hasData ? data : null;
   const f = fys[fy];
-  const months = incomeMonths;
-  const maxM = Math.max(...months.map((m) => m.salary + m.other));
-  const totalSalary = months.reduce((s, m) => s + m.salary, 0);
-  const totalOther = months.reduce((s, m) => s + m.other, 0);
-  const salaryTxns = txns.filter((t) => t.flow === 'in');
+
+  const months = live ? live.months : incomeMonths;
+  const maxM = Math.max(1, ...months.map((m) => m.salary + m.other));
+  const totalIncome = live ? live.total : f.income;
+  const totalSalary = live ? live.salaryTotal : months.reduce((s, m) => s + m.salary, 0);
+  const totalOther = live ? live.otherTotal : months.reduce((s, m) => s + m.other, 0);
+  const salaryTxns = live ? live.txns.map(recentToTxn) : txns.filter((t) => t.flow === 'in');
+  const employer = live?.employer ?? household.employer;
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Income" sub={`${f.label} · salary credits detected from ${household.employer}`} />
+      <PageHead title="Income" sub={`${f.label} · salary credits detected from ${employer}`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Total income" icon="wallet" val={<Money amount={f.income} pos />} />
-        <StatCard lbl="Salary (employer)" icon="building-2" val={<Money amount={totalSalary} />} sub="12 monthly credits matched" />
+        <StatCard lbl="Total income" icon="wallet" val={<Money amount={totalIncome} pos />} />
+        <StatCard lbl="Salary (employer)" icon="building-2" val={<Money amount={totalSalary} />} sub="monthly credits matched" />
         <StatCard lbl="Other income" icon="plus-circle" val={<Money amount={totalOther} />} sub="Bonus, freelance, reimbursements" />
       </div>
 

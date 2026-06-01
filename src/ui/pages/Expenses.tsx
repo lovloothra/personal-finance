@@ -6,29 +6,47 @@ import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { FootMeta, PageHead, TxnRow } from './shared';
 import { inr } from '../lib/format';
+import { useDashboard, type ExpensesDTO } from '../data/useDashboard';
+import { recentToTxn } from '../data/useOverview';
 
 type Tab = 'categories' | 'merchants';
 type Filter = 'all' | 'recurring' | 'onetime';
+interface CatRow {
+  id: string;
+  name: string;
+  amt: number;
+  color: string;
+  recurring: boolean;
+  project?: string | null;
+  children: { name: string; amt: number }[];
+}
 
 export function Expenses() {
   const { fy } = useFy();
+  const { data } = useDashboard<ExpensesDTO>('expenses', fy);
+  const live = data?.hasData ? data : null;
   const f = fys[fy];
   const [tab, setTab] = useState<Tab>('categories');
   const [filter, setFilter] = useState<Filter>('all');
   const [openCat, setOpenCat] = useState<string | null>(null);
 
-  let cats = categories;
+  const allCats: CatRow[] = live
+    ? live.categories.map((c) => ({ id: c.name, name: c.name, amt: c.amt, color: c.color, recurring: c.recurring, project: c.project, children: c.children }))
+    : categories.map((c) => ({ id: c.id, name: c.name, amt: c.amt, color: c.color, recurring: c.recurring, project: c.project, children: c.children }));
+
+  let cats = allCats;
   if (filter === 'recurring') cats = cats.filter((c) => c.recurring);
   if (filter === 'onetime') cats = cats.filter((c) => !c.recurring);
   cats = [...cats].sort((a, b) => b.amt - a.amt);
-  const maxCat = Math.max(...cats.map((c) => c.amt));
-  const totalShown = cats.reduce((s, c) => s + c.amt, 0);
+  const maxCat = Math.max(1, ...cats.map((c) => c.amt));
+  const totalShown = cats.reduce((s, c) => s + c.amt, 0) || 1;
 
-  const expenseTxns = txns.filter((t) => t.flow === 'out');
+  const totalExpenses = live ? live.total : f.expenses;
+  const expenseTxns = live ? live.txns.map(recentToTxn) : txns.filter((t) => t.flow === 'out');
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Expenses" sub={`${f.label} · ${inr(f.expenses)} across ${categories.length} categories`} />
+      <PageHead title="Expenses" sub={`${f.label} · ${inr(totalExpenses)} across ${allCats.length} categories`} />
       <div className="tabs">
         <button className={tab === 'categories' ? 'on' : ''} onClick={() => setTab('categories')}>
           By category

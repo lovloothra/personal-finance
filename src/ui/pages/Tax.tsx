@@ -1,13 +1,23 @@
 'use client';
+import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
-import { tax as taxData, txns } from '../lib/fixtures';
+import { tax as taxFixture, txns } from '../lib/fixtures';
 import { inr } from '../lib/format';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { FootMeta, PageHead, TxnRow } from './shared';
+import { useDashboard, type TaxDTO } from '../data/useDashboard';
+import { recentToTxn } from '../data/useOverview';
 
-function RegimeCard({ which, oldWins }: { which: 'old' | 'new'; oldWins: boolean }) {
-  const r = which === 'old' ? taxData.old : taxData.new;
+interface RegimeView {
+  taxable: number;
+  tax: number;
+  surcharge: number;
+  cess: number;
+  total: number;
+}
+
+function RegimeCard({ which, r, oldWins }: { which: 'old' | 'new'; r: RegimeView; oldWins: boolean }) {
   const win = (which === 'old') === oldWins;
   return (
     <div className={`regime ${win ? 'win' : ''}`}>
@@ -41,10 +51,14 @@ function RegimeCard({ which, oldWins }: { which: 'old' | 'new'; oldWins: boolean
 }
 
 export function Tax() {
+  const { fy } = useFy();
   const { openProv } = useDrawer();
+  const { data } = useDashboard<TaxDTO>('tax', fy);
+  const live = data?.hasData && data.comparison ? data.comparison : null;
+  const taxData = live ?? taxFixture;
   const oldWins = taxData.old.total < taxData.new.total;
   const delta = Math.abs(taxData.old.total - taxData.new.total);
-  const evidenceTxns = txns.filter((x) => x.taxSection);
+  const evidenceTxns = live ? data!.evidence.map(recentToTxn) : txns.filter((x) => x.taxSection);
 
   return (
     <div className="content-wrap fade-in">
@@ -61,8 +75,8 @@ export function Tax() {
       </div>
 
       <div className="grid-2e" style={{ marginBottom: 16 }}>
-        <RegimeCard which="old" oldWins={oldWins} />
-        <RegimeCard which="new" oldWins={oldWins} />
+        <RegimeCard which="old" r={taxData.old} oldWins={oldWins} />
+        <RegimeCard which="new" r={taxData.new} oldWins={oldWins} />
       </div>
 
       <div
@@ -140,7 +154,7 @@ export function Tax() {
                       <button
                         className="prov"
                         onClick={() =>
-                          openProv(evidenceTxns.find((x) => x.taxSection === d.section) || evidenceTxns[0])
+                          openProv(evidenceTxns.find((x) => x.taxSection === d.section) || evidenceTxns[0] || txns.find((x) => x.taxSection)!)
                         }
                       >
                         <Icon name="file-text" size={13} />
