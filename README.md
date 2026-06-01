@@ -75,7 +75,8 @@ same profile feeds Gmail query scoping, PDF password candidates, salary/rent/EMI
 - Deterministic transaction classification using provider rules, merchant aliases, profile signals, recurrence, internal-transfer detection, and project isolation.
 - India financial-year utilities and FY 2025-26 / 2026-27 income-tax comparison logic.
 - Workbench UI for overview, income, expenses, investments, liabilities, subscriptions, tax, review queue, sources, profile, and settings.
-- Every workbench page (Overview, Income, Expenses, Tax, Investments, Liabilities, Subscriptions, Sources, Review queue) is DB-backed, using imported data when available and falling back to demo fixtures before the first import.
+- Every workbench page (Overview, Income, Expenses, Tax, Investments, Liabilities, Subscriptions, Sources, Review queue, Profile) is DB-backed, using your real data when available and falling back to demo fixtures before the first import.
+- The Profile page shows your actual profile section-by-section with live completion %, empty fields surfaced as hints to complete (never placeholder data), and edits that persist to the encrypted seed + database.
 - Subscription detection: recurring debits (excluding rent/EMI/insurance/investment) are materialised into the Subscriptions page with cadence and next-charge estimates.
 - Review queue surfaces locked statements, uncategorised transactions, and low-confidence classifications, with an inline password entry that retries every locked statement on-device and re-ingests.
 - Universal statement parser handles both running-balance (bank) and single-amount (card) layouts, ignores reference/card numbers and summary/balance-forward lines, and de-duplicates repeated rows.

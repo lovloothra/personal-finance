@@ -1,90 +1,92 @@
 'use client';
-import { useEffect, useState, type CSSProperties } from 'react';
-import { profileSections as seed, type ProfileSection } from '../lib/fixtures';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { Icon } from '../primitives/Icon';
 import { FootMeta, PageHead } from './shared';
+import { InstitutionPicker } from '../onboarding/InstitutionPicker';
 
-interface ProfileField {
-  k: string;
-  v: string;
+type FieldType = 'text' | 'date' | 'number' | 'select' | 'institution';
+
+interface FieldView {
+  key: string;
+  label: string;
+  type: FieldType;
+  value: string;
   hint?: string;
+  options?: string[];
+  category?: string;
+  currentId?: string;
+  readOnly?: boolean;
+}
+interface SectionView {
+  id: string;
+  name: string;
+  why: string;
+  fields: FieldView[];
+  pct: number;
+  editable: boolean;
 }
 
-const PROFILE_FIELDS: Record<string, ProfileField[]> = {
-  personal: [
-    { k: 'Full name', v: 'Aditya Iyer' },
-    { k: 'PAN', v: 'ABXPI1234K', hint: 'Used only to derive statement passwords, on-device.' },
-    { k: 'Date of birth', v: '14 / 08 / 1991' },
-    { k: 'City', v: 'Bengaluru, KA' },
-  ],
-  accounts: [
-    { k: 'Primary bank', v: 'HDFC Bank ··4821' },
-    { k: 'Second bank', v: '', hint: 'We see credits referencing an ICICI account — add it to lift coverage.' },
-    { k: 'Credit card', v: 'HDFC ··7702' },
-    { k: 'Second card', v: 'Amex ··3009' },
-  ],
-  employer: [
-    { k: 'Employer', v: 'Nexora Systems Pvt Ltd' },
-    { k: 'Annual CTC', v: '₹49,20,000' },
-    { k: 'Salary account', v: 'HDFC ··4821' },
-  ],
-  family: [
-    { k: 'Spouse', v: 'Sneha Iyer' },
-    { k: 'Dependents', v: '2 children' },
-    { k: 'Parents (insured)', v: '', hint: 'Adding parents enables 80D detection for their premiums.' },
-  ],
-  home: [
-    { k: 'Monthly rent', v: '₹55,000' },
-    { k: 'Landlord / payee', v: 'Prestige Property Mgmt' },
-    { k: 'HRA component', v: '₹33,000 / mo' },
-  ],
-  investments: [
-    { k: 'Brokers', v: 'Groww, Zerodha' },
-    { k: 'NPS account', v: 'Protean ··PRAN' },
-    { k: 'Other platforms', v: '', hint: 'Kuvera detected — add to tag its SIPs correctly.' },
-  ],
-  subscriptions: [
-    { k: 'Confirmed subscriptions', v: '7 tracked' },
-    { k: 'Renewal reminders', v: 'On' },
-  ],
-  annual: [
-    { k: 'One-time projects', v: 'Goa anniversary trip' },
-    { k: 'Annual expenses', v: '', hint: 'School fees, insurance renewals — isolate them from monthly view.' },
-  ],
-};
-
-interface ProfileEditDrawerProps {
-  section: ProfileSection;
-  onClose: () => void;
-  onSave: (id: string, pct: number, vals: string[]) => void;
+function summarise(section: SectionView): string {
+  const filled = section.fields.filter((f) => f.value.trim() !== '').map((f) => f.value);
+  if (filled.length) return filled.slice(0, 3).join(' · ');
+  return section.editable ? 'Not added yet — tap to complete' : 'Detected from your statements';
 }
 
-function ProfileEditDrawer({ section, onClose, onSave }: ProfileEditDrawerProps) {
-  const fields = PROFILE_FIELDS[section.id] || [];
+// --- Edit drawer -----------------------------------------------------------
+
+function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView; onClose: () => void; onSaved: () => void }) {
   const [show, setShow] = useState(false);
-  const [vals, setVals] = useState<string[]>(() => fields.map((f) => f.v));
+  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(section.fields.map((f) => [f.key, f.value])));
+  const [ids, setIds] = useState<Record<string, string>>(() =>
+    Object.fromEntries(section.fields.filter((f) => f.type === 'institution').map((f) => [f.key, f.currentId ?? ''])),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setShow(true), 10);
     return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const close = () => {
+  const close = useCallback(() => {
     setShow(false);
     setTimeout(onClose, 220);
+  }, [onClose]);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [close]);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    const values: Record<string, string> = {};
+    for (const f of section.fields) {
+      if (f.readOnly) continue;
+      values[f.key] = f.type === 'institution' ? ids[f.key] ?? '' : vals[f.key] ?? '';
+    }
+    try {
+      const res = await fetch('/api/profile/patch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ values }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Save failed');
+      onSaved();
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const filled = vals.filter((v) => v.trim() !== '').length;
-  const pct = fields.length ? Math.round((filled / fields.length) * 100) : 100;
+  const editableFields = section.fields.filter((f) => !f.readOnly);
+  const filled = editableFields.filter((f) => (f.type === 'institution' ? ids[f.key] : vals[f.key]?.trim())).length;
+  const pct = editableFields.length ? Math.round((filled / editableFields.length) * 100) : 100;
 
   return (
     <>
@@ -100,134 +102,123 @@ function ProfileEditDrawer({ section, onClose, onSave }: ProfileEditDrawerProps)
           </button>
         </div>
         <div className="drawer-body">
-          {fields.map((f, i) => (
-            <div className="field" key={f.k}>
-              <label>{f.k}</label>
-              <input
-                className="inp"
-                value={vals[i]}
-                placeholder={`Add ${f.k.toLowerCase()}…`}
-                onChange={(e) =>
-                  setVals((vs) => vs.map((v, j) => (j === i ? e.target.value : v)))
-                }
-              />
+          {section.fields.map((f) => (
+            <div className="field" key={f.key}>
+              <label>{f.label}</label>
+              {f.readOnly ? (
+                <div className="inp" style={{ background: 'var(--bg-subtle)', color: 'var(--fg-2)' }}>{f.value || '—'}</div>
+              ) : f.type === 'institution' ? (
+                <InstitutionPicker
+                  category={f.category ?? 'bank'}
+                  placeholder={`Search ${f.label.toLowerCase()}…`}
+                  valueLabel={f.value}
+                  onSelect={(inst) => setIds((m) => ({ ...m, [f.key]: inst?.id ?? '' }))}
+                />
+              ) : f.type === 'select' ? (
+                <select className="inp" value={vals[f.key] ?? ''} onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}>
+                  <option value="">Select…</option>
+                  {(f.options ?? []).map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="inp"
+                  type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
+                  value={vals[f.key] ?? ''}
+                  placeholder={`Add ${f.label.toLowerCase()}…`}
+                  onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}
+                />
+              )}
               {f.hint && <div className="hint">{f.hint}</div>}
             </div>
           ))}
           <div className="note privacy" style={{ marginTop: 6 }}>
-            <span className="ic">
-              <Icon name="hard-drive" size={16} />
-            </span>
+            <span className="ic"><Icon name="hard-drive" size={16} /></span>
             <span>Saved to your encrypted on-device database. Nothing here is ever uploaded.</span>
           </div>
+          {error && <div className="note warn" style={{ marginTop: 10 }}><span className="ic"><Icon name="triangle-alert" size={16} /></span><span>{error}</span></div>}
         </div>
-        <div
-          style={{
-            padding: '14px 24px',
-            borderTop: '1px solid var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="muted" style={{ fontSize: 12.5, marginRight: 'auto' }}>
-            {filled} of {fields.length} filled · {pct}%
+            {section.editable ? `${filled} of ${editableFields.length} filled · ${pct}%` : 'Detected automatically'}
           </span>
-          <button className="btn btn-ghost" onClick={close}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              onSave(section.id, pct, vals.filter((v) => v.trim()));
-              close();
-            }}
-          >
-            Save changes
-          </button>
+          <button className="btn btn-ghost" onClick={close}>Cancel</button>
+          {section.editable && (
+            <button className="btn btn-primary" disabled={saving} onClick={save}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          )}
         </div>
       </aside>
     </>
   );
 }
 
-export function Profile() {
-  const [sections, setSections] = useState<ProfileSection[]>(() => seed.map((p) => ({ ...p })));
-  const [editing, setEditing] = useState<ProfileSection | null>(null);
-  const overall = Math.round(sections.reduce((s, p) => s + p.pct, 0) / sections.length);
+// --- Page ------------------------------------------------------------------
 
-  const handleSave = (id: string, pct: number, vals: string[]) => {
-    setSections((secs) =>
-      secs.map((s) => {
-        if (s.id !== id) return s;
-        const summary = vals.length ? vals.slice(0, 3).join(', ') : s.fields;
-        return { ...s, pct, fields: summary };
-      }),
-    );
-  };
+export function Profile() {
+  const [sections, setSections] = useState<SectionView[]>([]);
+  const [overall, setOverall] = useState(0);
+  const [editing, setEditing] = useState<SectionView | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/profile/full');
+      const data = (await res.json()) as { sections: SectionView[]; overall: number };
+      setSections(data.sections ?? []);
+      setOverall(data.overall ?? 0);
+    } catch {
+      /* leave empty */
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <div className="content-wrap fade-in">
       <PageHead title="Profile" sub="The more we know, the more we can recognise. All of it stays local." />
       <div className="card card-pad" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div
-          className="ring"
-          style={{ ['--p' as string]: overall, width: 56, height: 56 } as CSSProperties}
-        >
+        <div className="ring" style={{ ['--p' as string]: overall, width: 56, height: 56 } as CSSProperties}>
           <i style={{ width: 44, height: 44, fontSize: 13 }}>{overall}%</i>
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 16, fontFamily: 'var(--font-display)' }}>
-            Profile is {overall}% complete
+            {overall >= 100 ? 'Profile complete' : `Profile is ${overall}% complete`}
           </div>
           <div style={{ fontSize: 13, color: 'var(--fg-2)', marginTop: 2 }}>
-            Filling the gaps below would lift your classification accuracy and source coverage.
+            {overall >= 100 ? 'Everything we need is on file. You can refine details anytime.' : 'Filling the gaps below lifts classification accuracy and source coverage.'}
           </div>
         </div>
-        <span className="ondevice">
-          <Icon name="lock" size={14} />
-          Encrypted on disk
-        </span>
+        <span className="ondevice"><Icon name="lock" size={14} />Encrypted on disk</span>
       </div>
 
       <div className="grid-2e">
         {sections.map((p) => (
           <div
             key={p.id}
-            className="card card-pad card-hover"
-            style={{ cursor: 'pointer' }}
+            className={`card card-pad ${p.editable ? 'card-hover' : ''}`}
+            style={{ cursor: p.editable ? 'pointer' : 'default' }}
             onClick={() => setEditing(p)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div className="ring" style={{ ['--p' as string]: p.pct } as CSSProperties}>
-                <i>{p.pct}</i>
+              <div className="ring" style={{ ['--p' as string]: p.editable ? p.pct : 100 } as CSSProperties}>
+                <i>{p.editable ? p.pct : <Icon name="sparkles" size={13} />}</i>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14.5 }}>{p.name}</div>
-                <div
-                  className="muted"
-                  style={{ fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                >
-                  {p.fields}
+                <div className="muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {summarise(p)}
                 </div>
               </div>
               <span className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
-                <Icon name="pencil" size={14} />
-                Edit
+                <Icon name={p.editable ? 'pencil' : 'eye'} size={14} />
+                {p.editable ? 'Edit' : 'View'}
               </span>
             </div>
-            <div
-              style={{
-                fontSize: 12.5,
-                color: 'var(--fg-2)',
-                display: 'flex',
-                gap: 7,
-                alignItems: 'flex-start',
-                background: 'var(--bg-subtle)',
-                padding: '9px 11px',
-                borderRadius: 10,
-              }}
-            >
+            <div style={{ fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', gap: 7, alignItems: 'flex-start', background: 'var(--bg-subtle)', padding: '9px 11px', borderRadius: 10 }}>
               <Icon name="help-circle" size={14} color="var(--fg-3)" style={{ flexShrink: 0, marginTop: 1 }} />
               <span>{p.why}</span>
             </div>
@@ -235,7 +226,7 @@ export function Profile() {
         ))}
       </div>
       <FootMeta />
-      {editing && <ProfileEditDrawer section={editing} onClose={() => setEditing(null)} onSave={handleSave} />}
+      {editing && <ProfileEditDrawer section={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </div>
   );
 }
