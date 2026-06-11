@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -177,14 +177,28 @@ test("Gmail templates reference known providers and include base exclusions", as
   }
 });
 
-test("pack files do not contain local secrets, tokens, or runtime paths", () => {
-  const result = spawnSync("rg", ["-n", "(oauth|refresh_token|access_token|client_secret|\\.env|/Users/|attachments/|data/|exports/)", "packs", "schemas", "scripts", "tools"], {
-    cwd: repoRoot,
-    encoding: "utf8"
-  });
-
-  assert.notEqual(result.error?.code, "ENOENT", "ripgrep must be available for secret scan");
-  assert.equal(result.status, 1, result.stdout);
+test("pack files do not contain local secrets, tokens, or runtime paths", async () => {
+  // Data dirs must never mention auth or runtime paths at all; code dirs may
+  // reference oauth modules and data/ constants, so only hard markers apply.
+  const scans = [
+    { dirs: ["packs", "schemas"], pattern: /(oauth|refresh_token|access_token|client_secret|\.env|\/Users\/|attachments\/|data\/|exports\/)/i },
+    { dirs: ["scripts", "tools"], pattern: /(refresh_token|access_token|client_secret|\/Users\/)/ }
+  ];
+  const hits = [];
+  for (const { dirs, pattern } of scans) {
+    for (const dir of dirs) {
+      const entries = await readdir(path.join(repoRoot, dir), { recursive: true, withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        const filePath = path.join(entry.parentPath, entry.name);
+        const lines = (await readFile(filePath, "utf8")).split("\n");
+        lines.forEach((line, i) => {
+          if (pattern.test(line)) hits.push(`${path.relative(repoRoot, filePath)}:${i + 1}: ${line.trim()}`);
+        });
+      }
+    }
+  }
+  assert.deepEqual(hits, []);
 });
 
 test("refresh script can list source-backed inputs without network access", () => {

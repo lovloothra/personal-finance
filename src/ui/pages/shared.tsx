@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react';
 import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
+import { useShellMeta } from '../contexts/ShellMetaCtx';
 import { fys, type Txn } from '../lib/fixtures';
 import { Glyph } from '../primitives/Glyph';
 import { Icon } from '../primitives/Icon';
@@ -79,24 +80,32 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
 
 export function FootMeta() {
   const { fy } = useFy();
+  const { sources } = useShellMeta();
   const f = fys[fy];
+  const coverage = sources ? sources.coverage : f.coverage;
+  const runDate = sources ? sources.lastRunDate : f.runDate;
+  const messages = sources ? sources.messagesScanned : f.messages;
   return (
     <div className="foot-meta">
       <span className="it">
         <Icon name="hard-drive" size={14} color="var(--mint-600)" />
         Stored on this device
       </span>
-      <span className="it">
-        <Icon name="mail-check" size={14} />
-        {f.coverage}% source coverage
-      </span>
-      <span className="it">
-        <Icon name="clock" size={14} />
-        Last import {f.runDate}
-      </span>
+      {coverage != null && (
+        <span className="it">
+          <Icon name="mail-check" size={14} />
+          {coverage}% source coverage
+        </span>
+      )}
+      {runDate && (
+        <span className="it">
+          <Icon name="clock" size={14} />
+          Last import {runDate}
+        </span>
+      )}
       <span className="it">
         <Icon name="database" size={14} />
-        {f.messages.toLocaleString('en-IN')} messages scanned
+        {messages.toLocaleString('en-IN')} messages scanned
       </span>
     </div>
   );

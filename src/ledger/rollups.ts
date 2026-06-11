@@ -647,7 +647,14 @@ export function reviewRollup(db: DB): ReviewRollup {
   }
 
   // Uncategorised + low-confidence: aggregate into a single summary row each.
-  const uncat = open.filter((r) => r.kind === 'uncategorised').length;
+  // Counted from the transactions table — review_items is capped per ingest
+  // run, so it undercounts when thousands of rows need a look.
+  const uncat =
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(transactions)
+      .where(and(eq(transactions.reviewRequired, true), eq(transactions.category, 'Uncategorised')))
+      .get()?.n ?? 0;
   if (uncat > 0) {
     items.push({
       id: 'agg-uncat',
@@ -659,7 +666,12 @@ export function reviewRollup(db: DB): ReviewRollup {
       count: uncat,
     });
   }
-  const lowConf = open.filter((r) => r.kind === 'low_confidence').length;
+  const lowConf =
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(transactions)
+      .where(and(eq(transactions.reviewRequired, true), sql`${transactions.category} != 'Uncategorised'`))
+      .get()?.n ?? 0;
   if (lowConf > 0) {
     items.push({
       id: 'agg-lowconf',
@@ -672,5 +684,34 @@ export function reviewRollup(db: DB): ReviewRollup {
     });
   }
 
-  return { hasData: open.length > 0, total: open.length, items };
+  const total = locked.length + uncat + lowConf;
+  return { hasData: open.length > 0 || total > 0, total, items };
+}
+
+// ---------------------------------------------------------------------------
+// Search — free-text lookup across merchants, descriptions, and amounts
+// ---------------------------------------------------------------------------
+
+export function searchTransactions(db: DB, q: string, limit = 12): RecentTxn[] {
+  const needle = `%${q.toLowerCase().trim()}%`;
+  const numeric = Number(q.replace(/[₹,\s]/g, ''));
+  const amountPaise = Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric * 100) : null;
+
+  const textMatch = sql`(
+    lower(coalesce(${transactions.merchant}, '')) like ${needle}
+    or lower(coalesce(${transactions.rawDescription}, '')) like ${needle}
+    or lower(coalesce(${transactions.category}, '')) like ${needle}
+    or lower(coalesce(${transactions.subcategory}, '')) like ${needle}
+  )`;
+  const where = amountPaise != null ? sql`(${textMatch} or abs(${transactions.amount}) = ${amountPaise})` : textMatch;
+
+  return db
+    .select(recentCols)
+    .from(transactions)
+    .leftJoin(gmailMessages, eq(transactions.messageId, gmailMessages.id))
+    .where(where)
+    .orderBy(desc(transactions.txnDate))
+    .limit(limit)
+    .all()
+    .map(rowToRecent);
 }

@@ -17,6 +17,10 @@ export interface SetupStatus {
   hasProfile: boolean;
   hasGmailAuth: boolean;
   hasData: boolean;
+  /** Gmail account the read-only connection is authorized for, if known. */
+  gmailEmail: string | null;
+  /** Full name from the saved profile, if one exists. */
+  profileName: string | null;
   /** True once the essentials + Gmail are connected (workbench is usable). */
   ready: boolean;
 }
@@ -35,12 +39,16 @@ export async function getSetupStatus(): Promise<SetupStatus> {
   const hasProfile = count(profilePersonal) > 0;
   const hasGmailAuth = count(gmailAuth) > 0;
   const hasData = count(transactions) > 0;
+  const gmailEmail = hasGmailAuth ? (db.select({ email: gmailAuth.email }).from(gmailAuth).get()?.email ?? null) : null;
+  const profileName = hasProfile ? (db.select({ name: profilePersonal.fullName }).from(profilePersonal).get()?.name ?? null) : null;
 
   return {
     hasOAuthClient,
     hasProfile,
     hasGmailAuth,
     hasData,
+    gmailEmail,
+    profileName,
     // Workbench is usable once there's a profile and either a Gmail connection
     // or already-imported data (so a populated install never re-runs onboarding).
     ready: hasProfile && (hasGmailAuth || hasData),

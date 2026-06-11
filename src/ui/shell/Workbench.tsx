@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MaskProvider } from '../contexts/MaskCtx';
 import { FyProvider } from '../contexts/FyCtx';
 import { DrawerProvider } from '../contexts/DrawerCtx';
+import { ShellMetaProvider } from '../contexts/ShellMetaCtx';
 import { Sidebar, type WorkbenchPage } from './Sidebar';
 import { Topbar } from './Topbar';
 import { Overview } from '../pages/Overview';
@@ -57,9 +58,11 @@ export function Workbench({ initialPage = 'overview' }: { initialPage?: Workbenc
     <MaskProvider>
       <FyProvider>
         <DrawerProvider>
-          <div className="app-enter">
-            <WorkbenchShell initialPage={initialPage} />
-          </div>
+          <ShellMetaProvider>
+            <div className="app-enter">
+              <WorkbenchShell initialPage={initialPage} />
+            </div>
+          </ShellMetaProvider>
         </DrawerProvider>
       </FyProvider>
     </MaskProvider>

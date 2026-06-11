@@ -1,7 +1,16 @@
 'use client';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '../primitives/Icon';
 import { PageHead } from './shared';
+
+interface SetupStatusDTO {
+  hasOAuthClient: boolean;
+  hasProfile: boolean;
+  hasGmailAuth: boolean;
+  hasData: boolean;
+  gmailEmail: string | null;
+  ready: boolean;
+}
 
 function Block({
   icon,
@@ -43,6 +52,37 @@ function Block({
 }
 
 export function Settings() {
+  const [status, setStatus] = useState<SetupStatusDTO | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/setup/status')
+      .then((r) => r.json())
+      .then((d: SetupStatusDTO) => active && setStatus(d))
+      .catch(() => active && setStatus(null));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const exportBackup = async () => {
+    setBackupBusy(true);
+    setBackupMsg(null);
+    try {
+      const res = await fetch('/api/settings/backup', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Backup failed');
+      const mb = (data.bytes / (1024 * 1024)).toFixed(1);
+      setBackupMsg(`Saved ${data.file} (${mb} MB), encrypted with your existing passphrase.`);
+    } catch (e) {
+      setBackupMsg(e instanceof Error ? e.message : 'Backup failed');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   return (
     <div className="content-wrap fade-in">
       <PageHead title="Settings" sub="Keys, backups and your connection — all under your control" />
@@ -55,14 +95,19 @@ export function Settings() {
           title="Passphrase"
           desc="Unlocks your encrypted database. Stored in your OS keychain, never on disk in plaintext."
         >
-          <button className="btn btn-secondary">Rotate passphrase</button>
+          <span className="badge mint">
+            <Icon name="check" size={12} />
+            In keychain
+          </span>
         </Block>
         <Block
           icon="download"
           title="Encrypted backup"
-          desc="Export your whole database as a single encrypted file you can store anywhere safe."
+          desc={backupMsg ?? 'Export your whole database as a single encrypted file you can store anywhere safe.'}
         >
-          <button className="btn btn-secondary">Export backup</button>
+          <button className="btn btn-secondary" disabled={backupBusy} onClick={exportBackup}>
+            {backupBusy ? 'Exporting…' : 'Export backup'}
+          </button>
         </Block>
 
         <div className="sb-section" style={{ padding: '12px 0 2px' }}>
@@ -71,15 +116,39 @@ export function Settings() {
         <Block
           icon="mail-check"
           title="Gmail — read-only"
-          desc="Connected as aditya.iyer@gmail.com via your own Desktop OAuth client."
+          desc={
+            status === null
+              ? 'Checking your connection…'
+              : status.hasGmailAuth
+                ? `Connected${status.gmailEmail ? ` as ${status.gmailEmail}` : ''} via your own Desktop OAuth client.`
+                : 'Not connected yet. Run onboarding to authorize read-only Gmail access.'
+          }
         >
-          <span className="badge mint">
-            <Icon name="check" size={12} />
-            Connected
-          </span>
+          {status?.hasGmailAuth ? (
+            <span className="badge mint">
+              <Icon name="check" size={12} />
+              Connected
+            </span>
+          ) : (
+            <a className="btn btn-secondary" href="/onboarding">
+              Connect
+            </a>
+          )}
         </Block>
-        <Block icon="cog" title="OAuth client" desc="Using your own Google Cloud Desktop client. Bundled fallback is off.">
-          <button className="btn btn-secondary">Configure</button>
+        <Block
+          icon="cog"
+          title="OAuth client"
+          desc={
+            status === null
+              ? 'Checking…'
+              : status.hasOAuthClient
+                ? 'Using your own Google Cloud Desktop client from secrets/google-oauth-client.json.'
+                : 'No OAuth client found. Add one through onboarding to enable Gmail import.'
+          }
+        >
+          <a className="btn btn-secondary" href="/onboarding">
+            {status?.hasOAuthClient ? 'Reconfigure' : 'Configure'}
+          </a>
         </Block>
 
         <div className="sb-section" style={{ padding: '12px 0 2px', color: 'var(--red-500)' }}>
@@ -107,12 +176,11 @@ export function Settings() {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 14.5 }}>Wipe everything</div>
             <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-              Deletes the database, all downloaded attachments, and clears your keychain entry. Cannot be undone.
+              Everything lives in this folder: delete <code>data/</code>, <code>attachments/</code>, <code>exports/</code> and{' '}
+              <code>secrets/</code>, then remove the &ldquo;personal-finance&rdquo; entry from your OS keychain. No in-app shortcut —
+              deleting your ledger should be deliberate.
             </div>
           </div>
-          <button className="btn btn-secondary" style={{ color: 'var(--red-600)', borderColor: 'var(--red-100)' }}>
-            Wipe all data
-          </button>
         </div>
       </div>
       <div className="note privacy" style={{ marginTop: 16 }}>

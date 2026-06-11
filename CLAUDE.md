@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 npm run dev              # start dev server on 127.0.0.1:3000
 npm run build            # production build
-npm run lint             # Next.js ESLint
+npm run lint             # ESLint (flat config, eslint-config-next)
 npm test                 # run all tests (Node built-in test runner)
 npm run db:generate      # generate Drizzle SQL migrations from schema.ts
 npm run db:load-packs    # seed India institution + merchant data into encrypted DB

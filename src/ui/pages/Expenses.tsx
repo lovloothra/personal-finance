@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useFy } from '../contexts/FyCtx';
+import { useMask } from '../contexts/MaskCtx';
 import { categories, fys, txns } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
@@ -23,6 +24,7 @@ interface CatRow {
 
 export function Expenses() {
   const { fy } = useFy();
+  const { masked } = useMask();
   const { data } = useDashboard<ExpensesDTO>('expenses', fy);
   const live = data?.hasData ? data : null;
   const f = fys[fy];
@@ -46,7 +48,7 @@ export function Expenses() {
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Expenses" sub={`${f.label} · ${inr(totalExpenses)} across ${allCats.length} categories`} />
+      <PageHead title="Expenses" sub={`${f.label} · ${masked ? '₹•••,•••' : inr(totalExpenses)} across ${allCats.length} categories`} />
       <div className="tabs">
         <button className={tab === 'categories' ? 'on' : ''} onClick={() => setTab('categories')}>
           By category

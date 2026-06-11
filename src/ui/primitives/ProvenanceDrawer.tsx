@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { classifierLayers, type Txn } from '../lib/fixtures';
+import { useMask } from '../contexts/MaskCtx';
 import { inr2 } from '../lib/format';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { Icon } from './Icon';
@@ -12,6 +13,12 @@ interface ProvenanceDrawerProps {
 
 export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
   const [show, setShow] = useState(false);
+  const { masked } = useMask();
+
+  const close = useCallback(() => {
+    setShow(false);
+    setTimeout(onClose, 220);
+  }, [onClose]);
 
   useEffect(() => {
     const t = setTimeout(() => setShow(true), 10);
@@ -24,13 +31,7 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const close = () => {
-    setShow(false);
-    setTimeout(onClose, 220);
-  };
+  }, [close]);
 
   const hitLayer = txn.layer;
   const src = txn.source;
@@ -54,7 +55,7 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
             <div className="doc-amt">
               {txn.flow === 'in' ? '+' : '−'}
-              {inr2(txn.amt)}
+              {masked ? '₹•••,•••' : inr2(txn.amt)}
             </div>
             <ConfidenceBadge level={txn.conf} />
           </div>

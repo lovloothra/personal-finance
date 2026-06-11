@@ -6,7 +6,7 @@
     "dev": "next dev -H 127.0.0.1 -p 3000",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "node --import tsx --test \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\" \"src/**/*.test.ts\"",
     "validate:packs": "node tools/validate-pack-in.mjs",
     "refresh:packs:in": "node scripts/refresh-pack-in.mjs",
@@ -40,6 +40,8 @@
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
     "drizzle-kit": "^0.31.10",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.6",
     "tsx": "^4.22.4",
     "typescript": "5.7.2"
   },
