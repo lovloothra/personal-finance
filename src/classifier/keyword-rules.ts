@@ -16,6 +16,10 @@ export const DEFAULT_KEYWORD_RULES: KeywordRule[] = [
   { keyword: 'cc payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'high' },
   { keyword: 'card payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'med' },
   { keyword: 'autopay', category: 'Transfer', subcategory: 'Card autopay', flow: 'transfer', confidence: 'med' },
+  // CRED card-bill rail (cred.club VPAs). CRED's other VPAs (utilities etc.)
+  // are real spending, so only the card-bill handle maps to Transfer.
+  { keyword: 'cred.club', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'high' },
+  { keyword: 'cred club', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'med' },
   { keyword: 'salary', category: 'Salary', flow: 'income', confidence: 'med' },
   { keyword: 'atm', category: 'Cash', subcategory: 'ATM withdrawal', flow: 'expense', confidence: 'med' },
   { keyword: 'fuel', category: 'Transport', subcategory: 'Fuel', flow: 'expense', confidence: 'med' },

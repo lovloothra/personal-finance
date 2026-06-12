@@ -56,7 +56,7 @@ interface GroupTxnDetail {
 
 /** How an assignment will count, derived from category + the txns' sign. */
 function derivedFlow(category: string, groupFlow: string): string {
-  if (category === 'Transfer') return 'transfer';
+  if (category === 'Transfer' || category === 'Credit card payment') return 'transfer — excluded from spending';
   if (groupFlow === 'income') return 'income';
   if (category === 'Investment') return 'investment';
   return 'expense';
@@ -254,15 +254,24 @@ export function Review() {
   const resolveLocal = (id: string) => setItems((it) => it.filter((x) => x.id !== id));
 
   // Refresh packs + re-run every classification rule over stored transactions,
-  // so new overrides / pack updates apply retroactively.
-  const reclassify = async () => {
+  // so new overrides / pack updates apply retroactively. With reparse, every
+  // statement PDF is re-read first (after parser improvements).
+  const reclassify = async (reparse = false) => {
     setReclassifying(true);
     setFlash(null);
     try {
-      const res = await fetch('/api/review/reclassify', { method: 'POST' });
+      const res = await fetch('/api/review/reclassify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reparse }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Reclassify failed');
-      setFlash(`Re-applied all rules across ${data.transactions.toLocaleString('en-IN')} transactions — ${data.changed.toLocaleString('en-IN')} updated.`);
+      setFlash(
+        reparse
+          ? `Re-parsed ${data.documents.toLocaleString('en-IN')} statements → ${data.transactions.toLocaleString('en-IN')} transactions (${data.duplicatesDropped.toLocaleString('en-IN')} duplicates removed).`
+          : `Re-applied all rules across ${data.transactions.toLocaleString('en-IN')} transactions — ${data.changed.toLocaleString('en-IN')} updated.`,
+      );
       await load();
       if (assignOpen) await loadUncat();
       void refreshShellMeta();
@@ -308,10 +317,16 @@ export function Review() {
     <div className="content-wrap fade-in">
       <PageHead title="Review queue" sub={live ? `${items.reduce((n, i) => n + (i.count ?? 1), 0)} items need your eye` : 'A few things need your eye to push coverage past 98%'}>
         {live && (
-          <button className="btn btn-secondary" disabled={reclassifying} onClick={reclassify} title="Refresh packs and re-run every classification rule over your imported transactions.">
-            <Icon name="refresh-cw" size={15} />
-            {reclassifying ? 'Re-applying…' : 'Re-apply rules'}
-          </button>
+          <>
+            <button className="btn btn-ghost" disabled={reclassifying} onClick={() => reclassify(true)} title="Re-read every statement PDF with the latest parser, then re-classify everything. Takes a minute.">
+              <Icon name="file-search" size={15} />
+              Re-parse statements
+            </button>
+            <button className="btn btn-secondary" disabled={reclassifying} onClick={() => reclassify(false)} title="Refresh packs and re-run every classification rule over your imported transactions.">
+              <Icon name="refresh-cw" size={15} />
+              {reclassifying ? 'Working…' : 'Re-apply rules'}
+            </button>
+          </>
         )}
       </PageHead>
 

@@ -8,9 +8,9 @@
  * writes, then rebuilds the derived review items and detected subscriptions.
  */
 import 'server-only';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { transactions, reviewItems, subscriptionsDetected, internalTransferLinks } from '@/db/schema';
+import { transactions, subscriptionsDetected, internalTransferLinks } from '@/db/schema';
 import { buildRecurrenceIndex } from '@/classifier/recurrence';
 import { signature } from '@/classifier/normalize';
 import { classify } from '@/classifier/pipeline';
@@ -19,14 +19,12 @@ import type { RawTxn, ClassifyContext } from '@/classifier/types';
 import { fyForDate } from '@/ledger/fy';
 import { loadProfileSeed } from '@/profile/signals';
 import { buildBaseContext } from './context';
+import { rebuildClassificationReviewItems } from './review-items';
 
 export interface ReclassifyResult {
   transactions: number;
   changed: number;
 }
-
-let seq = 0;
-const rid = (p: string) => `${p}_${Date.now().toString(36)}_${(seq++).toString(36)}`;
 
 function addCadence(iso: string, cadence: string): string {
   const d = new Date(iso + 'T00:00:00Z');
@@ -125,23 +123,6 @@ export function reclassifyAll(db: DB): ReclassifyResult {
         .run();
     }
 
-    // Rebuild classification-derived review items; locked-PDF items stay.
-    tx.delete(reviewItems).where(inArray(reviewItems.kind, ['uncategorised', 'low_confidence'])).run();
-    const needsReview = results.filter(({ c }) => c.reviewRequired);
-    for (const { raw, c } of needsReview.slice(0, 200)) {
-      tx.insert(reviewItems)
-        .values({
-          id: rid('rev'),
-          kind: c.category === 'Uncategorised' ? 'uncategorised' : 'low_confidence',
-          refId: raw.id,
-          title: `Needs a look: ${raw.rawDescription.slice(0, 48) || 'transaction'}`,
-          detail: c.reason,
-          severity: 'info',
-          status: 'open',
-        })
-        .run();
-    }
-
     // Rebuild detected subscriptions from scratch (statuses carried over).
     const NON_SUBSCRIPTION = new Set(['Housing', 'Loan', 'Insurance', 'Salary', 'Investment', 'Transfer', 'Uncategorised', 'Fees & Charges', 'Cash']);
     const subGroups = new Map<string, { merchant: string; category: string; cadence: string; occurrences: number; amounts: number[]; dates: string[] }>();
@@ -178,6 +159,9 @@ export function reclassifyAll(db: DB): ReclassifyResult {
         .run();
     }
   });
+
+  // Classification-derived review items mirror the updated transactions.
+  rebuildClassificationReviewItems(db);
 
   return { transactions: results.length, changed };
 }

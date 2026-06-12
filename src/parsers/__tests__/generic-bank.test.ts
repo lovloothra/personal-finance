@@ -100,3 +100,88 @@ test('mode auto-detects: bank statement still uses balance-delta', () => {
   assert.equal(st.txns.length, 4);
   assert.equal(st.txns[0].amount, 18000000); // salary credit via balance delta
 });
+
+// Two transactions extracted onto ONE physical line (PDF reflow) must split
+// into separate rows instead of merging descriptions.
+test('two transactions merged on one line are split apart', () => {
+  const merged = `
+ICICI Bank Statement Period: 01/03/2026 to 31/03/2026
+10/03/2026 BIL/Home Loan XX05856 EMI 1,27,000.00 3,50,000.00 12/03/2026 UPI/INDmoney/indmoneymf1@ici/INDMoney 5,000.00 3,45,000.00
+`;
+  const st = parseStatement(merged, { providerId: 'icici-bank', docType: 'bank_statement', openingBalance: 47700000 });
+  assert.equal(st.txns.length, 2);
+  const [emi, sip] = st.txns;
+  assert.equal(emi.date, '2026-03-10');
+  assert.equal(emi.amount, -12700000);
+  assert.doesNotMatch(emi.rawDescription, /INDmoney/i);
+  assert.equal(sip.date, '2026-03-12');
+  assert.equal(sip.amount, -500000);
+  assert.match(sip.rawDescription, /INDmoney/i);
+  assert.doesNotMatch(sip.rawDescription, /Home Loan/i);
+});
+
+// A txn-date followed by a value-date column has no amount between the two
+// dates and must NOT be split into two bogus rows.
+test('txn-date + value-date columns stay one row', () => {
+  const valueDated = `
+Axis Bank Statement
+05/03/2026 06/03/2026 NEFT CR ACME TECH SALARY MAR 2,50,000.00 4,00,000.00
+07/03/2026 07/03/2026 UPI RENT PAYMENT 55,000.00 3,45,000.00
+`;
+  const st = parseStatement(valueDated, { providerId: 'axis-bank', docType: 'bank_statement', openingBalance: 15000000 });
+  assert.equal(st.txns.length, 2);
+  assert.equal(st.txns[0].amount, 25000000);
+  assert.equal(st.txns[1].amount, -5500000);
+});
+
+// Date-shaped noise (e.g. ref fragments like 99/99/99) is not a transaction.
+test('invalid calendar dates are rejected', () => {
+  const noisy = `
+HDFC Statement
+01/07/2025 NEFT CR SALARY 1,80,000.00 2,30,000.00
+99/99/99 NOT A DATE 1,111.00 9,999.00
+15/13/2025 BAD MONTH 2,222.00 8,888.00
+`;
+  const st = parseStatement(noisy, { providerId: 'hdfc-bank', docType: 'bank_statement', openingBalance: 5000000 });
+  assert.equal(st.txns.length, 1);
+  assert.equal(st.txns[0].date, '2025-07-01');
+});
+
+// ICICI-style layout: each transaction's UPI narration sits on its own line
+// BETWEEN dated rows and belongs to the FOLLOWING transaction. The EMI row
+// must not absorb the next row's "UPI/INDmoney" narration.
+test('orphan narration lines attach to the following transaction', () => {
+  const icici = `
+DATE MODE PARTICULARS DEPOSITS WITHDRAWALS BALANCE
+03-02-2026 CMS TRANSACTION CMS/TATA CONSULTANCY/Tata Consultancy 171.00 2,13,784.46
+05-02-2026 BIL/Home Loan XX05856 EMI Lov Loot 1,30,817.00 82,967.46
+UPI/INDmoney/indmoneymf1@ic/INDMoney M/ICICI
+05-02-2026 Bank/109131401837/ICI0be493f665844496a25a869a01c85 10,000.00 72,967.46
+be2/
+UPI/CRED/cred.utility@a/payment on/AXIS
+05-02-2026 BANK/640222044251/ACDd100d7d34ad04180ab635f81e9d 1,006.00 71,961.46
+`;
+  const st = parseStatement(icici, { providerId: 'icici-bank', docType: 'bank_statement', openingBalance: 21361346 });
+  assert.equal(st.txns.length, 4);
+
+  const emi = st.txns.find((t) => /Home Loan/i.test(t.rawDescription))!;
+  assert.equal(emi.amount, -13081700);
+  assert.doesNotMatch(emi.rawDescription, /INDmoney/i); // narration not absorbed
+
+  const sip = st.txns.find((t) => /INDmoney/i.test(t.rawDescription))!;
+  assert.equal(sip.amount, -1000000); // the ₹10,000 SIP owns its narration
+
+  const cred = st.txns.find((t) => /cred\.utility/i.test(t.rawDescription))!;
+  assert.equal(cred.amount, -100600);
+});
+
+// "Dr"/"Cr" markers are stripped from descriptions, but honorifics survive.
+test('Dr. in a merchant name is not stripped as a debit marker', () => {
+  const card = `
+Card Statement Date: 31/03/2026
+02/03/2026 DR. REDDYS PHARMACY BLR 845.50
+`;
+  const st = parseStatement(card, { providerId: 'hdfc-bank-cards', docType: 'card_statement' });
+  assert.equal(st.txns.length, 1);
+  assert.match(st.txns[0].rawDescription, /DR\. REDDYS/i);
+});

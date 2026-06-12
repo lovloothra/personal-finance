@@ -27,6 +27,7 @@ import type { RawTxn, ClassifyContext } from '@/classifier/types';
 import { fyForDate } from '@/ledger/fy';
 import { loadProfileSeed, passwordInputs } from '@/profile/signals';
 import { buildBaseContext } from './context';
+import { rebuildClassificationReviewItems } from './review-items';
 
 export interface IngestProgress {
   phase: 'parse' | 'classify' | 'review' | 'done';
@@ -311,17 +312,9 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     }
   });
 
-  // 6. Flag low-confidence / uncategorised for review.
-  const lowConf = results.filter(({ c }) => c.reviewRequired);
-  for (const { raw, c } of lowConf.slice(0, 200)) {
-    addReview(
-      c.category === 'Uncategorised' ? 'uncategorised' : 'low_confidence',
-      raw.id,
-      `Needs a look: ${raw.rawDescription.slice(0, 48) || 'transaction'}`,
-      c.reason,
-      'info',
-    );
-  }
+  // 6. Rebuild the classification-derived review queue from the transactions
+  // table (idempotent — re-running ingest never duplicates review items).
+  reviewCount += rebuildClassificationReviewItems(db);
 
   // 7. Materialise detected subscriptions. A subscription is any RECURRING
   // debit (per the recurrence index) that isn't a structural commitment like

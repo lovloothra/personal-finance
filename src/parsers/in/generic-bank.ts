@@ -44,21 +44,86 @@ export function amountToPaise(s: string): number {
   return Math.round(n * 100);
 }
 
-function isoDate(dd: string, mm: string, yy: string): string {
+/** ISO date for a DD/MM/YY(YY) match, or null when the parts aren't a real
+ * calendar date (e.g. a ref fragment like 99/99/99 that matched the pattern). */
+function isoDate(dd: string, mm: string, yy: string): string | null {
+  const day = Number(dd);
+  const month = Number(mm);
   const year = yy.length === 2 ? Number(yy) + 2000 : Number(yy);
+  if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2000 || year > 2099) return null;
   return `${year}-${mm}-${dd}`;
 }
+
+function validDateMatch(m: RegExpExecArray): boolean {
+  return isoDate(m[1], m[2], m[3]) !== null;
+}
+
+/**
+ * Statements sometimes land two transactions on one extracted line ("01/03 EMI
+ * debit 28,590.00 1,20,000.00 10/03 UPI/INDmoney 5,000.00 …"). A row is split
+ * at an interior date ONLY when real money tokens already appeared before it —
+ * a txn-date followed immediately by a value-date column has no amount between
+ * the two dates, so it stays one row.
+ */
+function splitMergedTxns(row: string): string[] {
+  const out: string[] = [];
+  const re = new RegExp(DATE_RE.source, 'g');
+  const lead = re.exec(row);
+  let start = 0;
+  let cursor = lead ? lead.index + lead[0].length : 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(row)) !== null) {
+    if (!validDateMatch(m)) continue;
+    // Amounts carry a decimal or Indian comma grouping; bare integers are refs.
+    const between = row.slice(cursor, m.index);
+    const hasAmount = /\d[\d,]*\.\d{1,2}\b|\b\d{1,3}(?:,\d{2,3})+\b/.test(between);
+    if (hasAmount) {
+      out.push(row.slice(start, m.index).trim());
+      start = m.index;
+    }
+    cursor = m.index + m[0].length;
+  }
+  out.push(row.slice(start).trim());
+  return out.filter(Boolean);
+}
+
+// A narration orphan: a standalone payment-rail line ("UPI/INDmoney/…",
+// "IMPS/…") that some layouts (e.g. ICICI) print BETWEEN dated rows. It
+// belongs to the FOLLOWING transaction, not the previous one.
+const NARRATION_RE = /^(upi|imps|neft|rtgs|ach|nach|enach|ecs|bil|cms|atm|pos|vps|inft?)[/ ]/i;
+const MONEY_TOKEN_RE = /\d[\d,]*\.\d{1,2}\b|\b\d{1,3}(?:,\d{2,3})+\b/;
+// A row that already ends in its amount/balance columns is complete — extra
+// text after it cannot be its own wrapped description.
+const ROW_COMPLETE_RE = /(?:\d[\d,]*\.\d{1,2}|\d{1,3}(?:,\d{2,3})+)\s*(?:\(?(?:cr|dr)\)?)?\s*$/i;
 
 /** Split flattened text into candidate transaction rows, each starting at a date. */
 export function splitRows(text: string): string[] {
   const normalized = text.replace(/\r/g, '').replace(/[ \t]+/g, ' ');
   const lines = normalized.split('\n').map((l) => l.trim()).filter(Boolean);
   const rows: string[] = [];
+  let narration: string[] = [];
+  // Whether the last row already ended in its amount/balance columns. Junk
+  // fragments appended afterwards ("be2/") don't make a complete row
+  // incomplete, so the flag is sticky once true.
+  let lastRowComplete = false;
   for (const line of lines) {
-    if (DATE_RE.test(line.slice(0, 12))) rows.push(line);
-    else if (rows.length) rows[rows.length - 1] += ' ' + line;
+    const lead = DATE_RE.exec(line.slice(0, 12));
+    if (lead && validDateMatch(lead)) {
+      // A buffered narration line describes THIS transaction.
+      rows.push(narration.length ? `${line} ${narration.join(' ')}` : line);
+      narration = [];
+      lastRowComplete = ROW_COMPLETE_RE.test(line);
+    } else if (rows.length) {
+      if (!MONEY_TOKEN_RE.test(line) && NARRATION_RE.test(line) && lastRowComplete) {
+        narration.push(line);
+      } else {
+        rows[rows.length - 1] = `${rows[rows.length - 1]} ${line}`;
+        lastRowComplete = lastRowComplete || ROW_COMPLETE_RE.test(line);
+      }
+    }
   }
-  return rows;
+  if (narration.length && rows.length) rows[rows.length - 1] += ' ' + narration.join(' ');
+  return rows.flatMap(splitMergedTxns);
 }
 
 /** Money tokens in a row AFTER its leading date is removed. Prefers tokens that
@@ -83,7 +148,8 @@ export function parseGenericBank(text: string, ctx: ParseContext): ParsedStateme
   const dated: Row[] = [];
   for (const raw of rows) {
     const dm = DATE_RE.exec(raw);
-    if (!dm) {
+    const date = dm ? isoDate(dm[1], dm[2], dm[3]) : null;
+    if (!dm || !date) {
       unparsedLines.push(raw);
       continue;
     }
@@ -98,7 +164,7 @@ export function parseGenericBank(text: string, ctx: ParseContext): ParsedStateme
       unparsedLines.push(raw);
       continue;
     }
-    dated.push({ raw, date: isoDate(dm[1], dm[2], dm[3]), toks: preferred });
+    dated.push({ raw, date, toks: preferred });
   }
 
   // Balance mode if a clear majority of rows have ≥2 money values (amount + balance).
@@ -137,7 +203,9 @@ export function parseGenericBank(text: string, ctx: ParseContext): ParsedStateme
     let description = r.raw.replace(DATE_RE, ' ');
     for (const t of r.toks) description = description.replace(t, ' ');
     description = description
-      .replace(/\b(dr|cr)\b/gi, '')
+      // Strip Dr/Cr markers, but not honorifics like "Dr. Reddy" (dot follows).
+      .replace(/\((?:dr|cr)\)/gi, ' ')
+      .replace(/(^|\s)(?:dr|cr)(?=\s|$)/gi, ' ')
       .replace(/[|]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();

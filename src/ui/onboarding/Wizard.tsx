@@ -438,7 +438,7 @@ export function Wizard() {
                 {chapter.id === 'you' && (
                   <>
                     <div className="row2">
-                      <TextField label="Full name" value={draft.personal.fullName} placeholder="Asha Mehra" onChange={(v) => setObj('personal', 'fullName', v)} />
+                      <TextField label="Full name" value={draft.personal.fullName} placeholder="Lov Loothra" onChange={(v) => setObj('personal', 'fullName', v)} />
                       <TextField label="PAN" value={draft.personal.pan} placeholder="ABCDE1234F" onChange={(v) => setObj('personal', 'pan', v.toUpperCase())} hint="Used only for local password candidates." />
                     </div>
                     <div className="row2">

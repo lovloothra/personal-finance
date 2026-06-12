@@ -11,7 +11,7 @@ const BASE_CATEGORIES = [
   'Food Delivery', 'Quick Commerce', 'Groceries', 'Dining', 'Travel', 'Transport', 'Shopping',
   'Utilities', 'Housing', 'Loan', 'Insurance', 'Investment', 'Health', 'Fitness', 'Education',
   'Entertainment', 'Ott', 'Subscriptions', 'Software', 'Salary', 'Income', 'Refund', 'Transfer',
-  'Cash', 'Household', 'Fees & Charges', 'Gifts & Donations', 'Personal Care',
+  'Credit card payment', 'Cash', 'Household', 'Fees & Charges', 'Gifts & Donations', 'Personal Care',
 ];
 
 interface Group {

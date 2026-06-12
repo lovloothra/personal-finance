@@ -18,10 +18,12 @@
  */
 
 /** Explicit transfer rails (not generic UPI, which is mostly real spending). */
-const TRANSFER_RE = /\b(neft|imps|rtgs|inft|fund(?:s)?\s*(?:trf|transfer)|funds? trf|self|own a\/?c|own account|trf to|transfer to|cc payment|credit card payment|card payment|payment received|bill ?desk|billpay|auto ?pay)\b/i;
+const TRANSFER_RE = /\b(neft|imps|rtgs|inft|fund(?:s)?\s*(?:trf|transfer)|funds? trf|self|own a\/?c|own account|trf to|transfer to|cc payment|credit card payment|card payment|payment received|bill ?desk|billpay|auto ?pay)\b|cred\.club/i;
 
-/** Signals specific to credit-card bill payments (safe to mark single-sided). */
-const CC_PAYMENT_RE = /\b(cc payment|credit card payment|card payment|card bill|auto ?pay|payment received|received towards)\b/i;
+/** Signals specific to credit-card bill payments (safe to mark single-sided).
+ * cred.club is CRED's card-bill VPA — a debit there is a card payment by
+ * definition (CRED's utility/rent VPAs use different handles). */
+const CC_PAYMENT_RE = /\b(cc payment|credit card payment|card payment|card bill|auto ?pay|payment received|received towards)\b|cred\.club/i;
 
 export interface LinkTxn {
   id: string;

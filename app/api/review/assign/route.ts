@@ -38,11 +38,19 @@ export async function POST(req: Request): Promise<Response> {
     };
     const sig = body.signature?.trim();
     const merchant = body.merchant?.trim();
-    const category = body.category?.trim();
+    let category = body.category?.trim();
     if (!sig) return badRequest('Provide the description signature to match.');
     if (!merchant) return badRequest('Provide a merchant name.');
     if (!category) return badRequest('Provide a category.');
-    const subcategory = body.subcategory?.trim() || null;
+    let subcategory = body.subcategory?.trim() || null;
+
+    // "Credit card payment" is the friendly face of a Transfer: the card's own
+    // statement already carries every expense, so the bill payment must never
+    // count as spending. Stored canonically so rollups and dedupe see Transfer.
+    if (category.toLowerCase() === 'credit card payment') {
+      category = 'Transfer';
+      subcategory = 'Credit card payment';
+    }
 
     const db = await getDb();
 
@@ -70,6 +78,7 @@ export async function POST(req: Request): Promise<Response> {
               category,
               subcategory,
               flow,
+              isInternalTransfer: flow === 'transfer',
               confidence: 'high',
               layer: 1,
               classificationReason: reason,
