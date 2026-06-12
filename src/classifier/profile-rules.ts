@@ -93,9 +93,14 @@ export function classifyByProfile(
   }
 
   // --- Loan EMI ------------------------------------------------------------
+  // The amount-only heuristic is disabled when the descriptor names a known
+  // merchant (e.g. an INDmoney SIP that happens to be EMI-sized) — explicit
+  // merchant evidence beats an amount coincidence. Short alias patterns are
+  // ignored to avoid accidental substring hits.
+  const aliasEvidence = ctx.merchantAliases.some((a) => a.pattern.length >= 5 && desc.includes(a.pattern));
   for (const loan of p.loans ?? []) {
-    const emiHit = loan.emiAmount != null && amountNear(txn.amount, loan.emiAmount, 0.02);
-    const kindHit = containsAny(desc, ['emi', loan.kind, `${loan.kind} loan`]);
+    const emiHit = loan.emiAmount != null && amountNear(txn.amount, loan.emiAmount, 0.02) && !aliasEvidence;
+    const kindHit = containsAny(desc, ['emi', `${loan.kind} loan`]);
     if (isDebit(txn) && (emiHit || kindHit)) {
       return {
         flow: 'expense',

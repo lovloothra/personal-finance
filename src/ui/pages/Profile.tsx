@@ -32,6 +32,51 @@ function summarise(section: SectionView): string {
   return section.editable ? 'Not added yet — tap to complete' : 'Detected from your statements';
 }
 
+// --- Field grouping ---------------------------------------------------------
+// Repeated entities ("cards.0.*", "cards.1.*") render under one subheading
+// with the redundant label prefix stripped, so the drawer reads "Card 1 →
+// Issuer / Product / Last 4" instead of a flat run of "Card 1 issuer…".
+
+const GROUP_NAMES: Record<string, string> = {
+  banks: 'Bank',
+  cards: 'Card',
+  loans: 'Loan',
+  brokers: 'Broker',
+  investmentPlatforms: 'Platform',
+  insurers: 'Insurer',
+  subscriptions: 'Subscription',
+  houseHelp: 'House help',
+  projects: 'Project',
+  dependents: 'Dependent',
+};
+
+interface FieldGroup {
+  heading: string | null;
+  fields: FieldView[];
+}
+
+function groupFields(fields: FieldView[]): FieldGroup[] {
+  const groups: FieldGroup[] = [];
+  for (const f of fields) {
+    const m = f.key.match(/^(\w+)\.(\d+)\./);
+    const heading = m && GROUP_NAMES[m[1]] ? `${GROUP_NAMES[m[1]]} ${Number(m[2]) + 1}` : null;
+    const last = groups[groups.length - 1];
+    if (last && last.heading === heading) last.fields.push(f);
+    else groups.push({ heading, fields: [f] });
+  }
+  return groups;
+}
+
+/** "Card 1 issuer" → "Issuer" when the field sits under a "Card 1" heading. */
+function shortLabel(f: FieldView, heading: string | null): string {
+  if (!heading) return f.label;
+  const stripped = f.label.replace(new RegExp(`^${heading}\\s*`, 'i'), '').trim();
+  // The entity's main field is often labelled exactly like the heading
+  // ("Bank 1") — fall back to the singular group word ("Bank").
+  if (!stripped) return heading.replace(/\s*\d+$/, '');
+  return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+}
+
 // --- Edit drawer -----------------------------------------------------------
 
 function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView; onClose: () => void; onSaved: () => void }) {
@@ -102,37 +147,52 @@ function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView
           </button>
         </div>
         <div className="drawer-body">
-          {section.fields.map((f) => (
-            <div className="field" key={f.key}>
-              <label>{f.label}</label>
-              {f.readOnly ? (
-                <div className="inp" style={{ background: 'var(--bg-subtle)', color: 'var(--fg-2)' }}>{f.value || '—'}</div>
-              ) : f.type === 'institution' ? (
-                <InstitutionPicker
-                  category={f.category ?? 'bank'}
-                  placeholder={`Search ${f.label.toLowerCase()}…`}
-                  valueLabel={f.value}
-                  onSelect={(inst) => setIds((m) => ({ ...m, [f.key]: inst?.id ?? '' }))}
-                />
-              ) : f.type === 'select' ? (
-                <select className="inp" value={vals[f.key] ?? ''} onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}>
-                  <option value="">Select…</option>
-                  {(f.options ?? []).map((o) => (
-                    <option key={o} value={o}>{o}</option>
+          {groupFields(section.fields).map((g, gi) => {
+            const started = g.fields.some((f) => (f.type === 'institution' ? ids[f.key] : vals[f.key]?.trim()));
+            return (
+              <div key={g.heading ?? `g${gi}`}>
+                {g.heading && (
+                  <div className="quest-subhead" style={{ margin: '14px 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {g.heading}
+                    {!started && <span className="badge neutral" style={{ fontWeight: 500 }}>optional</span>}
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px 12px' }}>
+                  {g.fields.map((f) => (
+                    <div className="field" key={f.key} style={{ margin: 0 }}>
+                      <label>{shortLabel(f, g.heading)}</label>
+                      {f.readOnly ? (
+                        <div className="inp" style={{ background: 'var(--bg-subtle)', color: 'var(--fg-2)' }}>{f.value || '—'}</div>
+                      ) : f.type === 'institution' ? (
+                        <InstitutionPicker
+                          category={f.category ?? 'bank'}
+                          placeholder={`Search ${shortLabel(f, g.heading).toLowerCase()}…`}
+                          valueLabel={f.value}
+                          onSelect={(inst) => setIds((m) => ({ ...m, [f.key]: inst?.id ?? '' }))}
+                        />
+                      ) : f.type === 'select' ? (
+                        <select className="inp" value={vals[f.key] ?? ''} onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}>
+                          <option value="">Select…</option>
+                          {(f.options ?? []).map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          className="inp"
+                          type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
+                          value={vals[f.key] ?? ''}
+                          placeholder={`Add ${shortLabel(f, g.heading).toLowerCase()}…`}
+                          onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}
+                        />
+                      )}
+                      {f.hint && <div className="hint">{f.hint}</div>}
+                    </div>
                   ))}
-                </select>
-              ) : (
-                <input
-                  className="inp"
-                  type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
-                  value={vals[f.key] ?? ''}
-                  placeholder={`Add ${f.label.toLowerCase()}…`}
-                  onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}
-                />
-              )}
-              {f.hint && <div className="hint">{f.hint}</div>}
-            </div>
-          ))}
+                </div>
+              </div>
+            );
+          })}
           <div className="note privacy" style={{ marginTop: 6 }}>
             <span className="ic"><Icon name="hard-drive" size={16} /></span>
             <span>Saved to your encrypted on-device database. Nothing here is ever uploaded.</span>

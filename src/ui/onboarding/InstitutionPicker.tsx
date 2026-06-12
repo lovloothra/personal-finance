@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { InstLogo } from '../primitives/InstLogo';
 
 interface Institution {
   id: string;
@@ -108,7 +109,9 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
                 onSelect(inst);
               }}
               style={{
-                display: 'block',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
                 width: '100%',
                 textAlign: 'left',
                 padding: '8px 10px',
@@ -121,8 +124,9 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
               onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2, #f4f4fb)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              {inst.displayName}
-              {inst.type ? <span className="muted" style={{ fontSize: 11.5, marginLeft: 8 }}>{inst.type.replace(/_/g, ' ')}</span> : null}
+              <InstLogo id={inst.id} name={inst.displayName} size={22} />
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inst.displayName}</span>
+              {inst.type ? <span className="muted" style={{ fontSize: 11.5, marginLeft: 'auto', flexShrink: 0 }}>{inst.type.replace(/_/g, ' ')}</span> : null}
             </button>
           ))}
         </div>

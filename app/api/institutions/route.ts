@@ -1,6 +1,7 @@
 import { and, eq, like, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { institutions } from '@/db/schema';
+import { loadPacksIntoDb } from '@/packs/loader';
 import { json } from '@/server/api';
 
 export const runtime = 'nodejs';
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic';
 /**
  * Search institutions for the onboarding pickers so users never hand-type pack
  * ids. GET /api/institutions?q=hdfc&category=bank&limit=20
+ *
+ * Self-seeding: a fresh install that never ran `npm run db:load-packs` would
+ * otherwise show silently-empty pickers, so load the India packs on first use.
  */
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -17,6 +21,14 @@ export async function GET(req: Request): Promise<Response> {
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 20), 50);
 
   const db = await getDb();
+  const count = db.select({ n: sql<number>`count(*)` }).from(institutions).get()?.n ?? 0;
+  if (count === 0) {
+    try {
+      loadPacksIntoDb(db);
+    } catch {
+      /* packs dir missing — picker stays empty */
+    }
+  }
   const filters = [] as ReturnType<typeof eq>[];
   if (category) filters.push(eq(institutions.category, category));
   if (q) {

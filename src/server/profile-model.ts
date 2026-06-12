@@ -49,8 +49,28 @@ async function instLabels(ids: string[]): Promise<Record<string, string>> {
 
 const num = (n?: number) => (n == null ? '' : String(n));
 
+/**
+ * Completion % that doesn't punish optional repeat slots: fields belonging to
+ * entity index 1+ (a second bank, a third card…) only count once the user has
+ * started filling that entity. One bank fully filled in = 100%, not 33%.
+ */
 function pctOf(fields: FieldView[]): number {
-  const counted = fields.filter((f) => !f.readOnly);
+  const editable = fields.filter((f) => !f.readOnly);
+  const entity = (f: FieldView) => {
+    const m = f.key.match(/^(\w+)\.(\d+)\./);
+    return m ? { group: m[1], idx: Number(m[2]) } : null;
+  };
+  const startedEntities = new Set(
+    editable.filter((f) => f.value.trim() !== '').map((f) => {
+      const e = entity(f);
+      return e ? `${e.group}.${e.idx}` : '';
+    }),
+  );
+  const counted = editable.filter((f) => {
+    const e = entity(f);
+    if (!e || e.idx === 0) return true;
+    return startedEntities.has(`${e.group}.${e.idx}`);
+  });
   if (!counted.length) return 100;
   const filled = counted.filter((f) => f.value.trim() !== '').length;
   return Math.round((filled / counted.length) * 100);
@@ -62,6 +82,7 @@ export async function buildProfileView(): Promise<{ sections: SectionView[]; ove
   const labels = await instLabels([
     ...(seed.banks ?? []).map((b) => b.institutionId),
     ...(seed.cards ?? []).map((c) => c.institutionId),
+    ...(seed.cards ?? []).map((c) => c.productId ?? ''),
     ...(seed.brokers ?? []).map((b) => b.institutionId),
     ...(seed.investmentPlatforms ?? []).map((p) => p.institutionId),
     ...(seed.insurers ?? []).map((i) => i.institutionId ?? ''),
@@ -82,6 +103,7 @@ export async function buildProfileView(): Promise<{ sections: SectionView[]; ove
     const c = seed.cards?.[i];
     return [
       { key: `cards.${i}.institutionId`, label: `Card ${i + 1} issuer`, type: 'institution' as const, category: 'credit_card_issuer', value: c?.institutionId ? labels[c.institutionId] ?? '' : '', currentId: c?.institutionId },
+      { key: `cards.${i}.productId`, label: `Card ${i + 1} product`, type: 'institution' as const, category: 'credit_card_product', value: c?.productId ? labels[c.productId] ?? '' : '', currentId: c?.productId, hint: 'The exact card (e.g. Infinia, Magnus) sharpens statement matching.' },
       { key: `cards.${i}.last4`, label: `Card ${i + 1} last 4`, type: 'text' as const, value: c?.last4 ?? '' },
       { key: `cards.${i}.network`, label: `Card ${i + 1} network`, type: 'select' as const, options: ['visa', 'mastercard', 'rupay', 'amex'], value: c?.network ?? '' },
       { key: `cards.${i}.statementDay`, label: `Card ${i + 1} statement day`, type: 'number' as const, value: num(c?.statementDay) },
@@ -355,6 +377,7 @@ export async function applyProfilePatch(values: Record<string, string>): Promise
         if (!id) return null;
         return {
           institutionId: id,
+          productId: v(`cards.${i}.productId`) || undefined,
           last4: v(`cards.${i}.last4`) || (i === 0 ? v('accounts.creditCardLast4') : '') || undefined,
           network: v(`cards.${i}.network`) || undefined,
           statementDay: numv(`cards.${i}.statementDay`),

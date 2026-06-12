@@ -328,7 +328,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   // rent, an EMI, insurance, an investment, or an internal transfer — those
   // belong on their own pages. This catches merchant-aliased recurring charges
   // (Netflix, gym, cloud) that matched before the recurrence layer.
-  const NON_SUBSCRIPTION = new Set(['Housing', 'Loan', 'Insurance', 'Salary', 'Investment', 'Transfer']);
+  const NON_SUBSCRIPTION = new Set(['Housing', 'Loan', 'Insurance', 'Salary', 'Investment', 'Transfer', 'Uncategorised', 'Fees & Charges', 'Cash']);
   const subGroups = new Map<string, { merchant: string; category: string; cadence: string; occurrences: number; amounts: number[]; dates: string[] }>();
   for (const { raw, c } of results) {
     if (c.flow !== 'expense' || raw.amount >= 0) continue;

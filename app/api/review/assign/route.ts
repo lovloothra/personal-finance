@@ -9,7 +9,17 @@ import { json, badRequest, assertSameOrigin } from '@/server/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const FLOWS = new Set(['income', 'expense', 'transfer', 'investment']);
+/**
+ * Flow follows from the category and the sign of each transaction — credits are
+ * income, Transfer is a transfer, Investment debits are contributions. Users
+ * never pick a flow by hand, so a debit can't be mislabelled income.
+ */
+function flowFor(category: string, amount: number): Flow {
+  if (category === 'Transfer') return 'transfer';
+  if (amount > 0) return 'income';
+  if (category === 'Investment') return 'investment';
+  return 'expense';
+}
 
 /**
  * Assign a merchant + category to every review-pending transaction whose
@@ -25,7 +35,6 @@ export async function POST(req: Request): Promise<Response> {
       merchant?: string;
       category?: string;
       subcategory?: string | null;
-      flow?: string;
     };
     const sig = body.signature?.trim();
     const merchant = body.merchant?.trim();
@@ -33,51 +42,54 @@ export async function POST(req: Request): Promise<Response> {
     if (!sig) return badRequest('Provide the description signature to match.');
     if (!merchant) return badRequest('Provide a merchant name.');
     if (!category) return badRequest('Provide a category.');
-    const flow = body.flow && FLOWS.has(body.flow) ? (body.flow as Flow) : undefined;
     const subcategory = body.subcategory?.trim() || null;
 
     const db = await getDb();
 
     const pending = db
-      .select({ id: transactions.id, rawDescription: transactions.rawDescription })
+      .select({ id: transactions.id, rawDescription: transactions.rawDescription, amount: transactions.amount })
       .from(transactions)
       .where(eq(transactions.reviewRequired, true))
       .all();
-    const matchedIds = pending.filter((t) => signature(t.rawDescription ?? '') === sig).map((t) => t.id);
-    if (matchedIds.length === 0) return badRequest('No review-pending transactions match that signature.');
+    const matched = pending.filter((t) => signature(t.rawDescription ?? '') === sig);
+    if (matched.length === 0) return badRequest('No review-pending transactions match that signature.');
 
     const reason = `User override: assigned "${merchant}" → ${category}${subcategory ? ` / ${subcategory}` : ''}.`;
 
-    // Chunk id lists to stay well under SQLite's bound-parameter limit.
-    const chunks: string[][] = [];
-    for (let i = 0; i < matchedIds.length; i += 500) chunks.push(matchedIds.slice(i, i + 500));
-
     db.transaction((tx) => {
-      for (const ids of chunks) {
-        tx.update(transactions)
-          .set({
-            merchant,
-            category,
-            subcategory,
-            ...(flow ? { flow } : {}),
-            confidence: 'high',
-            layer: 1,
-            classificationReason: reason,
-            profileSignalUsed: 'user.override',
-            reviewRequired: false,
-            updatedAt: Date.now(),
-          })
-          .where(inArray(transactions.id, ids))
-          .run();
-
+      // Chunk id lists to stay well under SQLite's bound-parameter limit.
+      for (let i = 0; i < matched.length; i += 500) {
+        const slice = matched.slice(i, i + 500);
+        // Flow depends on each txn's sign, so update debit/credit groups separately.
+        for (const flow of ['income', 'expense', 'transfer', 'investment'] as Flow[]) {
+          const ids = slice.filter((t) => flowFor(category, t.amount) === flow).map((t) => t.id);
+          if (ids.length === 0) continue;
+          tx.update(transactions)
+            .set({
+              merchant,
+              category,
+              subcategory,
+              flow,
+              confidence: 'high',
+              layer: 1,
+              classificationReason: reason,
+              profileSignalUsed: 'user.override',
+              reviewRequired: false,
+              updatedAt: Date.now(),
+            })
+            .where(inArray(transactions.id, ids))
+            .run();
+        }
         tx.update(reviewItems)
           .set({ status: 'resolved', updatedAt: Date.now() })
-          .where(inArray(reviewItems.refId, ids))
+          .where(inArray(reviewItems.refId, slice.map((t) => t.id)))
           .run();
       }
 
+      // Flow is left null on the override so reclassification derives it from
+      // each transaction's sign — except Transfer, which is sign-agnostic.
       const existing = tx.select({ id: userOverrides.id }).from(userOverrides).where(eq(userOverrides.matchSignature, sig)).get();
-      const values = { matchSignature: sig, merchant, category, subcategory, flow: flow ?? null, updatedAt: Date.now() };
+      const values = { matchSignature: sig, merchant, category, subcategory, flow: category === 'Transfer' ? ('transfer' as Flow) : null, updatedAt: Date.now() };
       if (existing) {
         tx.update(userOverrides).set(values).where(eq(userOverrides.id, existing.id)).run();
       } else {
@@ -85,7 +97,7 @@ export async function POST(req: Request): Promise<Response> {
       }
     });
 
-    return json({ ok: true, updated: matchedIds.length });
+    return json({ ok: true, updated: matched.length });
   } catch (err) {
     return badRequest(err instanceof Error ? err.message : 'Assign failed.', 500);
   }

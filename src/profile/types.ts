@@ -56,6 +56,8 @@ export const BankSchema = z.object({
 
 export const CardSchema = z.object({
   institutionId: z.string(),
+  /** Specific card product from the pack (e.g. hdfc-infinia). */
+  productId: z.string().optional(),
   nickname: z.string().optional(),
   last4: z.string().optional(),
   network: z.string().optional(),

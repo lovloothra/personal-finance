@@ -82,7 +82,13 @@ export function Overview({ setPage }: OverviewProps) {
       <div className="grid-4" style={{ marginBottom: 16 }}>
         <StatCard lbl="Income" icon="arrow-down-to-line" val={<Money amount={income} pos />} delta="vs prior FY" dir="up" />
         <StatCard lbl="Expenses" icon="arrow-up-from-line" val={<Money amount={expenses} />} sub="CC payments de-duped" />
-        <StatCard lbl="Money kept" icon="piggy-bank" val={<Money amount={net} pos />} accent="var(--mint-600)" />
+        <StatCard
+          lbl="Money kept"
+          icon="piggy-bank"
+          val={<Money amount={net} pos={net >= 0} sign={net < 0} />}
+          accent={net >= 0 ? 'var(--mint-600)' : 'var(--red-500)'}
+          sub={net < 0 ? 'Spent more than earned' : undefined}
+        />
         <StatCard lbl="Savings rate" icon="percent" val={`${savingsRate}%`} delta={`${savingsRate - prevSavingsRate >= 0 ? '+' : ''}${savingsRate - prevSavingsRate} pts`} dir={savingsRate - prevSavingsRate >= 0 ? 'up' : 'down'} />
       </div>
 
@@ -119,14 +125,18 @@ export function Overview({ setPage }: OverviewProps) {
         </div>
 
         <div className="stack">
-          <div className="card card-pad" style={{ background: 'var(--gradient-mint)', border: 0, color: '#fff' }}>
+          <div className="card card-pad" style={{ background: net >= 0 ? 'var(--gradient-mint)' : 'var(--gradient-hero)', border: 0, color: '#fff' }}>
             <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              You kept
+              {net >= 0 ? 'You kept' : 'You overspent by'}
             </div>
             <div className="fig" style={{ fontSize: 34, margin: '8px 0 2px' }}>
               <Money amount={net} className="onmint" />
             </div>
-            <div style={{ fontSize: 13, opacity: 0.92 }}>{savingsRate}% of everything you earned this year.</div>
+            <div style={{ fontSize: 13, opacity: 0.92 }}>
+              {net >= 0
+                ? `${savingsRate}% of everything you earned this year.`
+                : 'More went out than came in — uncategorised imports often hide salary credits. Clear the review queue to firm this up.'}
+            </div>
           </div>
           <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('tax')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>

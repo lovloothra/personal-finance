@@ -45,7 +45,10 @@ export function classifyByMerchantAlias(
   }
   if (!best) return null;
 
-  const flow: Flow = txn.amount > 0 ? 'income' : 'expense';
+  // Investment-platform debits are contributions, not spending; credits are
+  // redemptions/payouts. Everything else infers flow from the txn sign.
+  const isInvestment = (best.category ?? '').split('.')[0] === 'investment';
+  const flow: Flow = txn.amount > 0 ? 'income' : isInvestment ? 'investment' : 'expense';
   const category = displayCategory(best.category, best.subcategory);
 
   return {

@@ -6,6 +6,17 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "dev-fresh",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "-H", "127.0.0.1", "-p", "3001"],
+      "env": {
+        "PF_DB_PATH": "tmp/fresh-onboarding-test.db",
+        "PF_PROFILE_PATH": "tmp/fresh-profile.local.json",
+        "PF_GOOGLE_CLIENT_PATH": "tmp/nonexistent-oauth-client.json"
+      },
+      "port": 3001
     }
   ]
 }

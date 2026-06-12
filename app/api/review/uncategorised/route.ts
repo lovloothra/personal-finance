@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { transactions } from '@/db/schema';
+import { transactions, gmailMessages } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
 import { json, badRequest } from '@/server/api';
 
@@ -33,10 +33,34 @@ function titleCase(s: string): string {
 /**
  * Transactions awaiting review, grouped by normalized description signature so
  * one assignment can clear every occurrence of the same merchant at once.
+ * Pass ?signature= to get the individual transactions behind one group, with
+ * their source emails, so the user can judge before assigning.
  */
-export async function GET(): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   try {
     const db = await getDb();
+
+    const detailSig = new URL(req.url).searchParams.get('signature')?.trim();
+    if (detailSig) {
+      const detail = db
+        .select({
+          id: transactions.id,
+          date: transactions.txnDate,
+          amount: transactions.amount,
+          rawDescription: transactions.rawDescription,
+          reason: transactions.classificationReason,
+          from: gmailMessages.fromAddr,
+          subject: gmailMessages.subject,
+        })
+        .from(transactions)
+        .leftJoin(gmailMessages, eq(transactions.messageId, gmailMessages.id))
+        .where(eq(transactions.reviewRequired, true))
+        .all()
+        .filter((t) => signature(t.rawDescription ?? '') === detailSig)
+        .sort((a, b) => (a.date < b.date ? 1 : -1))
+        .map((t) => ({ ...t, amount: Math.round(t.amount / 100) })); // paise → rupees
+      return json({ signature: detailSig, txns: detail.slice(0, 100) });
+    }
     const rows = db
       .select({
         rawDescription: transactions.rawDescription,
@@ -75,7 +99,10 @@ export async function GET(): Promise<Response> {
       }
     }
 
-    const sorted = [...groups.values()].sort((a, b) => b.count - a.count || b.total - a.total);
+    // Amounts leave the API in whole rupees, matching every other dashboard DTO.
+    const sorted = [...groups.values()]
+      .sort((a, b) => b.count - a.count || b.total - a.total)
+      .map((g) => ({ ...g, total: Math.round(g.total / 100) }));
 
     const cats = new Set<string>(BASE_CATEGORIES);
     for (const r of rows) if (r.category && r.category !== 'Uncategorised') cats.add(r.category);

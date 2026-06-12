@@ -23,28 +23,45 @@ function daysBetween(a: string, b: string): number {
 }
 
 /**
+ * Recurring debits riding payment rails (NACH/ACH/ECS mandates) or carrying
+ * fee/tax descriptors are SIPs, EMIs, premiums, or bank charges — never
+ * consumer subscriptions. Matched as whole words on the normalized signature.
+ */
+const STRUCTURAL_TOKENS = /\b(ach|nach|ecs|enach|clearing|mandate|igst|cgst|sgst|dcc)\b/;
+
+/** A recurring charge above this (paise) is a SIP/EMI/rent, not a subscription. */
+const MAX_SUBSCRIPTION_PAISE = 2_500_000; // ₹25,000
+
+/**
  * Build a recurrence index from a batch of (already parsed) debit transactions.
  * A signature is "recurring" when it has >= minOccurrences debits whose median
- * gap falls in a monthly/quarterly/yearly band.
+ * gap falls in a monthly/quarterly/yearly band. Mandate-rail descriptors and
+ * large-ticket charges are excluded — they recur, but they aren't subscriptions.
  */
 export function buildRecurrenceIndex(
   txns: RawTxn[],
   minOccurrences = 3,
 ): Map<string, RecurrenceHit> {
-  const groups = new Map<string, string[]>(); // signature → sorted dates
+  const groups = new Map<string, { dates: string[]; amounts: number[] }>(); // by signature
   for (const t of txns) {
     if (t.amount >= 0) continue; // subscriptions are debits
     const sig = signature(t.merchant ?? t.rawDescription);
-    if (!sig) continue;
-    const arr = groups.get(sig) ?? [];
-    arr.push(t.date);
-    groups.set(sig, arr);
+    if (!sig || STRUCTURAL_TOKENS.test(sig)) continue;
+    const g = groups.get(sig) ?? { dates: [], amounts: [] };
+    g.dates.push(t.date);
+    g.amounts.push(Math.abs(t.amount));
+    groups.set(sig, g);
   }
 
   const index = new Map<string, RecurrenceHit>();
-  for (const [sig, datesRaw] of groups) {
-    if (datesRaw.length < minOccurrences) continue;
-    const dates = [...datesRaw].sort();
+  for (const [sig, g] of groups) {
+    if (g.dates.length < minOccurrences) continue;
+
+    const amounts = [...g.amounts].sort((a, b) => a - b);
+    const medianAmount = amounts[Math.floor(amounts.length / 2)];
+    if (medianAmount > MAX_SUBSCRIPTION_PAISE) continue;
+
+    const dates = [...g.dates].sort();
     const gaps: number[] = [];
     for (let i = 1; i < dates.length; i++) gaps.push(daysBetween(dates[i - 1], dates[i]));
     gaps.sort((a, b) => a - b);

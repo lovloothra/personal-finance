@@ -61,6 +61,7 @@ export function Sidebar({ page, setPage }: SidebarProps) {
       key={it.id}
       className={`sb-item ${page === it.id ? 'active' : ''}`}
       onClick={() => setPage(it.id)}
+      title={it.label}
     >
       <Icon name={it.icon} size={18} />
       <span>{it.label}</span>

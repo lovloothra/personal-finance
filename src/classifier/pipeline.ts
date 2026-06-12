@@ -34,10 +34,14 @@ function classifyByOverride(txn: RawTxn, ctx: ClassifyContext): Classification |
   const sig = signature(txn.rawDescription);
   const ov = ctx.overrides.find((o) => o.matchSignature === sig);
   if (!ov) return null;
+  // Flow follows the txn sign unless the override pins one; Investment debits
+  // are contributions, mirroring the assign endpoint's derivation.
+  const derived = txn.amount > 0 ? 'income' : ov.category === 'Investment' ? 'investment' : 'expense';
   return {
-    flow: ov.flow ?? (txn.amount > 0 ? 'income' : 'expense'),
+    flow: ov.flow ?? derived,
     category: ov.category ?? 'Uncategorised',
     subcategory: ov.subcategory ?? null,
+    merchant: ov.merchant ?? null,
     confidence: 'high',
     reason: `User override: you set this rule${ov.note ? ` — ${ov.note}` : ''}. Always wins over automatic classification.`,
     signal: 'user.override',

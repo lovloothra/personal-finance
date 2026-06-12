@@ -44,6 +44,24 @@ interface UncatDTO {
   categories: string[];
 }
 
+interface GroupTxnDetail {
+  id: string;
+  date: string;
+  amount: number;
+  rawDescription: string | null;
+  reason: string | null;
+  from: string | null;
+  subject: string | null;
+}
+
+/** How an assignment will count, derived from category + the txns' sign. */
+function derivedFlow(category: string, groupFlow: string): string {
+  if (category === 'Transfer') return 'transfer';
+  if (groupFlow === 'income') return 'income';
+  if (category === 'Investment') return 'investment';
+  return 'expense';
+}
+
 function GroupRow({
   group,
   categories,
@@ -55,9 +73,27 @@ function GroupRow({
 }) {
   const [merchant, setMerchant] = useState(group.suggestedMerchant);
   const [category, setCategory] = useState(group.category ?? '');
-  const [flow, setFlow] = useState(group.flow);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detail, setDetail] = useState<GroupTxnDetail[] | null>(null);
+
+  const toggleDetail = async () => {
+    if (detailOpen) {
+      setDetailOpen(false);
+      return;
+    }
+    setDetailOpen(true);
+    if (!detail) {
+      try {
+        const res = await fetch(`/api/review/uncategorised?signature=${encodeURIComponent(group.signature)}`);
+        const data = (await res.json()) as { txns: GroupTxnDetail[] };
+        setDetail(data.txns);
+      } catch {
+        setDetail([]);
+      }
+    }
+  };
 
   const assign = async () => {
     if (!merchant.trim() || !category) return;
@@ -67,7 +103,7 @@ function GroupRow({
       const res = await fetch('/api/review/assign', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ signature: group.signature, merchant: merchant.trim(), category, flow }),
+        body: JSON.stringify({ signature: group.signature, merchant: merchant.trim(), category }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Assign failed');
@@ -82,7 +118,7 @@ function GroupRow({
     <div className="review-item" style={{ alignItems: 'flex-start' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="ttl" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 360 }} title={group.sample}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', flex: '0 1 auto' }} title={group.sample}>
             {group.sample}
           </span>
           <span className="badge neutral">{group.count}×</span>
@@ -90,18 +126,43 @@ function GroupRow({
             <Money amount={group.total} />
           </span>
         </div>
-        <div className="desc">
-          {group.firstDate === group.lastDate ? group.firstDate : `${group.firstDate} → ${group.lastDate}`}
+        <div className="desc" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span>{group.firstDate === group.lastDate ? group.firstDate : `${group.firstDate} → ${group.lastDate}`}</span>
+          <button className="link" style={{ fontSize: 12.5 }} onClick={toggleDetail}>
+            {detailOpen ? 'Hide transactions' : `View ${group.count > 1 ? `all ${group.count} transactions` : 'transaction'}`}
+          </button>
         </div>
+        {detailOpen && (
+          <div style={{ margin: '10px 0 2px', borderLeft: '2px solid var(--border)', paddingLeft: 12, display: 'grid', gap: 8 }}>
+            {detail === null && <div className="muted" style={{ fontSize: 12.5 }}>Loading…</div>}
+            {detail?.map((t) => (
+              <div key={t.id} style={{ fontSize: 12.5, minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  <span className="muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{t.date}</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {t.amount > 0 ? '+' : '−'}
+                    <Money amount={Math.abs(t.amount)} pos={t.amount > 0} />
+                  </span>
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--fg-2)', overflowWrap: 'anywhere' }}>{t.rawDescription}</div>
+                {t.subject && (
+                  <div className="muted" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${t.from ?? ''} — ${t.subject}`}>
+                    ✉ {t.subject}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             className="inp"
             value={merchant}
             onChange={(e) => setMerchant(e.target.value)}
             placeholder="Merchant"
-            style={{ width: 180 }}
+            style={{ flex: '1 1 160px', minWidth: 0, maxWidth: 220 }}
           />
-          <select className="inp" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: 170 }}>
+          <select className="inp" value={category} onChange={(e) => setCategory(e.target.value)} style={{ flex: '1 1 150px', minWidth: 0, maxWidth: 200 }}>
             <option value="" disabled>
               Category…
             </option>
@@ -111,12 +172,11 @@ function GroupRow({
               </option>
             ))}
           </select>
-          <select className="inp" value={flow} onChange={(e) => setFlow(e.target.value)} style={{ width: 120 }}>
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-            <option value="transfer">Transfer</option>
-            <option value="investment">Investment</option>
-          </select>
+          {category && (
+            <span className="badge neutral" title="How this will count in your rollups — derived from the category and whether the money went out or came in.">
+              counts as {derivedFlow(category, group.flow)}
+            </span>
+          )}
           <button className="btn btn-primary btn-sm" disabled={busy || !merchant.trim() || !category} onClick={assign}>
             {busy ? 'Assigning…' : `Assign ${group.count > 1 ? `all ${group.count}` : ''}`}
           </button>
@@ -140,6 +200,7 @@ export function Review() {
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
   const [uncat, setUncat] = useState<UncatDTO | null>(null);
   const [uncatLoading, setUncatLoading] = useState(false);
+  const [reclassifying, setReclassifying] = useState(false);
   const { refresh: refreshShellMeta } = useShellMeta();
 
   const load = useCallback(async () => {
@@ -192,6 +253,26 @@ export function Review() {
 
   const resolveLocal = (id: string) => setItems((it) => it.filter((x) => x.id !== id));
 
+  // Refresh packs + re-run every classification rule over stored transactions,
+  // so new overrides / pack updates apply retroactively.
+  const reclassify = async () => {
+    setReclassifying(true);
+    setFlash(null);
+    try {
+      const res = await fetch('/api/review/reclassify', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Reclassify failed');
+      setFlash(`Re-applied all rules across ${data.transactions.toLocaleString('en-IN')} transactions — ${data.changed.toLocaleString('en-IN')} updated.`);
+      await load();
+      if (assignOpen) await loadUncat();
+      void refreshShellMeta();
+    } catch (e) {
+      setFlash(e instanceof Error ? e.message : 'Reclassify failed');
+    } finally {
+      setReclassifying(false);
+    }
+  };
+
   const submitPassword = async () => {
     if (!password.trim()) return;
     setUnlocking(true);
@@ -225,7 +306,14 @@ export function Review() {
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Review queue" sub={live ? `${items.reduce((n, i) => n + (i.count ?? 1), 0)} items need your eye` : 'A few things need your eye to push coverage past 98%'} />
+      <PageHead title="Review queue" sub={live ? `${items.reduce((n, i) => n + (i.count ?? 1), 0)} items need your eye` : 'A few things need your eye to push coverage past 98%'}>
+        {live && (
+          <button className="btn btn-secondary" disabled={reclassifying} onClick={reclassify} title="Refresh packs and re-run every classification rule over your imported transactions.">
+            <Icon name="refresh-cw" size={15} />
+            {reclassifying ? 'Re-applying…' : 'Re-apply rules'}
+          </button>
+        )}
+      </PageHead>
 
       {/* Global password entry — one password is tried against every locked statement. */}
       {lockedCount > 0 && (

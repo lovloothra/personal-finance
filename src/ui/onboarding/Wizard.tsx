@@ -112,6 +112,7 @@ function seedToDraft(seed?: Partial<ProfileSeed>): Draft {
   }));
   d.cards = row(3).map((_, i) => ({
     institutionId: seed?.cards?.[i]?.institutionId ?? '',
+    productId: seed?.cards?.[i]?.productId ?? '',
     nickname: seed?.cards?.[i]?.nickname ?? '',
     last4: seed?.cards?.[i]?.last4 ?? '',
     network: seed?.cards?.[i]?.network ?? '',
@@ -226,7 +227,7 @@ function draftToProfile(d: Draft, chapter: ChapterId, skipped: boolean): Partial
       .map((x, i) => ({ institutionId: x.institutionId, nickname: x.nickname || undefined, last4: x.last4 || undefined, customerId: x.customerId || undefined, accountType: x.accountType || undefined, isPrimary: i === 0 })),
     cards: d.cards
       .filter((x) => x.institutionId)
-      .map((x) => ({ institutionId: x.institutionId, nickname: x.nickname || undefined, last4: x.last4 || undefined, network: x.network || undefined, statementDay: num(x.statementDay) })),
+      .map((x) => ({ institutionId: x.institutionId, productId: x.productId || undefined, nickname: x.nickname || undefined, last4: x.last4 || undefined, network: x.network || undefined, statementDay: num(x.statementDay) })),
     loans: d.loans
       .filter((x) => x.kind || x.institutionId)
       .map((x) => ({ kind: x.kind || 'loan', institutionId: x.institutionId || undefined, emiAmount: num(x.emiAmount), outstanding: num(x.outstanding), interestRate: num(x.interestRate), emiDay: num(x.emiDay) })),
@@ -437,7 +438,7 @@ export function Wizard() {
                 {chapter.id === 'you' && (
                   <>
                     <div className="row2">
-                      <TextField label="Full name" value={draft.personal.fullName} placeholder="Lov Loothra" onChange={(v) => setObj('personal', 'fullName', v)} />
+                      <TextField label="Full name" value={draft.personal.fullName} placeholder="Asha Mehra" onChange={(v) => setObj('personal', 'fullName', v)} />
                       <TextField label="PAN" value={draft.personal.pan} placeholder="ABCDE1234F" onChange={(v) => setObj('personal', 'pan', v.toUpperCase())} hint="Used only for local password candidates." />
                     </div>
                     <div className="row2">
@@ -446,7 +447,7 @@ export function Wizard() {
                     </div>
                     <div className="row2">
                       <TextField label="Mobile" value={draft.personal.mobile} placeholder="9876543210" onChange={(v) => setObj('personal', 'mobile', v)} />
-                      <TextField label="Email" value={draft.personal.email} placeholder="lovloothra@gmail.com" onChange={(v) => setObj('personal', 'email', v)} />
+                      <TextField label="Email" value={draft.personal.email} placeholder="asha@example.com" onChange={(v) => setObj('personal', 'email', v)} />
                     </div>
                     <div className="quest-subhead">Household</div>
                     <div className="row2">
@@ -495,8 +496,9 @@ export function Wizard() {
                     {[0, 1].map((i) => (
                       <div className="quest-block" key={`card-${i}`}>
                         <div className="quest-subhead">Credit card {i + 1}</div>
-                        <div className="row2">
+                        <div className="row3">
                           <InstField label="Issuer" category="credit_card_issuer" value={draft.cards[i].institutionId} valueLabel={labels[draft.cards[i].institutionId]} onSelect={(id) => setRow('cards', i, 'institutionId', id)} />
+                          <InstField label="Which card?" category="credit_card_product" value={draft.cards[i].productId} valueLabel={labels[draft.cards[i].productId]} onSelect={(id) => setRow('cards', i, 'productId', id)} />
                           <TextField label="Card last 4" value={draft.cards[i].last4} placeholder="7702" onChange={(v) => setRow('cards', i, 'last4', v.replace(/\D/g, '').slice(0, 4))} />
                         </div>
                       </div>
