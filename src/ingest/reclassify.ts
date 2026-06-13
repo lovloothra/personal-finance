@@ -10,9 +10,8 @@
 import 'server-only';
 import { eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { transactions, subscriptionsDetected, internalTransferLinks } from '@/db/schema';
+import { transactions, internalTransferLinks } from '@/db/schema';
 import { buildRecurrenceIndex } from '@/classifier/recurrence';
-import { signature } from '@/classifier/normalize';
 import { classify } from '@/classifier/pipeline';
 import { linkInternalTransfers } from '@/classifier/transfers';
 import type { RawTxn, ClassifyContext } from '@/classifier/types';
@@ -20,18 +19,11 @@ import { fyForDate } from '@/ledger/fy';
 import { loadProfileSeed } from '@/profile/signals';
 import { buildBaseContext } from './context';
 import { rebuildClassificationReviewItems } from './review-items';
+import { detectSubscriptions } from '@/ledger/subscriptions';
 
 export interface ReclassifyResult {
   transactions: number;
   changed: number;
-}
-
-function addCadence(iso: string, cadence: string): string {
-  const d = new Date(iso + 'T00:00:00Z');
-  if (cadence === 'yearly') d.setUTCFullYear(d.getUTCFullYear() + 1);
-  else if (cadence === 'quarterly') d.setUTCMonth(d.getUTCMonth() + 3);
-  else d.setUTCMonth(d.getUTCMonth() + 1);
-  return d.toISOString().slice(0, 10);
 }
 
 export function reclassifyAll(db: DB): ReclassifyResult {
@@ -79,11 +71,6 @@ export function reclassifyAll(db: DB): ReclassifyResult {
     { selfNames },
   );
 
-  // Preserve subscription statuses the user has confirmed/dismissed.
-  const prevSubStatus = new Map(
-    db.select({ id: subscriptionsDetected.id, status: subscriptionsDetected.status }).from(subscriptionsDetected).all().map((r) => [r.id, r.status]),
-  );
-
   let changed = 0;
   db.transaction((tx) => {
     for (const { raw, prev, c } of results) {
@@ -123,44 +110,10 @@ export function reclassifyAll(db: DB): ReclassifyResult {
         .run();
     }
 
-    // Rebuild detected subscriptions from scratch (statuses carried over).
-    const NON_SUBSCRIPTION = new Set(['Housing', 'Loan', 'Insurance', 'Salary', 'Investment', 'Transfer', 'Uncategorised', 'Fees & Charges', 'Cash']);
-    const subGroups = new Map<string, { merchant: string; category: string; cadence: string; occurrences: number; amounts: number[]; dates: string[] }>();
-    for (const { raw, c } of results) {
-      if (c.flow !== 'expense' || raw.amount >= 0) continue;
-      if (NON_SUBSCRIPTION.has(c.category) || transfer.transferIds.has(raw.id)) continue;
-      const sig = signature(c.merchant ?? raw.rawDescription);
-      const hit = recurrence.get(sig);
-      if (!hit) continue;
-      const merchant = (c.merchant ?? c.subcategory ?? raw.rawDescription).trim().slice(0, 60);
-      const g = subGroups.get(sig) ?? { merchant, category: c.category, cadence: hit.cadence, occurrences: hit.occurrences, amounts: [], dates: [] };
-      g.amounts.push(Math.abs(raw.amount));
-      g.dates.push(raw.date);
-      subGroups.set(sig, g);
-    }
-    tx.delete(subscriptionsDetected).run();
-    for (const [sig, g] of subGroups) {
-      const dates = [...g.dates].sort();
-      const lastSeen = dates[dates.length - 1];
-      const id = `sub_${sig.replace(/\s+/g, '-').slice(0, 40)}`;
-      tx.insert(subscriptionsDetected)
-        .values({
-          id,
-          merchant: g.merchant,
-          amount: g.amounts[g.amounts.length - 1],
-          cadence: g.cadence,
-          status: prevSubStatus.get(id) ?? (g.occurrences >= 6 ? 'confirmed' : 'likely'),
-          firstSeen: dates[0],
-          lastSeen,
-          nextChargeEta: addCadence(lastSeen, g.cadence),
-          occurrences: g.occurrences || g.dates.length,
-          category: g.category,
-        })
-        .run();
-    }
   });
 
-  // Classification-derived review items mirror the updated transactions.
+  // Subscriptions + review items are projections of the updated ledger.
+  detectSubscriptions(db);
   rebuildClassificationReviewItems(db);
 
   return { transactions: results.length, changed };

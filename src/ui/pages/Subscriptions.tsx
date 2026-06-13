@@ -1,48 +1,71 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { subscriptions as seed, type Subscription } from '../lib/fixtures';
-import { Glyph } from '../primitives/Glyph';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
+import { MerchantLogo } from '../primitives/MerchantLogo';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
 import { useDashboard, type SubscriptionsDTO } from '../data/useDashboard';
+import { subscriptions as seed } from '../lib/fixtures';
 
-interface SubRowProps {
-  s: Subscription;
-  likelyMode?: boolean;
-  setStatus: (id: string, status: Subscription['status']) => void;
+type Sub = SubscriptionsDTO['subscriptions'][number];
+type Status = Sub['status'];
+
+const CADENCE_MULT: Record<string, number> = { Monthly: 12, Quarterly: 4, Yearly: 1 };
+const annualOf = (s: Sub) => s.annual ?? s.amt * (CADENCE_MULT[s.cadence] ?? 12);
+
+/** Tidy the raw display category into a human label. */
+const CAT_LABEL: Record<string, string> = { Ott: 'Streaming', Software: 'AI & Software', Music: 'Music', Telecom: 'Telecom', Subscriptions: 'Subscription' };
+const catLabel = (c: string) => CAT_LABEL[c] ?? c;
+
+/** Map the demo fixtures into the live DTO shape so pre-import looks identical. */
+function seedSubs(): Sub[] {
+  return seed.map((s) => ({
+    id: s.id,
+    name: s.name,
+    cat: s.cat,
+    amt: s.amt,
+    annual: s.amt * (CADENCE_MULT[s.cadence] ?? 12),
+    cadence: s.cadence,
+    next: s.next,
+    nextIso: null,
+    last: s.last,
+    occurrences: 0,
+    status: s.status,
+    glyph: s.glyph,
+    color: s.color,
+  }));
 }
 
-function SubRow({ s, likelyMode, setStatus }: SubRowProps) {
+function SubRow({ s, mode, onStatus }: { s: Sub; mode: 'confirmed' | 'likely'; onStatus: (id: string, status: Status) => void }) {
   return (
     <div className="txn" style={{ cursor: 'default' }}>
-      <Glyph ch={s.glyph} color={s.color} />
+      <MerchantLogo name={s.name} color={s.color} />
       <div className="txn-mid">
         <div className="mer">{s.name}</div>
-        <div className="cat">
-          {s.cat} · {s.cadence} · {s.last}
+        <div className="cat" style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+          <span className="badge neutral" style={{ padding: '1px 7px' }}>{catLabel(s.cat)}</span>
+          <span>{s.cadence}</span>
+          {s.occurrences > 0 && <span className="muted">· seen {s.occurrences}×</span>}
         </div>
       </div>
       <div style={{ textAlign: 'right', marginRight: 14 }}>
-        <div className="amt">
-          <Money amount={s.amt} />
-        </div>
-        <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
-          next {s.next}
+        <div className="amt"><Money amount={s.amt} /></div>
+        <div className="muted" style={{ fontSize: 11.5, marginTop: 3, display: 'inline-flex', gap: 4 }}>
+          {mode === 'confirmed' ? (
+            <span>next {s.next}</span>
+          ) : (
+            <span>≈ <Money amount={annualOf(s)} />/yr</span>
+          )}
         </div>
       </div>
-      {likelyMode ? (
+      {mode === 'likely' ? (
         <div style={{ display: 'flex', gap: 7 }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => setStatus(s.id, 'dismissed')}>
-            Dismiss
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setStatus(s.id, 'confirmed')}>
-            Confirm
-          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onStatus(s.id, 'dismissed')}>Not a sub</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onStatus(s.id, 'confirmed')}>Confirm</button>
         </div>
       ) : (
-        <button className="btn btn-ghost btn-sm" onClick={() => setStatus(s.id, 'dismissed')} title="Stop tracking">
+        <button className="btn btn-ghost btn-sm" onClick={() => onStatus(s.id, 'dismissed')} title="Stop tracking">
           <Icon name="x" size={15} />
         </button>
       )}
@@ -52,47 +75,48 @@ function SubRow({ s, likelyMode, setStatus }: SubRowProps) {
 
 export function Subscriptions() {
   const { data } = useDashboard<SubscriptionsDTO>('subscriptions', 'all');
-  const [subs, setSubs] = useState<Subscription[]>(seed);
+  const [subs, setSubs] = useState<Sub[]>(seedSubs);
   const [initialized, setInitialized] = useState(false);
 
-  // Seed from the DB once it loads; keep demo fixtures until the first import.
   useEffect(() => {
     if (data && !initialized) {
-      if (data.hasData) setSubs(data.subscriptions as Subscription[]);
+      if (data.hasData) setSubs(data.subscriptions);
       setInitialized(true);
     }
   }, [data, initialized]);
 
-  const setStatus = (id: string, status: Subscription['status']) =>
+  const setStatus = (id: string, status: Status) => {
     setSubs((arr) => arr.map((x) => (x.id === id ? { ...x, status } : x)));
+    // Persist (no-op against demo fixtures, which aren't in the DB).
+    void fetch('/api/dashboard/subscriptions', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    }).catch(() => {});
+  };
 
-  const confirmed = subs.filter((s) => s.status === 'confirmed');
-  const likely = subs.filter((s) => s.status === 'likely');
-  const monthlyTotal = confirmed.filter((s) => s.cadence === 'Monthly').reduce((a, s) => a + s.amt, 0);
-  const yearlyFromMonthly =
-    monthlyTotal * 12 + confirmed.filter((s) => s.cadence === 'Yearly').reduce((a, s) => a + s.amt, 0);
+  const confirmed = subs.filter((s) => s.status === 'confirmed').sort((a, b) => annualOf(b) - annualOf(a));
+  const likely = subs.filter((s) => s.status === 'likely').sort((a, b) => annualOf(b) - annualOf(a));
+
+  const annualTotal = confirmed.reduce((a, s) => a + annualOf(s), 0);
+  const monthlyEquivalent = Math.round(annualTotal / 12);
+
+  // Soonest upcoming renewal among confirmed subscriptions.
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = confirmed
+    .filter((s) => s.nextIso && s.nextIso >= today)
+    .sort((a, b) => (a.nextIso! < b.nextIso! ? -1 : 1))[0];
 
   return (
     <div className="content-wrap fade-in">
       <PageHead
         title="Subscriptions"
-        sub={`${subs.filter((s) => s.status !== 'dismissed').length} recurring charges found in your inbox`}
+        sub={`${confirmed.length} active · ${likely.length} to review`}
       />
       <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard
-          lbl="Per month"
-          icon="repeat"
-          val={<Money amount={monthlyTotal} />}
-          sub={`${confirmed.filter((s) => s.cadence === 'Monthly').length} monthly subscriptions`}
-        />
-        <StatCard lbl="Per year" icon="calendar" val={<Money amount={yearlyFromMonthly} />} sub="Annualised commitment" />
-        <StatCard
-          lbl="Needs review"
-          icon="help-circle"
-          val={String(likely.length)}
-          accent="var(--amber-600)"
-          sub="Likely — confirm or dismiss"
-        />
+        <StatCard lbl="Per month" icon="repeat" val={<Money amount={monthlyEquivalent} />} sub="Monthly-equivalent of all plans" />
+        <StatCard lbl="Per year" icon="calendar" val={<Money amount={annualTotal} />} sub={`Across ${confirmed.length} active subscriptions`} />
+        <StatCard lbl="Needs review" icon="help-circle" val={String(likely.length)} accent="var(--amber-600)" sub="Likely — confirm or dismiss" />
       </div>
 
       {likely.length > 0 && (
@@ -103,7 +127,7 @@ export function Subscriptions() {
           </div>
           <div className="card-list">
             {likely.map((s) => (
-              <SubRow key={s.id} s={s} likelyMode setStatus={setStatus} />
+              <SubRow key={s.id} s={s} mode="likely" onStatus={setStatus} />
             ))}
           </div>
         </div>
@@ -111,26 +135,32 @@ export function Subscriptions() {
 
       <div className="card">
         <div className="card-head">
-          <h3>Confirmed</h3>
-          <button className="link">
-            <Icon name="bell" size={13} />
-            Renewal reminders on
-          </button>
+          <h3>Active subscriptions</h3>
+          <span className="muted" style={{ fontSize: 12.5 }}>Sorted by yearly cost</span>
         </div>
-        <div className="card-list">
-          {confirmed.map((s) => (
-            <SubRow key={s.id} s={s} setStatus={setStatus} />
-          ))}
+        {confirmed.length === 0 ? (
+          <div className="empty">
+            <div className="ic"><Icon name="repeat" size={24} color="var(--fg-3)" /></div>
+            <h3 style={{ fontFamily: 'var(--font-display)', margin: '0 0 4px' }}>No active subscriptions yet</h3>
+            <p style={{ margin: 0 }}>Confirm the likely ones above, or import more statements to surface recurring charges.</p>
+          </div>
+        ) : (
+          <div className="card-list">
+            {confirmed.map((s) => (
+              <SubRow key={s.id} s={s} mode="confirmed" onStatus={setStatus} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {upcoming && (
+        <div className="note info" style={{ marginTop: 16 }}>
+          <span className="ic"><Icon name="calendar-clock" size={16} /></span>
+          <span>
+            Next renewal — <b>{upcoming.name}</b> (<Money amount={upcoming.amt} />) around {upcoming.next}. Reminders stay on this device; we never email or charge you.
+          </span>
         </div>
-      </div>
-      <div className="note info" style={{ marginTop: 16 }}>
-        <span className="ic">
-          <Icon name="calendar-clock" size={16} />
-        </span>
-        <span>
-          Heads up — your Netflix Premium (₹649) renews in 6 days. We spotted three trials converting to paid plans this month.
-        </span>
-      </div>
+      )}
       <FootMeta />
     </div>
   );

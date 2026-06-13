@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "eslint .",
-    "test": "node --import tsx --test \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\" \"src/**/*.test.ts\"",
+    "test": "node --import tsx --conditions=react-server --test \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\" \"src/**/*.test.ts\"",
     "validate:packs": "node tools/validate-pack-in.mjs",
     "refresh:packs:in": "node scripts/refresh-pack-in.mjs",
     "db:generate": "drizzle-kit generate",

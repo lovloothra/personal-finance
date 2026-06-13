@@ -69,7 +69,7 @@ function GroupRow({
 }: {
   group: UncatGroup;
   categories: string[];
-  onAssigned: (signature: string, updated: number) => void;
+  onAssigned: (signature: string, updated: number, taught?: { token: string; applied: number }) => void;
 }) {
   const [merchant, setMerchant] = useState(group.suggestedMerchant);
   const [category, setCategory] = useState(group.category ?? '');
@@ -107,7 +107,7 @@ function GroupRow({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Assign failed');
-      onAssigned(group.signature, data.updated as number);
+      onAssigned(group.signature, data.updated as number, data.aliasToken ? { token: data.aliasToken as string, applied: data.aliasApplied as number } : undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Assign failed');
       setBusy(false);
@@ -235,18 +235,26 @@ export function Review() {
     void loadUncat();
   };
 
-  const onAssigned = (sig: string, updated: number) => {
+  const onAssigned = (sig: string, updated: number, taught?: { token: string; applied: number }) => {
     setUncat((u) =>
       u
         ? {
             ...u,
             groups: u.groups.filter((g) => g.signature !== sig),
             totalGroups: u.totalGroups - 1,
-            totalTransactions: u.totalTransactions - updated,
+            totalTransactions: u.totalTransactions - updated - (taught?.applied ?? 0),
           }
         : u,
     );
-    setFlash(`Categorised ${updated} transaction${updated === 1 ? '' : 's'}. The classifier will remember this.`);
+    const taughtMsg =
+      taught && taught.applied > 0
+        ? ` Learned the “${taught.token}” rule and auto-tagged ${taught.applied} more — future ones match automatically.`
+        : taught
+          ? ` Saved a “${taught.token}” rule, so future imports auto-tag.`
+          : ' The classifier will remember this.';
+    setFlash(`Categorised ${updated} transaction${updated === 1 ? '' : 's'}.${taughtMsg}`);
+    // A learned rule reshuffles other groups, so refetch the full list.
+    if (taught && taught.applied > 0) void loadUncat();
     void load();
     void refreshShellMeta();
   };

@@ -27,7 +27,7 @@ function daysBetween(a: string, b: string): number {
  * fee/tax descriptors are SIPs, EMIs, premiums, or bank charges — never
  * consumer subscriptions. Matched as whole words on the normalized signature.
  */
-const STRUCTURAL_TOKENS = /\b(ach|nach|ecs|enach|clearing|mandate|igst|cgst|sgst|dcc)\b/;
+const STRUCTURAL_TOKENS = /\b(ach|nach|ecs|enach|clearing|mandate|igst|cgst|sgst|dcc|markup|surcharge|cashback|cash back|reward|fee|charges?)\b/;
 
 /** A recurring charge above this (paise) is a SIP/EMI/rent, not a subscription. */
 const MAX_SUBSCRIPTION_PAISE = 2_500_000; // ₹25,000

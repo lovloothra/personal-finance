@@ -520,9 +520,12 @@ export interface SubscriptionRow {
   name: string;
   cat: string;
   amt: number;
+  annual: number; // annualised cost in rupees, for sorting + totals
   cadence: string; // Monthly | Quarterly | Yearly
   next: string;
+  nextIso: string | null; // sortable next-charge date
   last: string;
+  occurrences: number;
   status: 'confirmed' | 'likely' | 'dismissed';
   glyph: string;
   color: string;
@@ -533,6 +536,7 @@ export interface SubscriptionsRollup {
 }
 
 const cadenceLabel: Record<string, string> = { monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' };
+const cadenceMultiplier: Record<string, number> = { monthly: 12, quarterly: 4, yearly: 1 };
 function fmtShort(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso + 'T00:00:00');
@@ -540,19 +544,28 @@ function fmtShort(iso: string | null): string {
 }
 
 export function subscriptionsRollup(db: DB): SubscriptionsRollup {
-  const rows = db.select().from(subscriptionsDetected).orderBy(desc(subscriptionsDetected.amount)).all();
-  const subscriptions: SubscriptionRow[] = rows.map((r, i) => ({
-    id: r.id,
-    name: r.merchant,
-    cat: r.category ?? 'Subscription',
-    amt: toR(r.amount),
-    cadence: cadenceLabel[r.cadence ?? 'monthly'] ?? 'Monthly',
-    next: fmtShort(r.nextChargeEta),
-    last: fmtShort(r.lastSeen),
-    status: (r.status ?? 'likely') as SubscriptionRow['status'],
-    glyph: (r.merchant || '?').charAt(0).toUpperCase(),
-    color: PALETTE[i % PALETTE.length],
-  }));
+  const rows = db.select().from(subscriptionsDetected).all();
+  const subscriptions: SubscriptionRow[] = rows
+    .map((r, i) => {
+      const cadence = r.cadence ?? 'monthly';
+      const amt = toR(r.amount);
+      return {
+        id: r.id,
+        name: r.merchant,
+        cat: r.category ?? 'Subscription',
+        amt,
+        annual: amt * (cadenceMultiplier[cadence] ?? 12),
+        cadence: cadenceLabel[cadence] ?? 'Monthly',
+        next: fmtShort(r.nextChargeEta),
+        nextIso: r.nextChargeEta ?? null,
+        last: fmtShort(r.lastSeen),
+        occurrences: r.occurrences ?? 0,
+        status: (r.status ?? 'likely') as SubscriptionRow['status'],
+        glyph: (r.merchant || '?').charAt(0).toUpperCase(),
+        color: PALETTE[i % PALETTE.length],
+      };
+    })
+    .sort((a, b) => b.annual - a.annual);
   return { hasData: rows.length > 0, subscriptions };
 }
 

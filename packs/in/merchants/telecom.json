@@ -1,0 +1,16 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.06.12",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-06-12",
+  "category": "subscriptions.telecom",
+  "merchants": [
+    {"id": "airtel", "display_name": "Airtel", "legal_name": "Bharti Airtel Limited", "category": "merchant", "type": "telecom", "aliases": ["Airtel", "Bharti Airtel", "Airtel Postpaid", "Airtel Broadband", "Airtel Xstream", "www.airtel.in", "airtel.in"], "sources": [{"source_type": "provider", "name": "Airtel", "url": "https://www.airtel.in/", "retrieved_at": "2026-06-12"}], "confidence": "high", "status": "active"},
+    {"id": "jio", "display_name": "Jio", "legal_name": "Reliance Jio Infocomm Limited", "category": "merchant", "type": "telecom", "aliases": ["Reliance Jio", "Jio Postpaid", "Jio Prepaid", "Jio Recharge", "Jio Fiber", "JioFiber", "MyJio"], "sources": [{"source_type": "provider", "name": "Jio", "url": "https://www.jio.com/", "retrieved_at": "2026-06-12"}], "confidence": "high", "status": "active"},
+    {"id": "vodafone-idea", "display_name": "Vi", "legal_name": "Vodafone Idea Limited", "category": "merchant", "type": "telecom", "aliases": ["Vodafone Idea", "Vodafone", "Idea Cellular", "myVi", "Vi Postpaid"], "sources": [{"source_type": "provider", "name": "Vi", "url": "https://www.myvi.in/", "retrieved_at": "2026-06-12"}], "confidence": "medium", "status": "active"},
+    {"id": "bsnl", "display_name": "BSNL", "legal_name": "Bharat Sanchar Nigam Limited", "category": "merchant", "type": "telecom", "aliases": ["BSNL", "Bharat Sanchar"], "sources": [{"source_type": "provider", "name": "BSNL", "url": "https://www.bsnl.co.in/", "retrieved_at": "2026-06-12"}], "confidence": "medium", "status": "active"},
+    {"id": "act-fibernet", "display_name": "ACT Fibernet", "legal_name": "Atria Convergence Technologies Limited", "category": "merchant", "type": "broadband", "aliases": ["ACT Fibernet", "ACT Broadband", "Atria Convergence"], "sources": [{"source_type": "provider", "name": "ACT Fibernet", "url": "https://www.actcorp.in/", "retrieved_at": "2026-06-12"}], "confidence": "medium", "status": "active"},
+    {"id": "tata-play-fiber", "display_name": "Tata Play Fiber", "legal_name": "Tata Play Limited", "category": "merchant", "type": "broadband", "aliases": ["Tata Play Fiber", "Tata Play Broadband", "Tata Sky Broadband"], "sources": [{"source_type": "provider", "name": "Tata Play Fiber", "url": "https://www.tataplayfiber.com/", "retrieved_at": "2026-06-12"}], "confidence": "low", "status": "active"}
+  ]
+}

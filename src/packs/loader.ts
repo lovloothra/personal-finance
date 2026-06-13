@@ -15,12 +15,17 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
+import { and, eq, notInArray } from 'drizzle-orm';
 import type { DB } from '@/db/client';
 import { institutions, merchantAliases } from '@/db/schema';
 
 const PACK_ID = 'in';
 const PACK_SOURCE = 'pack:in' as const;
+
+/** Patterns are matched as case-insensitive substrings, so a 1–3 char name
+ * ("Vi", "Jio", "Ola") would match inside thousands of unrelated descriptors.
+ * Require ≥ 4 chars; shorter brands rely on their longer aliases. */
+const MIN_ALIAS_LEN = 4;
 
 export interface SeedRow {
   id: string;
@@ -161,7 +166,7 @@ export function readPacks(dir = packsRoot()): PackData {
         const confidence = normConfidence(row.confidence);
         const aliasSet = new Set<string>([row.display_name, ...(row.aliases ?? [])]);
         for (const alias of aliasSet) {
-          if (!alias) continue;
+          if (!alias || alias.trim().length < MIN_ALIAS_LEN) continue;
           out.aliases.push({
             id: `${row.id}:${slug(alias)}`,
             pattern: alias.toLowerCase(),
@@ -265,6 +270,16 @@ export function loadPacksIntoDb(db: DB, dir = packsRoot()): { institutions: numb
           },
           setWhere: eq(merchantAliases.source, PACK_SOURCE),
         })
+        .run();
+    }
+
+    // Purge stale pack aliases that this load no longer emits (renamed,
+    // removed, or dropped for being too short) — keeps the table self-healing.
+    // User-owned rows (source != pack:in) are never touched.
+    const liveIds = data.aliases.map((r) => r.id);
+    if (liveIds.length) {
+      tx.delete(merchantAliases)
+        .where(and(eq(merchantAliases.source, PACK_SOURCE), notInArray(merchantAliases.id, liveIds)))
         .run();
     }
   });

@@ -1,0 +1,16 @@
+{
+  "pack_id": "in",
+  "country": "IN",
+  "version": "2026.06.12",
+  "coverage": "aggregator_expanded",
+  "retrieved_at": "2026-06-12",
+  "category": "subscriptions.music",
+  "merchants": [
+    {"id": "spotify", "display_name": "Spotify", "legal_name": "Spotify AB", "category": "merchant", "type": "music_streaming", "aliases": ["Spotify", "Spotify India"], "sources": [{"source_type": "provider", "name": "Spotify", "url": "https://www.spotify.com/in/", "retrieved_at": "2026-06-12"}], "confidence": "high", "status": "active"},
+    {"id": "youtube-premium", "display_name": "YouTube Premium", "legal_name": "Google LLC", "category": "merchant", "type": "music_streaming", "aliases": ["YouTube Premium", "YouTube Music", "Google YouTube", "YouTubePremium"], "sources": [{"source_type": "provider", "name": "YouTube Premium", "url": "https://www.youtube.com/premium", "retrieved_at": "2026-06-12"}], "confidence": "medium", "status": "active"},
+    {"id": "apple-music", "display_name": "Apple Music", "legal_name": "Apple Inc.", "category": "merchant", "type": "music_streaming", "aliases": ["Apple Music"], "sources": [{"source_type": "provider", "name": "Apple Music", "url": "https://music.apple.com/", "retrieved_at": "2026-06-12"}], "confidence": "medium", "status": "active"},
+    {"id": "jiosaavn", "display_name": "JioSaavn", "legal_name": "Saavn Media Limited", "category": "merchant", "type": "music_streaming", "aliases": ["JioSaavn", "Saavn"], "sources": [{"source_type": "provider", "name": "JioSaavn", "url": "https://www.jiosaavn.com/", "retrieved_at": "2026-06-12"}], "confidence": "medium", "status": "active"},
+    {"id": "gaana", "display_name": "Gaana", "legal_name": "Gamma Gaana Limited", "category": "merchant", "type": "music_streaming", "aliases": ["Gaana", "Gaana.com"], "sources": [{"source_type": "provider", "name": "Gaana", "url": "https://gaana.com/", "retrieved_at": "2026-06-12"}], "confidence": "low", "status": "active"},
+    {"id": "wynk-music", "display_name": "Wynk Music", "legal_name": "Bharti Airtel Limited", "category": "merchant", "type": "music_streaming", "aliases": ["Wynk", "Wynk Music"], "sources": [{"source_type": "provider", "name": "Wynk Music", "url": "https://wynk.in/music", "retrieved_at": "2026-06-12"}], "confidence": "low", "status": "active"}
+  ]
+}

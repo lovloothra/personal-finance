@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { reviewItems, transactions, userOverrides } from '@/db/schema';
+import { reviewItems, transactions, userOverrides, merchantAliases } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
+import { detectSubscriptions } from '@/ledger/subscriptions';
+import { rebuildClassificationReviewItems } from '@/ingest/review-items';
 import type { Flow } from '@/classifier/types';
 import { json, badRequest, assertSameOrigin } from '@/server/api';
 
@@ -19,6 +21,29 @@ function flowFor(category: string, amount: number): Flow {
   if (amount > 0) return 'income';
   if (category === 'Investment') return 'investment';
   return 'expense';
+}
+
+// Generic tokens that must never become a merchant-matching pattern.
+const TOKEN_STOPWORDS = new Set([
+  'payment', 'bank', 'limited', 'limite', 'india', 'private', 'services', 'technologies',
+  'upi', 'imps', 'neft', 'rtgs', 'ach', 'nach', 'the', 'and', 'ltd', 'pvt', 'new', 'delhi',
+  'mumbai', 'bangalore', 'bengaluru', 'gurgaon', 'transaction', 'card', 'credit', 'debit',
+]);
+
+/**
+ * Derive a reusable alias pattern from the assigned merchant name: the longest
+ * (≥4 char) word of the name that literally appears in EVERY matched raw
+ * descriptor. Returning null (name not present in the text) means we only set
+ * the per-signature override — never a risky substring rule.
+ */
+function deriveAliasToken(merchant: string, rawDescriptions: string[]): string | null {
+  const lowered = rawDescriptions.map((r) => r.toLowerCase());
+  if (!lowered.length) return null;
+  const words = [...new Set(merchant.toLowerCase().split(/[^a-z0-9]+/))]
+    .filter((w) => w.length >= 4 && !TOKEN_STOPWORDS.has(w))
+    .sort((a, b) => b.length - a.length);
+  for (const w of words) if (lowered.every((r) => r.includes(w))) return w;
+  return null;
 }
 
 /**
@@ -106,7 +131,54 @@ export async function POST(req: Request): Promise<Response> {
       }
     });
 
-    return json({ ok: true, updated: matched.length });
+    // Teach-from-assignment: if the merchant name appears in every matched
+    // descriptor, save a reusable user merchant alias and sweep it across the
+    // rest of the review queue — one assignment clears every spelling variant
+    // and future imports auto-tag. Skipped for Transfer (substring rules there
+    // are too blunt for credit-card payments).
+    let aliasToken: string | null = null;
+    let aliasApplied = 0;
+    if (category !== 'Transfer') {
+      aliasToken = deriveAliasToken(merchant, matched.map((t) => t.rawDescription ?? ''));
+    }
+    if (aliasToken) {
+      const matchedSet = new Set(matched.map((t) => t.id));
+      const others = db
+        .select({ id: transactions.id, amount: transactions.amount, raw: transactions.rawDescription })
+        .from(transactions)
+        .where(eq(transactions.reviewRequired, true))
+        .all()
+        .filter((t) => !matchedSet.has(t.id) && (t.raw ?? '').toLowerCase().includes(aliasToken!));
+
+      db.transaction((tx) => {
+        // Persist the alias as a user row (layer-4 source) so re-ingests reuse it.
+        const aliasId = `ua_${aliasToken}`;
+        const aliasVals = { pattern: aliasToken!, canonicalMerchant: merchant, category, subcategory, source: 'user' as const, confidence: 'high' as const, updatedAt: Date.now() };
+        const existingAlias = tx.select({ id: merchantAliases.id }).from(merchantAliases).where(eq(merchantAliases.id, aliasId)).get();
+        if (existingAlias) tx.update(merchantAliases).set(aliasVals).where(eq(merchantAliases.id, aliasId)).run();
+        else tx.insert(merchantAliases).values({ id: aliasId, ...aliasVals }).run();
+
+        for (let i = 0; i < others.length; i += 500) {
+          const chunk = others.slice(i, i + 500);
+          for (const flow of ['income', 'expense', 'transfer', 'investment'] as Flow[]) {
+            const ids = chunk.filter((t) => flowFor(category, t.amount) === flow).map((t) => t.id);
+            if (!ids.length) continue;
+            tx.update(transactions)
+              .set({ merchant, category, subcategory, flow, confidence: 'high', layer: 4, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
+              .where(inArray(transactions.id, ids))
+              .run();
+          }
+          tx.update(reviewItems).set({ status: 'resolved', updatedAt: Date.now() }).where(inArray(reviewItems.refId, chunk.map((t) => t.id))).run();
+        }
+      });
+      aliasApplied = others.length;
+    }
+
+    // Keep the derived views (subscriptions, review queue) consistent.
+    detectSubscriptions(db);
+    rebuildClassificationReviewItems(db);
+
+    return json({ ok: true, updated: matched.length, aliasToken, aliasApplied });
   } catch (err) {
     return badRequest(err instanceof Error ? err.message : 'Assign failed.', 500);
   }
