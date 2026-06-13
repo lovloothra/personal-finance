@@ -1,7 +1,7 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
 import { useMask } from '../contexts/MaskCtx';
-import { fys, investments } from '../lib/fixtures';
+import { fySummary, investments } from '../lib/fixtures';
 import { inr } from '../lib/format';
 import { Glyph } from '../primitives/Glyph';
 import { Icon } from '../primitives/Icon';
@@ -27,7 +27,7 @@ export function Investments() {
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Investments" sub={`${fys[fy].label} · reconstructed from broker & platform emails`} />
+      <PageHead title="Investments" sub={`${fySummary(fy).label} · reconstructed from broker & platform emails`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Invested" icon="banknote" val={<Money amount={totInvested} />} sub="Contributions detected" />
         <StatCard lbl="Current value" icon="trending-up" val={totValue != null ? <Money amount={totValue} pos /> : '—'} accent="var(--mint-600)" sub={totValue == null ? 'No holdings data in statements' : undefined} />

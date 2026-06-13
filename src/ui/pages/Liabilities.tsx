@@ -1,6 +1,6 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { fys, insurance, liabilities } from '../lib/fixtures';
+import { fySummary, insurance, liabilities } from '../lib/fixtures';
 import { Glyph } from '../primitives/Glyph';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
@@ -20,7 +20,7 @@ export function Liabilities() {
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Liabilities" sub={`${fys[fy].label} · loans, EMIs and insurance detected from statements`} />
+      <PageHead title="Liabilities" sub={`${fySummary(fy).label} · loans, EMIs and insurance detected from statements`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Total outstanding" icon="landmark" val={totalOut > 0 ? <Money amount={totalOut} /> : '—'} sub={totalOut > 0 ? undefined : 'Not in statements'} />
         <StatCard lbl="Monthly EMIs" icon="calendar-clock" val={<Money amount={totalEmi} />} sub={`Across ${loans.length} active loan${loans.length === 1 ? '' : 's'}`} />

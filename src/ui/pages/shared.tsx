@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { fys, type Txn } from '../lib/fixtures';
+import { fySummary, type Txn } from '../lib/fixtures';
 import { Glyph } from '../primitives/Glyph';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
@@ -81,7 +81,7 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
 export function FootMeta() {
   const { fy } = useFy();
   const { sources } = useShellMeta();
-  const f = fys[fy];
+  const f = fySummary(fy);
   const coverage = sources ? sources.coverage : f.coverage;
   const runDate = sources ? sources.lastRunDate : f.runDate;
   const messages = sources ? sources.messagesScanned : f.messages;

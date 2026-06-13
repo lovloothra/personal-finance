@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFy } from '../contexts/FyCtx';
-import { fys, runs } from '../lib/fixtures';
+import { fySummary, runs } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
@@ -9,7 +9,7 @@ import { useDashboard, type SourcesDTO } from '../data/useDashboard';
 
 export function Sources() {
   const { fy } = useFy();
-  const f = fys[fy];
+  const f = fySummary(fy);
   const { data } = useDashboard<SourcesDTO>('sources', fy);
   const [importOpen, setImportOpen] = useState(false);
   const live = data?.hasData ? data : null;

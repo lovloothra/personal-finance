@@ -4,17 +4,17 @@ import { useMask } from '../contexts/MaskCtx';
 import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { fys, household, type FyKey } from '../lib/fixtures';
+import { fys, fySummary, household, type FyKey } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { recentToTxn, type RecentTxnDTO } from '../data/useOverview';
 
 export function Topbar() {
   const { masked, setMasked } = useMask();
-  const { fy, setFy } = useFy();
+  const { fy, setFy, fys: liveFys } = useFy();
   const { openProv } = useDrawer();
   const { profileName } = useShellMeta();
-  const keys = Object.keys(fys) as FyKey[];
+  const keys = (liveFys.length ? liveFys : (Object.keys(fys) as FyKey[]));
   const name = profileName ?? household.name;
   const initials = name.split(/\s+/).map((w) => w.charAt(0)).join('').slice(0, 2).toUpperCase();
 
@@ -117,7 +117,7 @@ export function Topbar() {
         <div className="seg" role="tablist" aria-label="Financial year">
           {keys.map((k) => (
             <button key={k} className={fy === k ? 'on' : ''} onClick={() => setFy(k)}>
-              {fys[k].label}
+              {fySummary(k).label}
             </button>
           ))}
         </div>

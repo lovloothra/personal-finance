@@ -1,6 +1,6 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { categories, fys, household, txns, type Txn } from '../lib/fixtures';
+import { categories, fySummary, household, txns, type Txn } from '../lib/fixtures';
 import { Glyph } from '../primitives/Glyph';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
@@ -41,7 +41,7 @@ export function Overview({ setPage }: OverviewProps) {
   const { review } = useShellMeta();
   const { data: taxData } = useDashboard<TaxDTO>('tax', fy);
   const live = data?.hasData ? data : null;
-  const f = fys[fy];
+  const f = fySummary(fy);
   const taxCmp = live && taxData?.hasData ? taxData.comparison : null;
 
   // "Needs your eye" summary — live counts once imported, demo copy before.
