@@ -15,10 +15,10 @@ before(async () => {
   const db = await getDb();
   const base = {
     institutionId: null, messageId: null, merchant: null, subcategory: null,
-    confidence: 'low', layer: 7, classificationReason: null, profileSignalUsed: null,
+    confidence: 'low' as const, layer: 7, classificationReason: null, profileSignalUsed: null,
     classificationSource: 'deterministic' as const, acceptedPredictionId: null,
     isInternalTransfer: false, isRecurring: false, projectId: null, taxSection: null,
-    reviewRequired: true, category: 'Uncategorised', flow: 'expense',
+    reviewRequired: true, category: 'Uncategorised', flow: 'expense' as const,
     fyKey: '2024-25', createdAt: Date.now(), updatedAt: Date.now(),
   };
   db.insert(transactions).values([
