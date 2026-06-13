@@ -65,6 +65,7 @@ export interface Txn {
   sub: string;
   amt: number;
   flow: FlowDir;
+  ledgerFlow?: 'income' | 'expense' | 'transfer' | 'investment';
   conf: Confidence;
   acct: string;
   method: string;

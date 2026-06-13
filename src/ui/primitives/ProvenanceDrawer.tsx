@@ -60,7 +60,11 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
             <ConfidenceBadge level={txn.conf} />
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0 22px' }}>
-            <span className="badge brand">{txn.flow === 'in' ? 'Income' : 'Expense'}</span>
+            <span className="badge brand">
+              {txn.ledgerFlow
+                ? txn.ledgerFlow.charAt(0).toUpperCase() + txn.ledgerFlow.slice(1)
+                : txn.flow === 'in' ? 'Income' : 'Expense'}
+            </span>
             <span className="badge neutral">
               {txn.cat}
               {txn.sub ? ' · ' + txn.sub : ''}
