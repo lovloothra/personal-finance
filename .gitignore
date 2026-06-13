@@ -6,10 +6,10 @@ out/
 build/
 dist/
 *.tsbuildinfo
-data/
-attachments/
-exports/
-tmp/
+/data/
+/attachments/
+/exports/
+/tmp/
 *.db
 *.db-journal
 *.sqlite
