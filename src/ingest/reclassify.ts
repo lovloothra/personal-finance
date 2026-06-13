@@ -20,6 +20,8 @@ import { loadProfileSeed } from '@/profile/signals';
 import { buildBaseContext } from './context';
 import { rebuildClassificationReviewItems } from './review-items';
 import { detectSubscriptions } from '@/ledger/subscriptions';
+import { decideClassification } from '@/intelligence/local-model';
+import { loadLocalModelExamples, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
 
 export interface ReclassifyResult {
   transactions: number;
@@ -53,8 +55,13 @@ export function reclassifyAll(db: DB): ReclassifyResult {
   }));
   const recurrence = buildRecurrenceIndex(rawTxns);
   const ctx: ClassifyContext = { ...base, recurrence };
+  const localExamples = loadLocalModelExamples(db);
 
-  const results = rawTxns.map((raw, i) => ({ raw, prev: rows[i], c: classify(raw, ctx) }));
+  const results = rawTxns.map((raw, i) => {
+    const deterministic = classify(raw, ctx);
+    const decision = decideClassification(raw, deterministic, localExamples);
+    return { raw, prev: rows[i], deterministic, decision, c: decision.finalResult };
+  });
 
   let selfNames: string[] = [];
   try {
@@ -67,17 +74,22 @@ export function reclassifyAll(db: DB): ReclassifyResult {
     selfNames = [];
   }
   const transfer = linkInternalTransfers(
-    results.map(({ raw, prev, c }) => ({ id: raw.id, date: raw.date, amount: raw.amount, rawDescription: raw.rawDescription, documentId: prev.documentId ?? '', flow: c.flow })),
+    results.map(({ raw, prev, deterministic }) => ({ id: raw.id, date: raw.date, amount: raw.amount, rawDescription: raw.rawDescription, documentId: prev.documentId ?? '', flow: deterministic.flow })),
     { selfNames },
   );
 
   let changed = 0;
   db.transaction((tx) => {
-    for (const { raw, prev, c } of results) {
+    for (const { raw, prev, c, deterministic, decision } of results) {
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
-      const flow = isTransfer ? 'transfer' : c.flow;
-      const category = isTransfer ? 'Transfer' : c.category;
-      const merchant = c.merchant ?? c.subcategory ?? null;
+      const final = isTransfer ? deterministic : c;
+      const flow = isTransfer ? 'transfer' : final.flow;
+      const category = isTransfer ? 'Transfer' : final.category;
+      const merchant = final.merchant ?? final.subcategory ?? null;
+      const acceptedPredictionId =
+        !isTransfer && decision.source === 'local_ml' && decision.localPrediction
+          ? predictionIdFor(raw.id, decision.localPrediction.modelVersion)
+          : null;
       if (category !== prev.category || flow !== prev.flow || merchant !== prev.merchant) changed++;
 
       tx.update(transactions)
@@ -85,16 +97,18 @@ export function reclassifyAll(db: DB): ReclassifyResult {
           merchant,
           flow,
           category,
-          subcategory: c.subcategory,
-          confidence: c.confidence,
-          classificationReason: c.reason,
-          profileSignalUsed: c.signal,
-          layer: c.layer,
-          reviewRequired: isTransfer ? false : c.reviewRequired,
+          subcategory: final.subcategory,
+          confidence: final.confidence,
+          classificationReason: final.reason,
+          profileSignalUsed: final.signal,
+          layer: final.layer,
+          classificationSource: isTransfer ? 'deterministic' : decision.source,
+          acceptedPredictionId,
+          reviewRequired: isTransfer ? false : final.reviewRequired,
           isInternalTransfer: isTransfer,
-          isRecurring: c.isRecurring ?? false,
-          projectId: c.projectId ?? null,
-          taxSection: c.taxSection ?? null,
+          isRecurring: final.isRecurring ?? false,
+          projectId: final.projectId ?? null,
+          taxSection: final.taxSection ?? null,
           fyKey: fyForDate(raw.date),
           updatedAt: Date.now(),
         })
@@ -111,6 +125,10 @@ export function reclassifyAll(db: DB): ReclassifyResult {
     }
 
   });
+
+  for (const { raw, decision } of results) {
+    if (!transfer.transferIds.has(raw.id)) recordLocalDecision(db, raw.id, decision);
+  }
 
   // Subscriptions + review items are projections of the updated ledger.
   detectSubscriptions(db);

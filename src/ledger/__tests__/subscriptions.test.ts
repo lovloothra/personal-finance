@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.PF_DB_PATH = join(mkdtempSync(join(tmpdir(), 'pf-subs-')), 'test.db');
+process.env.PF_DB_PASSPHRASE = 'test-passphrase';
 
 import { eq } from 'drizzle-orm';
 import { getDb, type DB } from '@/db/client';

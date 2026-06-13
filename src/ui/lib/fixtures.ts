@@ -71,6 +71,8 @@ export interface Txn {
   layer: number;
   reason: string;
   signal: string | null;
+  classificationSource?: 'deterministic' | 'local_ml';
+  acceptedPredictionId?: string | null;
   glyph: string;
   color: string;
   transfer?: boolean;
@@ -493,4 +495,7 @@ export const classifierLayers: ClassifierLayer[] = [
   { n: 5, name: 'Keyword rules', desc: 'Generic descriptors' },
   { n: 6, name: 'Recurrence', desc: 'Subscription cadence detection' },
   { n: 7, name: 'Fallback', desc: 'Uncategorised → review queue' },
+  { n: 8, name: 'Transfer dedupe', desc: 'Internal movement excluded from rollups' },
+  { n: 9, name: 'Project isolation', desc: 'One-time project spend separated' },
+  { n: 10, name: 'Local memory', desc: 'Reviewed examples on this device' },
 ];

@@ -7,6 +7,7 @@ import { detectSubscriptions } from '@/ledger/subscriptions';
 import { rebuildClassificationReviewItems } from '@/ingest/review-items';
 import type { Flow } from '@/classifier/types';
 import { json, badRequest, assertSameOrigin } from '@/server/api';
+import { recordFeedbackExamples } from '@/intelligence/store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -79,8 +80,8 @@ export async function POST(req: Request): Promise<Response> {
 
     const db = await getDb();
 
-    const pending = db
-      .select({ id: transactions.id, rawDescription: transactions.rawDescription, amount: transactions.amount })
+  const pending = db
+      .select({ id: transactions.id, rawDescription: transactions.rawDescription, amount: transactions.amount, institutionId: transactions.institutionId })
       .from(transactions)
       .where(eq(transactions.reviewRequired, true))
       .all();
@@ -105,8 +106,10 @@ export async function POST(req: Request): Promise<Response> {
               flow,
               isInternalTransfer: flow === 'transfer',
               confidence: 'high',
-              layer: 1,
-              classificationReason: reason,
+                layer: 1,
+                classificationSource: 'deterministic',
+                acceptedPredictionId: null,
+                classificationReason: reason,
               profileSignalUsed: 'user.override',
               reviewRequired: false,
               updatedAt: Date.now(),
@@ -129,7 +132,22 @@ export async function POST(req: Request): Promise<Response> {
       } else {
         tx.insert(userOverrides).values({ id: `ov_${randomUUID()}`, ...values }).run();
       }
-    });
+  });
+
+    recordFeedbackExamples(
+      db,
+      matched.map((t) => ({
+        transactionId: t.id,
+        rawDescription: t.rawDescription ?? '',
+        merchant,
+        category,
+        subcategory,
+        flow: flowFor(category, t.amount),
+        amount: t.amount,
+        institutionId: t.institutionId,
+        source: 'review_assignment',
+      })),
+    );
 
     // Teach-from-assignment: if the merchant name appears in every matched
     // descriptor, save a reusable user merchant alias and sweep it across the
@@ -164,7 +182,7 @@ export async function POST(req: Request): Promise<Response> {
             const ids = chunk.filter((t) => flowFor(category, t.amount) === flow).map((t) => t.id);
             if (!ids.length) continue;
             tx.update(transactions)
-              .set({ merchant, category, subcategory, flow, confidence: 'high', layer: 4, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
+                .set({ merchant, category, subcategory, flow, confidence: 'high', layer: 4, classificationSource: 'deterministic', acceptedPredictionId: null, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
               .where(inArray(transactions.id, ids))
               .run();
           }

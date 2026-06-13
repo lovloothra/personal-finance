@@ -29,6 +29,8 @@ import { loadProfileSeed, passwordInputs } from '@/profile/signals';
 import { buildBaseContext } from './context';
 import { rebuildClassificationReviewItems } from './review-items';
 import { detectSubscriptions } from '@/ledger/subscriptions';
+import { decideClassification } from '@/intelligence/local-model';
+import { loadLocalModelExamples, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
 
 export interface IngestProgress {
   phase: 'parse' | 'classify' | 'review' | 'done';
@@ -227,13 +229,18 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   }));
   const recurrence = buildRecurrenceIndex(rawTxns);
   const ctx: ClassifyContext = { ...base, recurrence };
+  const localExamples = loadLocalModelExamples(db);
 
   const byFy: Record<string, number> = {};
   let txnCount = 0;
   onProgress({ phase: 'classify', message: `Classifying ${rawTxns.length} transactions…`, documents: docCount });
 
-  // Classify once; reuse for both inserts and review flagging.
-  const results = rawTxns.map((raw, i) => ({ raw, meta: dedupedParsed[i], c: classify(raw, ctx) }));
+  // Classify once; local memory only handles residual low-confidence cases.
+  const results = rawTxns.map((raw, i) => {
+    const deterministic = classify(raw, ctx);
+    const decision = decideClassification(raw, deterministic, localExamples);
+    return { raw, meta: dedupedParsed[i], deterministic, decision, c: decision.finalResult };
+  });
 
   // Link internal transfers (CC bill payments + self-transfers) across the
   // whole batch so both legs are excluded from income/expense rollups.
@@ -250,16 +257,21 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     selfNames = [];
   }
   const transfer = linkInternalTransfers(
-    results.map(({ raw, meta, c }) => ({ id: raw.id, date: raw.date, amount: raw.amount, rawDescription: raw.rawDescription, documentId: meta.docId, flow: c.flow })),
+    results.map(({ raw, meta, deterministic }) => ({ id: raw.id, date: raw.date, amount: raw.amount, rawDescription: raw.rawDescription, documentId: meta.docId, flow: deterministic.flow })),
     { selfNames },
   );
 
   db.transaction((tx) => {
-    for (const { raw, meta, c } of results) {
+    for (const { raw, meta, c, deterministic, decision } of results) {
       const fyKey = fyForDate(raw.date);
       byFy[fyKey] = (byFy[fyKey] ?? 0) + 1;
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
-      const flow = isTransfer ? 'transfer' : c.flow;
+      const final = isTransfer ? deterministic : c;
+      const flow = isTransfer ? 'transfer' : final.flow;
+      const acceptedPredictionId =
+        !isTransfer && decision.source === 'local_ml' && decision.localPrediction
+          ? predictionIdFor(raw.id, decision.localPrediction.modelVersion)
+          : null;
 
       tx.insert(transactions)
         .values({
@@ -271,24 +283,42 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           amount: raw.amount,
           currency: raw.currency,
           rawDescription: raw.rawDescription,
-          merchant: c.merchant ?? c.subcategory ?? null,
+          merchant: final.merchant ?? final.subcategory ?? null,
           flow,
-          category: isTransfer ? 'Transfer' : c.category,
-          subcategory: c.subcategory,
-          confidence: c.confidence,
-          classificationReason: c.reason,
-          profileSignalUsed: c.signal,
-          layer: c.layer,
-          reviewRequired: isTransfer ? false : c.reviewRequired,
+          category: isTransfer ? 'Transfer' : final.category,
+          subcategory: final.subcategory,
+          confidence: final.confidence,
+          classificationReason: final.reason,
+          profileSignalUsed: final.signal,
+          layer: final.layer,
+          classificationSource: isTransfer ? 'deterministic' : decision.source,
+          acceptedPredictionId,
+          reviewRequired: isTransfer ? false : final.reviewRequired,
           isInternalTransfer: isTransfer,
-          isRecurring: c.isRecurring ?? false,
-          projectId: c.projectId ?? null,
-          taxSection: c.taxSection ?? null,
+          isRecurring: final.isRecurring ?? false,
+          projectId: final.projectId ?? null,
+          taxSection: final.taxSection ?? null,
           fyKey,
         })
         .onConflictDoUpdate({
           target: transactions.id,
-          set: { flow, category: isTransfer ? 'Transfer' : c.category, subcategory: c.subcategory, confidence: c.confidence, classificationReason: c.reason, profileSignalUsed: c.signal, layer: c.layer, reviewRequired: isTransfer ? false : c.reviewRequired, isInternalTransfer: isTransfer, fyKey },
+          set: {
+            flow,
+            category: isTransfer ? 'Transfer' : final.category,
+            subcategory: final.subcategory,
+            confidence: final.confidence,
+            classificationReason: final.reason,
+            profileSignalUsed: final.signal,
+            layer: final.layer,
+            classificationSource: isTransfer ? 'deterministic' : decision.source,
+            acceptedPredictionId,
+            reviewRequired: isTransfer ? false : final.reviewRequired,
+            isInternalTransfer: isTransfer,
+            isRecurring: final.isRecurring ?? false,
+            projectId: final.projectId ?? null,
+            taxSection: final.taxSection ?? null,
+            fyKey,
+          },
         })
         .run();
       txnCount++;
@@ -303,6 +333,10 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
         .run();
     }
   });
+
+  for (const { raw, decision } of results) {
+    if (!transfer.transferIds.has(raw.id)) recordLocalDecision(db, raw.id, decision);
+  }
 
   // 6. Rebuild the classification-derived review queue from the transactions
   // table (idempotent — re-running ingest never duplicates review items).

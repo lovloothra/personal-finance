@@ -42,6 +42,8 @@ export interface RecentTxn {
   layer: number | null;
   reason: string | null;
   signal: string | null;
+  classificationSource?: 'deterministic' | 'local_ml';
+  acceptedPredictionId?: string | null;
   reviewRequired: boolean;
   source: { from: string | null; subject: string | null };
 }
@@ -136,9 +138,11 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
       flow: transactions.flow,
       conf: transactions.confidence,
       layer: transactions.layer,
-      reason: transactions.classificationReason,
-      signal: transactions.profileSignalUsed,
-      reviewRequired: transactions.reviewRequired,
+        reason: transactions.classificationReason,
+        signal: transactions.profileSignalUsed,
+        classificationSource: transactions.classificationSource,
+        acceptedPredictionId: transactions.acceptedPredictionId,
+        reviewRequired: transactions.reviewRequired,
       from: gmailMessages.fromAddr,
       subject: gmailMessages.subject,
     })
@@ -158,9 +162,11 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
       flow: r.flow ?? 'expense',
       conf: r.conf,
       layer: r.layer,
-      reason: r.reason,
-      signal: r.signal,
-      reviewRequired: Boolean(r.reviewRequired),
+        reason: r.reason,
+        signal: r.signal,
+        classificationSource: r.classificationSource,
+        acceptedPredictionId: r.acceptedPredictionId,
+        reviewRequired: Boolean(r.reviewRequired),
       source: { from: r.from, subject: r.subject },
     }));
 
@@ -206,11 +212,12 @@ export interface IncomeRollup {
 function rowToRecent(r: {
   id: string; date: string; merchant: string | null; cat: string | null; sub: string | null;
   amt: number | null; flow: string | null; conf: string | null; layer: number | null;
-  reason: string | null; signal: string | null; reviewRequired: unknown; from?: string | null; subject?: string | null;
+  reason: string | null; signal: string | null; classificationSource?: 'deterministic' | 'local_ml' | null; acceptedPredictionId?: string | null; reviewRequired: unknown; from?: string | null; subject?: string | null;
 }): RecentTxn {
   return {
     id: r.id, date: r.date, merchant: r.merchant ?? 'Unknown', cat: r.cat ?? 'Uncategorised', sub: r.sub,
     amt: toR(r.amt), flow: r.flow ?? 'expense', conf: r.conf, layer: r.layer, reason: r.reason, signal: r.signal,
+    classificationSource: r.classificationSource ?? undefined, acceptedPredictionId: r.acceptedPredictionId ?? null,
     reviewRequired: Boolean(r.reviewRequired), source: { from: r.from ?? null, subject: r.subject ?? null },
   };
 }
@@ -227,6 +234,8 @@ const recentCols = {
   layer: transactions.layer,
   reason: transactions.classificationReason,
   signal: transactions.profileSignalUsed,
+  classificationSource: transactions.classificationSource,
+  acceptedPredictionId: transactions.acceptedPredictionId,
   reviewRequired: transactions.reviewRequired,
   from: gmailMessages.fromAddr,
   subject: gmailMessages.subject,

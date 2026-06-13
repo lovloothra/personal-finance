@@ -105,10 +105,19 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
               <span className="v t-mono" style={{ color: 'var(--brand)' }}>
                 {txn.signal}
               </span>
-            </div>
-          )}
+          </div>
+        )}
+        {txn.classificationSource && (
+          <div className="kv" style={{ borderTop: 0, paddingTop: 0, marginBottom: 22 }}>
+            <span className="k">Classification source</span>
+            <span className="v t-mono" style={{ color: 'var(--brand)' }}>
+              {txn.classificationSource}
+              {txn.acceptedPredictionId ? ` · ${txn.acceptedPredictionId}` : ''}
+            </span>
+          </div>
+        )}
 
-          <div className="card-head" style={{ padding: '6px 0 10px' }}>
+        <div className="card-head" style={{ padding: '6px 0 10px' }}>
             <h3 style={{ fontSize: 13.5 }}>Source evidence</h3>
           </div>
           {src && src.type === 'email' && (

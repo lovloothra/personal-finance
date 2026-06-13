@@ -34,6 +34,10 @@ const updatedAt = () => integer('updated_at').notNull().default(now);
 type Confidence = 'high' | 'med' | 'low';
 type Flow = 'income' | 'expense' | 'transfer' | 'investment';
 type InstitutionSource = 'pack:in' | 'user';
+type ClassificationSource = 'deterministic' | 'local_ml';
+type FeedbackSource = 'review_assignment' | 'user_override' | 'suggestion_accept';
+type PredictionDecision = 'accepted' | 'suggested' | 'stored' | 'rejected';
+type SuggestionStatus = 'open' | 'accepted' | 'rejected' | 'edited';
 
 // ---------------------------------------------------------------------------
 // Profile (single-household, India-first; sections map to onboarding steps)
@@ -338,6 +342,8 @@ export const transactions = sqliteTable(
     classificationReason: text('classification_reason'),
     profileSignalUsed: text('profile_signal_used'),
     layer: integer('layer'), // 1..7 classifier layer that matched
+    classificationSource: text('classification_source').$type<ClassificationSource>().notNull().default('deterministic'),
+    acceptedPredictionId: text('accepted_prediction_id'),
     reviewRequired: integer('review_required', { mode: 'boolean' }).default(false),
     isInternalTransfer: integer('is_internal_transfer', { mode: 'boolean' }).default(false),
     isRecurring: integer('is_recurring', { mode: 'boolean' }).default(false),
@@ -353,6 +359,7 @@ export const transactions = sqliteTable(
     index('transactions_category_idx').on(t.category),
     index('transactions_review_idx').on(t.reviewRequired),
     index('transactions_date_idx').on(t.txnDate),
+    index('transactions_classification_source_idx').on(t.classificationSource),
   ],
 );
 
@@ -389,6 +396,99 @@ export const userOverrides = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [index('user_overrides_sig_idx').on(t.matchSignature)],
+);
+
+export const classificationFeedback = sqliteTable(
+  'classification_feedback',
+  {
+    id: text('id').primaryKey(),
+    transactionId: text('transaction_id').references(() => transactions.id),
+    matchSignature: text('match_signature').notNull(),
+    rawDescription: text('raw_description').notNull(),
+    merchant: text('merchant').notNull(),
+    category: text('category').notNull(),
+    subcategory: text('subcategory'),
+    flow: text('flow').$type<Flow>().notNull(),
+    amount: integer('amount').notNull(),
+    institutionId: text('institution_id').references(() => institutions.id),
+    source: text('source').$type<FeedbackSource>().notNull(),
+    reviewedAt: integer('reviewed_at').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('classification_feedback_sig_idx').on(t.matchSignature),
+    index('classification_feedback_txn_idx').on(t.transactionId),
+    index('classification_feedback_source_idx').on(t.source),
+  ],
+);
+
+export const classificationPredictions = sqliteTable(
+  'classification_predictions',
+  {
+    id: text('id').primaryKey(),
+    transactionId: text('transaction_id').references(() => transactions.id),
+    modelVersion: text('model_version').notNull(),
+    predictedMerchant: text('predicted_merchant').notNull(),
+    category: text('category').notNull(),
+    subcategory: text('subcategory'),
+    flow: text('flow').$type<Flow>().notNull(),
+    confidenceScore: real('confidence_score').notNull(),
+    confidence: text('confidence').$type<Confidence>().notNull(),
+    reason: text('reason').notNull(),
+    provenance: text('provenance', { mode: 'json' }).$type<unknown>().notNull(),
+    evidenceIds: text('evidence_ids', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    decision: text('decision').$type<PredictionDecision>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('classification_predictions_txn_idx').on(t.transactionId),
+    index('classification_predictions_decision_idx').on(t.decision),
+  ],
+);
+
+export const localModelExamples = sqliteTable(
+  'local_model_examples',
+  {
+    id: text('id').primaryKey(),
+    feedbackId: text('feedback_id').references(() => classificationFeedback.id),
+    transactionId: text('transaction_id').references(() => transactions.id),
+    signature: text('signature').notNull(),
+    rawDescription: text('raw_description').notNull(),
+    merchant: text('merchant').notNull(),
+    merchantTokens: text('merchant_tokens', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    category: text('category').notNull(),
+    subcategory: text('subcategory'),
+    flow: text('flow').$type<Flow>().notNull(),
+    amount: integer('amount').notNull(),
+    amountBucket: text('amount_bucket').notNull(),
+    direction: text('direction').$type<'credit' | 'debit'>().notNull(),
+    institutionId: text('institution_id').references(() => institutions.id),
+    source: text('source').$type<FeedbackSource>().notNull(),
+    reviewedAt: integer('reviewed_at').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('local_model_examples_sig_idx').on(t.signature),
+    index('local_model_examples_category_idx').on(t.category),
+    index('local_model_examples_feedback_idx').on(t.feedbackId),
+  ],
+);
+
+export const localModelSuggestions = sqliteTable(
+  'local_model_suggestions',
+  {
+    id: text('id').primaryKey(),
+    predictionId: text('prediction_id').references(() => classificationPredictions.id),
+    transactionId: text('transaction_id').references(() => transactions.id),
+    status: text('status').$type<SuggestionStatus>().notNull().default('open'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('local_model_suggestions_status_idx').on(t.status),
+    index('local_model_suggestions_txn_idx').on(t.transactionId),
+  ],
 );
 
 export const subscriptionsDetected = sqliteTable('subscriptions_detected', {

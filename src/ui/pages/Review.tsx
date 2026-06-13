@@ -34,6 +34,16 @@ interface UncatGroup {
   category: string | null;
   firstDate: string;
   lastDate: string;
+  localSuggestion?: {
+    id: string;
+    merchant: string;
+    category: string;
+    subcategory: string | null;
+    confidence: string;
+    confidenceScore: number;
+    reason: string;
+    evidenceCount: number;
+  } | null;
 }
 
 interface UncatDTO {
@@ -71,8 +81,9 @@ function GroupRow({
   categories: string[];
   onAssigned: (signature: string, updated: number, taught?: { token: string; applied: number }) => void;
 }) {
-  const [merchant, setMerchant] = useState(group.suggestedMerchant);
-  const [category, setCategory] = useState(group.category ?? '');
+  const [merchant, setMerchant] = useState(group.localSuggestion?.merchant ?? group.suggestedMerchant);
+  const [category, setCategory] = useState(group.localSuggestion?.category ?? group.category ?? '');
+  const [localSuggestion, setLocalSuggestion] = useState(group.localSuggestion ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -114,6 +125,28 @@ function GroupRow({
     }
   };
 
+  const handleSuggestion = async (action: 'accept' | 'reject') => {
+    if (!localSuggestion) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/review/suggestions/${encodeURIComponent(localSuggestion.id)}/${action}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Suggestion ${action} failed`);
+      if (action === 'accept') onAssigned(group.signature, 1);
+      else {
+        setLocalSuggestion(null);
+        setBusy(false);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `Suggestion ${action} failed`);
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="review-item" style={{ alignItems: 'flex-start' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -132,6 +165,29 @@ function GroupRow({
             {detailOpen ? 'Hide transactions' : `View ${group.count > 1 ? `all ${group.count} transactions` : 'transaction'}`}
           </button>
         </div>
+        {localSuggestion && (
+          <div style={{ marginTop: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="badge mint">Suggested</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              {localSuggestion.merchant}
+              {' -> '}
+              {localSuggestion.category}
+              {localSuggestion.subcategory ? ` / ${localSuggestion.subcategory}` : ''}
+            </span>
+            <span className="muted" style={{ fontSize: 12.5 }}>
+              {Math.round(localSuggestion.confidenceScore * 100)}% {localSuggestion.confidence}, {localSuggestion.evidenceCount} reviewed
+            </span>
+            <span className="muted" style={{ fontSize: 12.5, flex: '1 1 180px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={localSuggestion.reason}>
+              {localSuggestion.reason}
+            </span>
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => handleSuggestion('accept')}>
+              Accept
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => handleSuggestion('reject')}>
+              Reject
+            </button>
+          </div>
+        )}
         {detailOpen && (
           <div style={{ margin: '10px 0 2px', borderLeft: '2px solid var(--border)', paddingLeft: 12, display: 'grid', gap: 8 }}>
             {detail === null && <div className="muted" style={{ fontSize: 12.5 }}>Loading…</div>}

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { transactions, gmailMessages } from '@/db/schema';
+import { classificationPredictions, gmailMessages, localModelSuggestions, transactions } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
 import { json, badRequest } from '@/server/api';
 
@@ -24,6 +24,16 @@ interface Group {
   category: string | null;
   firstDate: string;
   lastDate: string;
+  localSuggestion?: {
+    id: string;
+    merchant: string;
+    category: string;
+    subcategory: string | null;
+    confidence: string;
+    confidenceScore: number;
+    reason: string;
+    evidenceCount: number;
+  } | null;
 }
 
 function titleCase(s: string): string {
@@ -63,6 +73,7 @@ export async function GET(req: Request): Promise<Response> {
     }
     const rows = db
       .select({
+        id: transactions.id,
         rawDescription: transactions.rawDescription,
         amount: transactions.amount,
         txnDate: transactions.txnDate,
@@ -73,17 +84,51 @@ export async function GET(req: Request): Promise<Response> {
       .where(eq(transactions.reviewRequired, true))
       .all();
 
+    const suggestions = db
+      .select({
+        id: localModelSuggestions.id,
+        transactionId: localModelSuggestions.transactionId,
+        merchant: classificationPredictions.predictedMerchant,
+        category: classificationPredictions.category,
+        subcategory: classificationPredictions.subcategory,
+        confidence: classificationPredictions.confidence,
+        confidenceScore: classificationPredictions.confidenceScore,
+        reason: classificationPredictions.reason,
+        evidenceIds: classificationPredictions.evidenceIds,
+      })
+      .from(localModelSuggestions)
+      .innerJoin(classificationPredictions, eq(localModelSuggestions.predictionId, classificationPredictions.id))
+      .where(eq(localModelSuggestions.status, 'open'))
+      .all();
+    const suggestionByTxn = new Map(
+      suggestions.map((s) => [
+        s.transactionId,
+        {
+          id: s.id,
+          merchant: s.merchant,
+          category: s.category,
+          subcategory: s.subcategory,
+          confidence: s.confidence,
+          confidenceScore: s.confidenceScore,
+          reason: s.reason,
+          evidenceCount: Array.isArray(s.evidenceIds) ? s.evidenceIds.length : 0,
+        },
+      ]),
+    );
+
     const groups = new Map<string, Group>();
     for (const r of rows) {
       const desc = r.rawDescription ?? '';
       const sig = signature(desc);
       if (!sig) continue;
+      const localSuggestion = suggestionByTxn.get(r.id) ?? null;
       const g = groups.get(sig);
       if (g) {
         g.count += 1;
         g.total += Math.abs(r.amount);
         if (r.txnDate < g.firstDate) g.firstDate = r.txnDate;
         if (r.txnDate > g.lastDate) g.lastDate = r.txnDate;
+        if (!g.localSuggestion && localSuggestion) g.localSuggestion = localSuggestion;
       } else {
         groups.set(sig, {
           signature: sig,
@@ -95,6 +140,7 @@ export async function GET(req: Request): Promise<Response> {
           category: r.category === 'Uncategorised' ? null : r.category,
           firstDate: r.txnDate,
           lastDate: r.txnDate,
+          localSuggestion,
         });
       }
     }
