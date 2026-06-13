@@ -5,3 +5,10 @@
   0% { margin-left: -40%; }
   100% { margin-left: 120%; }
 }
+
+.cat-pill { display:inline-flex; align-items:center; gap:6px; padding:5px 10px 5px 6px;
+  border:1px solid var(--border); border-radius:999px; background:var(--neutral-0);
+  font-size:12.5px; cursor:pointer; transition:border-color .12s, background .12s; }
+.cat-pill:hover { border-color:var(--brand); }
+.cat-pill.on { border-color:var(--brand); background:var(--indigo-50); color:var(--brand); font-weight:600; }
+.cat-pill.sug { border-color:var(--mint-500); box-shadow:0 0 0 3px color-mix(in srgb, var(--mint-500) 18%, transparent); }
