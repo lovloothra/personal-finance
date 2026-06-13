@@ -71,7 +71,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         .run();
     });
 
-    recordFeedbackExamples(db, [
+    await recordFeedbackExamples(db, [
       {
         transactionId: row.transactionId,
         rawDescription: row.rawDescription ?? '',

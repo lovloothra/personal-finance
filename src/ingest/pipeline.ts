@@ -30,7 +30,7 @@ import { buildBaseContext } from './context';
 import { rebuildClassificationReviewItems } from './review-items';
 import { detectSubscriptions } from '@/ledger/subscriptions';
 import { decideClassification } from '@/intelligence/local-model';
-import { loadLocalModelExamples, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
+import { loadLocalClassifierState, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
 
 export interface IngestProgress {
   phase: 'parse' | 'classify' | 'review' | 'done';
@@ -229,18 +229,18 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   }));
   const recurrence = buildRecurrenceIndex(rawTxns);
   const ctx: ClassifyContext = { ...base, recurrence };
-  const localExamples = loadLocalModelExamples(db);
+  const localState = await loadLocalClassifierState(db);
 
   const byFy: Record<string, number> = {};
   let txnCount = 0;
   onProgress({ phase: 'classify', message: `Classifying ${rawTxns.length} transactions…`, documents: docCount });
 
   // Classify once; local memory only handles residual low-confidence cases.
-  const results = rawTxns.map((raw, i) => {
+  const results = await Promise.all(rawTxns.map(async (raw, i) => {
     const deterministic = classify(raw, ctx);
-    const decision = decideClassification(raw, deterministic, localExamples);
+    const decision = await decideClassification(raw, deterministic, localState);
     return { raw, meta: dedupedParsed[i], deterministic, decision, c: decision.finalResult };
-  });
+  }));
 
   // Link internal transfers (CC bill payments + self-transfers) across the
   // whole batch so both legs are excluded from income/expense rollups.

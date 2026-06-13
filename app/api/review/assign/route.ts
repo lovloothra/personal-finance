@@ -134,7 +134,7 @@ export async function POST(req: Request): Promise<Response> {
       }
   });
 
-    recordFeedbackExamples(
+    await recordFeedbackExamples(
       db,
       matched.map((t) => ({
         transactionId: t.id,

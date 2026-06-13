@@ -1,12 +1,20 @@
 import { signature } from '@/classifier/normalize';
 import { LAYER, type Classification, type Confidence, type Flow, type RawTxn } from '@/classifier/types';
 
+import {
+  predictSoftmaxHead,
+  type EmbeddedTrainingExample,
+  type LocalClassifierHead,
+  type SoftmaxPrediction,
+} from './classifier-head';
+
 export const LOCAL_ML_LAYER = 10;
-export const LOCAL_MODEL_VERSION = 'local-memory-v1';
+export const LOCAL_MODEL_VERSION = 'minilm-softmax-v1';
 
 export type ClassificationSource = 'deterministic' | 'local_ml';
 export type LocalReviewStatus = 'none' | 'required' | 'suggested' | 'accepted';
 export type FeedbackSource = 'review_assignment' | 'user_override' | 'suggestion_accept';
+export type LocalClassifierStatus = 'ready' | 'disabled';
 
 export interface LocalModelExample {
   id: string;
@@ -25,6 +33,18 @@ export interface LocalModelExample {
   institutionId: string | null;
   reviewedAt: number;
   source: FeedbackSource;
+  embedding?: number[] | null;
+  embeddingModelId?: string | null;
+  embeddingUpdatedAt?: number | null;
+}
+
+export interface LocalClassifierState {
+  status: LocalClassifierStatus;
+  embeddingModelId: string;
+  examples: LocalModelExample[];
+  head: LocalClassifierHead | null;
+  reason?: string;
+  embedText(text: string): Promise<number[] | null>;
 }
 
 export interface LocalPrediction {
@@ -36,17 +56,20 @@ export interface LocalPrediction {
   confidence: Confidence;
   reason: string;
   provenance: {
-    model: 'local_memory_similarity';
+    model: 'minilm_softmax_head';
     features: {
       signature: string;
-      tokens: string[];
       amountBucket: string;
       direction: 'credit' | 'debit';
       institutionId: string | null;
     };
     evidenceCount: number;
     margin: number;
-    nearest: Array<{ exampleId: string; score: number; signature: string }>;
+    nearest: Array<{ exampleId: string; score: number; merchant: string }>;
+    distribution: Array<{ flow: Flow; category: string; subcategory: string | null; probability: number }>;
+    modelChecksum: string;
+    embeddingModelId: string;
+    headVersion: string;
   };
   evidenceIds: string[];
   modelVersion: string;
@@ -61,7 +84,7 @@ export interface ClassificationDecision {
   auditRecordId: string | null;
 }
 
-interface LocalDecisionOptions {
+export interface LocalDecisionOptions {
   minEvidenceForAutoAccept?: number;
   minAutoAcceptScore?: number;
   minAutoAcceptMargin?: number;
@@ -70,23 +93,15 @@ interface LocalDecisionOptions {
 
 interface TargetFeatures {
   signature: string;
-  tokens: string[];
   amountBucket: string;
   direction: 'credit' | 'debit';
   institutionId: string | null;
 }
 
-interface ScoredExample {
-  example: LocalModelExample;
-  score: number;
-}
-
-const DEFAULT_MIN_EVIDENCE = 3;
-const DEFAULT_MIN_SCORE = 0.72;
-const DEFAULT_MIN_MARGIN = 0.08;
-
+const DEFAULT_MIN_EVIDENCE = 2;
+const DEFAULT_MIN_SCORE = 0.9;
+const DEFAULT_MIN_MARGIN = 0.65;
 const CATEGORY_ALLOWLIST = new Set([
-  'Cash',
   'Dining',
   'Education',
   'Entertainment',
@@ -156,8 +171,8 @@ export function merchantTokensFrom(raw: string): string[] {
   const seen = new Set<string>();
   const tokens = signature(raw)
     .split(' ')
-    .map((t) => t.trim())
-    .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !STOPWORDS.has(token));
   for (const token of tokens) seen.add(token);
   return [...seen];
 }
@@ -191,6 +206,9 @@ export function makeLocalModelExample(input: {
   institutionId?: string | null;
   reviewedAt: number;
   source: FeedbackSource;
+  embedding?: number[] | null;
+  embeddingModelId?: string | null;
+  embeddingUpdatedAt?: number | null;
 }): LocalModelExample {
   const sig = signature(input.rawDescription);
   return {
@@ -210,93 +228,39 @@ export function makeLocalModelExample(input: {
     institutionId: input.institutionId ?? null,
     reviewedAt: input.reviewedAt,
     source: input.source,
+    embedding: input.embedding ?? null,
+    embeddingModelId: input.embeddingModelId ?? null,
+    embeddingUpdatedAt: input.embeddingUpdatedAt ?? null,
   };
 }
 
-export function predictLocalClassification(
+export async function decideClassification(
   txn: RawTxn,
   deterministicResult: Classification,
-  examples: LocalModelExample[],
-): LocalPrediction | null {
-  const features = featuresFor(txn);
-  const compatible = examples.filter((e) => isExampleCompatible(txn, deterministicResult, e));
-  if (compatible.length === 0) return null;
-
-  const scored = compatible
-    .map((example) => ({ example, score: scoreExample(features, example) }))
-    .filter((s) => s.score >= 0.3)
-    .sort(compareScoredExamples);
-
-  if (scored.length === 0) return null;
-
-  const groups = new Map<string, ScoredExample[]>();
-  for (const item of scored) {
-    const key = labelKey(item.example);
-    const current = groups.get(key) ?? [];
-    current.push(item);
-    groups.set(key, current);
-  }
-
-  const ranked = [...groups.values()]
-    .map((items) => {
-      const evidence = items.filter((item) => item.score >= 0.45);
-      const best = items[0];
-      const avgEvidence =
-        evidence.length > 0 ? evidence.reduce((sum, item) => sum + item.score, 0) / evidence.length : best.score;
-      const groupScore = Math.min(0.99, avgEvidence + Math.min(evidence.length, 4) * 0.015);
-      return { items, evidence, best, groupScore };
-    })
-    .sort((a, b) => b.groupScore - a.groupScore || b.evidence.length - a.evidence.length);
-
-  const top = ranked[0];
-  const runnerUp = ranked[1];
-  const margin = Math.max(0, top.groupScore - (runnerUp?.groupScore ?? 0));
-  const evidence = top.evidence.length > 0 ? top.evidence : [top.best];
-  const confidence = confidenceFor(top.groupScore, evidence.length, margin);
-  const winner = top.best.example;
-  const evidenceSet = new Set(evidence.map((item) => item.example.id));
-  const evidenceIds = examples.filter((example) => evidenceSet.has(example.id)).map((example) => example.id);
-  const nearest = scored.slice(0, 5).map((item) => ({
-    exampleId: item.example.id,
-    score: roundScore(item.score),
-    signature: item.example.signature,
-  }));
-
-  return {
-    category: winner.category,
-    subcategory: winner.subcategory,
-    merchant: winner.merchant,
-    flow: winner.flow,
-    confidenceScore: roundScore(top.groupScore),
-    confidence,
-    reason: `Local memory: ${evidence.length} reviewed example${evidence.length === 1 ? '' : 's'} for ${winner.merchant} -> ${winner.category}${winner.subcategory ? ` / ${winner.subcategory}` : ''}.`,
-    provenance: {
-      model: 'local_memory_similarity',
-      features,
-      evidenceCount: evidence.length,
-      margin: roundScore(margin),
-      nearest,
-    },
-    evidenceIds,
-    modelVersion: LOCAL_MODEL_VERSION,
-  };
-}
-
-export function decideClassification(
-  txn: RawTxn,
-  deterministicResult: Classification,
-  examples: LocalModelExample[],
+  state: LocalClassifierState,
   options: LocalDecisionOptions = {},
-): ClassificationDecision {
+): Promise<ClassificationDecision> {
   if (!isLocalPredictionEligible(deterministicResult)) {
     return baseDecision(deterministicResult, deterministicResult.reviewRequired ? 'required' : 'none');
   }
-
-  const localPrediction = predictLocalClassification(txn, deterministicResult, examples);
-  if (!localPrediction) {
+  if (state.status !== 'ready' || !state.head) {
     return baseDecision(deterministicResult, deterministicResult.reviewRequired ? 'required' : 'none');
   }
 
+  const compatible = state.examples.filter((example) => isExampleCompatible(txn, example, state.embeddingModelId));
+  if (compatible.length === 0) {
+    return baseDecision(deterministicResult, deterministicResult.reviewRequired ? 'required' : 'none');
+  }
+
+  const embedding = await state.embedText(textForEmbedding(txn));
+  if (!embedding) return baseDecision(deterministicResult, deterministicResult.reviewRequired ? 'required' : 'none');
+
+  const headPrediction = predictSoftmaxHead(state.head, embedding, compatibleTrainingExamples(compatible));
+  if (!headPrediction || !isPredictionFlowCompatible(txn, headPrediction.label.flow)) {
+    return baseDecision(deterministicResult, deterministicResult.reviewRequired ? 'required' : 'none');
+  }
+
+  const localPrediction = toLocalPrediction(txn, state, headPrediction);
   if (canAutoAccept(txn, localPrediction, options)) {
     return {
       deterministicResult,
@@ -309,10 +273,9 @@ export function decideClassification(
         merchant: localPrediction.merchant,
         confidence: 'high',
         reason: localPrediction.reason,
-        signal: 'local_ml.memory',
+        signal: 'local_ml.minilm',
         layer: LOCAL_ML_LAYER,
         reviewRequired: false,
-        taxSection: null,
       },
       source: 'local_ml',
       reviewStatus: 'accepted',
@@ -330,56 +293,66 @@ export function decideClassification(
   };
 }
 
-function baseDecision(result: Classification, reviewStatus: LocalReviewStatus): ClassificationDecision {
+function toLocalPrediction(txn: RawTxn, state: LocalClassifierState, prediction: SoftmaxPrediction): LocalPrediction {
+  const merchant = prediction.nearest[0]?.merchant ?? prediction.label.category;
   return {
-    deterministicResult: result,
-    localPrediction: null,
-    finalResult: result,
-    source: 'deterministic',
-    reviewStatus,
-    auditRecordId: null,
+    category: prediction.label.category,
+    subcategory: prediction.label.subcategory,
+    merchant,
+    flow: prediction.label.flow,
+    confidenceScore: prediction.probability,
+    confidence: confidenceFor(prediction.probability, prediction.evidenceCount, prediction.margin),
+    reason: `MiniLM local model: ${prediction.evidenceCount} reviewed example${prediction.evidenceCount === 1 ? '' : 's'} for ${merchant} -> ${prediction.label.category}${prediction.label.subcategory ? ` / ${prediction.label.subcategory}` : ''}.`,
+    provenance: {
+      model: 'minilm_softmax_head',
+      features: featuresFor(txn),
+      evidenceCount: prediction.evidenceCount,
+      margin: prediction.margin,
+      nearest: prediction.nearest,
+      distribution: prediction.distribution.map((item) => ({
+        flow: item.flow,
+        category: item.category,
+        subcategory: item.subcategory,
+        probability: item.probability,
+      })),
+      modelChecksum: state.head?.checksum ?? '',
+      embeddingModelId: state.embeddingModelId,
+      headVersion: state.head?.modelVersion ?? LOCAL_MODEL_VERSION,
+    },
+    evidenceIds: prediction.nearest.map((item) => item.exampleId),
+    modelVersion: state.head?.modelVersion ?? LOCAL_MODEL_VERSION,
   };
 }
 
-function featuresFor(txn: RawTxn): TargetFeatures {
-  const sig = signature(txn.rawDescription);
-  return {
-    signature: sig,
-    tokens: merchantTokensFrom(`${txn.merchant ?? ''} ${txn.rawDescription}`),
-    amountBucket: amountBucketFor(txn.amount),
-    direction: directionForAmount(txn.amount),
-    institutionId: txn.institutionId ?? null,
-  };
+function compatibleTrainingExamples(examples: LocalModelExample[]): EmbeddedTrainingExample[] {
+  return examples
+    .filter((example): example is LocalModelExample & { embedding: number[] } => Array.isArray(example.embedding))
+    .map((example) => ({
+      id: example.id,
+      merchant: example.merchant,
+      flow: example.flow,
+      category: example.category,
+      subcategory: example.subcategory,
+      embedding: example.embedding,
+    }));
 }
 
-function isExampleCompatible(txn: RawTxn, deterministicResult: Classification, example: LocalModelExample): boolean {
-  if (example.flow === 'transfer' || example.category === 'Transfer') return false;
-  if (example.direction !== directionForAmount(txn.amount)) return false;
-  if (txn.amount > 0) return example.flow === 'income';
-  if (deterministicResult.flow === 'investment') return example.flow === 'investment';
-  return example.flow === 'expense' || example.flow === 'investment';
+function isExampleCompatible(txn: RawTxn, example: LocalModelExample, embeddingModelId: string): boolean {
+  if (!example.embedding || example.embeddingModelId !== embeddingModelId) return false;
+  if (!isPredictionFlowCompatible(txn, example.flow)) return false;
+  if (txn.institutionId && example.institutionId && txn.institutionId !== example.institutionId) return false;
+  return true;
 }
 
-function scoreExample(features: TargetFeatures, example: LocalModelExample): number {
-  const tokenScore = jaccard(features.tokens, example.merchantTokens.length ? example.merchantTokens : merchantTokensFrom(example.signature));
-  const signatureScore = features.signature === example.signature ? 1 : jaccard(features.signature.split(' '), example.signature.split(' '));
-  const institutionScore = features.institutionId && features.institutionId === example.institutionId ? 1 : 0;
-  const amountScore = features.amountBucket === example.amountBucket ? 1 : 0;
-
-  return (
-    tokenScore * 0.5 +
-    signatureScore * 0.3 +
-    institutionScore * 0.1 +
-    amountScore * 0.07 +
-    (features.direction === example.direction ? 0.03 : 0)
-  );
+function isPredictionFlowCompatible(txn: RawTxn, flow: Flow): boolean {
+  if (flow === 'transfer') return false;
+  if (txn.amount > 0) return flow === 'income';
+  return flow === 'expense' || flow === 'investment';
 }
 
 function confidenceFor(score: number, evidenceCount: number, margin: number): Confidence {
-  if (evidenceCount >= DEFAULT_MIN_EVIDENCE && score >= DEFAULT_MIN_SCORE && margin >= DEFAULT_MIN_MARGIN) {
-    return 'high';
-  }
-  if (evidenceCount >= 1 && score >= 0.45) return 'med';
+  if (evidenceCount >= DEFAULT_MIN_EVIDENCE && score >= DEFAULT_MIN_SCORE && margin >= DEFAULT_MIN_MARGIN) return 'high';
+  if (score >= 0.45) return 'med';
   return 'low';
 }
 
@@ -388,33 +361,35 @@ function canAutoAccept(txn: RawTxn, prediction: LocalPrediction, options: LocalD
   const minEvidence = options.minEvidenceForAutoAccept ?? DEFAULT_MIN_EVIDENCE;
   const minScore = options.minAutoAcceptScore ?? DEFAULT_MIN_SCORE;
   const minMargin = options.minAutoAcceptMargin ?? DEFAULT_MIN_MARGIN;
+
   if (prediction.confidence !== 'high') return false;
   if (prediction.provenance.evidenceCount < minEvidence) return false;
   if (prediction.confidenceScore < minScore) return false;
   if (prediction.provenance.margin < minMargin) return false;
   if (!allowlist.has(prediction.category)) return false;
-  if (prediction.flow === 'transfer') return false;
-  if (txn.amount > 0) return prediction.flow === 'income';
-  return prediction.flow === 'expense' || prediction.flow === 'investment';
+  return isPredictionFlowCompatible(txn, prediction.flow);
 }
 
-function labelKey(example: LocalModelExample): string {
-  return [example.flow, example.merchant, example.category, example.subcategory ?? ''].join('\u001f');
+function featuresFor(txn: RawTxn): TargetFeatures {
+  return {
+    signature: signature(txn.rawDescription),
+    amountBucket: amountBucketFor(txn.amount),
+    direction: directionForAmount(txn.amount),
+    institutionId: txn.institutionId ?? null,
+  };
 }
 
-function jaccard(left: string[], right: string[]): number {
-  const a = new Set(left.filter(Boolean));
-  const b = new Set(right.filter(Boolean));
-  if (a.size === 0 || b.size === 0) return 0;
-  let intersection = 0;
-  for (const value of a) if (b.has(value)) intersection++;
-  return intersection / (a.size + b.size - intersection);
+function textForEmbedding(txn: RawTxn): string {
+  return [txn.merchant, txn.rawDescription, txn.institutionId].filter(Boolean).join(' ');
 }
 
-function compareScoredExamples(a: ScoredExample, b: ScoredExample): number {
-  return b.score - a.score || b.example.reviewedAt - a.example.reviewedAt || a.example.id.localeCompare(b.example.id);
-}
-
-function roundScore(n: number): number {
-  return Math.round(n * 1000) / 1000;
+function baseDecision(finalResult: Classification, reviewStatus: LocalReviewStatus): ClassificationDecision {
+  return {
+    deterministicResult: finalResult,
+    localPrediction: null,
+    finalResult,
+    source: 'deterministic',
+    reviewStatus,
+    auditRecordId: null,
+  };
 }

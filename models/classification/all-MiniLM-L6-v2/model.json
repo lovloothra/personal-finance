@@ -1,0 +1,15 @@
+{
+  "modelId": "sentence-transformers/all-MiniLM-L6-v2",
+  "version": "minilm-softmax-v1",
+  "dimensions": 384,
+  "maxLength": 128,
+  "pooling": "mean",
+  "onnx": {
+    "path": "model.onnx",
+    "sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+  },
+  "vocab": {
+    "path": "vocab.txt",
+    "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+  }
+}

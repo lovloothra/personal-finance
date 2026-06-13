@@ -3,6 +3,7 @@ import { and, desc, eq, like, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { reviewItems, subscriptionsDetected, taxEvidence, transactions } from '@/db/schema';
 import { selectAssistantTool, type AssistantToolSelection } from '@/assistant/query';
+import { synthesizeWithOllama } from '@/assistant/ollama';
 import { badRequest, json } from '@/server/api';
 
 export const runtime = 'nodejs';
@@ -16,8 +17,17 @@ export async function POST(req: Request): Promise<Response> {
 
     const selection = selectAssistantTool(question);
     const db = await getDb();
+    const toolCalls = [{ tool: selection.tool, args: selection.args }];
     const result = runTool(db, selection);
-    return json({ question, toolCalls: [{ tool: selection.tool, args: selection.args }], ...result });
+    const llm = await synthesizeWithOllama({ question, toolCalls, toolResult: result });
+    return json({
+      question,
+      toolCalls,
+      ...result,
+      deterministicAnswer: result.answer,
+      answer: llm.status === 'ok' ? llm.answer : result.answer,
+      llm,
+    });
   } catch (err) {
     return badRequest(err instanceof Error ? err.message : 'Assistant query failed.', 500);
   }

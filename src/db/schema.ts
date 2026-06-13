@@ -465,6 +465,9 @@ export const localModelExamples = sqliteTable(
     direction: text('direction').$type<'credit' | 'debit'>().notNull(),
     institutionId: text('institution_id').references(() => institutions.id),
     source: text('source').$type<FeedbackSource>().notNull(),
+    embedding: text('embedding', { mode: 'json' }).$type<number[]>().notNull().default(sql`'[]'`),
+    embeddingModelId: text('embedding_model_id'),
+    embeddingUpdatedAt: integer('embedding_updated_at'),
     reviewedAt: integer('reviewed_at').notNull(),
     createdAt: createdAt(),
   },
@@ -474,6 +477,22 @@ export const localModelExamples = sqliteTable(
     index('local_model_examples_feedback_idx').on(t.feedbackId),
   ],
 );
+
+export const localClassifierHeads = sqliteTable('local_classifier_heads', {
+  id: text('id').primaryKey(),
+  modelVersion: text('model_version').notNull(),
+  embeddingModelId: text('embedding_model_id').notNull(),
+  dimensions: integer('dimensions').notNull(),
+  labels: text('labels', { mode: 'json' }).$type<unknown[]>().notNull(),
+  weights: text('weights', { mode: 'json' }).$type<number[][]>().notNull(),
+  bias: text('bias', { mode: 'json' }).$type<number[]>().notNull(),
+  exampleCount: integer('example_count').notNull(),
+  checksum: text('checksum').notNull(),
+  stale: integer('stale', { mode: 'boolean' }).notNull().default(false),
+  trainedAt: integer('trained_at').notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 export const localModelSuggestions = sqliteTable(
   'local_model_suggestions',

@@ -33,7 +33,7 @@ export async function POST(req: Request): Promise<Response> {
       return json({ ok: true, reparsed: true, documents: result.documents, transactions: result.transactions, duplicatesDropped: result.duplicatesDropped });
     }
 
-    const result = reclassifyAll(db);
+    const result = await reclassifyAll(db);
     return json({ ok: true, ...result });
   } catch (err) {
     return badRequest(err instanceof Error ? err.message : 'Reclassify failed.', 500);

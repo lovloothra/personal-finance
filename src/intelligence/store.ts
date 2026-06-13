@@ -2,23 +2,25 @@ import 'server-only';
 
 import { eq } from 'drizzle-orm';
 
+import { signature } from '@/classifier/normalize';
+import type { Flow } from '@/classifier/types';
 import type { DB } from '@/db/client';
 import {
   classificationFeedback,
   classificationPredictions,
+  localClassifierHeads,
   localModelExamples,
   localModelSuggestions,
 } from '@/db/schema';
-import { signature } from '@/classifier/normalize';
-import type { Flow } from '@/classifier/types';
+
+import { trainSoftmaxHead, type LocalClassifierHead } from './classifier-head';
+import { getDefaultEmbeddingRuntime, type EmbeddingRuntime } from './embedding-runtime';
 import {
   LOCAL_MODEL_VERSION,
-  amountBucketFor,
-  directionForAmount,
   makeLocalModelExample,
-  merchantTokensFrom,
   type ClassificationDecision,
   type FeedbackSource,
+  type LocalClassifierState,
   type LocalModelExample,
 } from './local-model';
 
@@ -33,6 +35,13 @@ export interface FeedbackRecordInput {
   institutionId?: string | null;
   source: FeedbackSource;
   reviewedAt?: number;
+}
+
+export interface EmbeddingWriteOptions {
+  embeddingModelId?: string;
+  dimensions?: number;
+  now?: () => number;
+  embedText?: (text: string) => Promise<number[] | null>;
 }
 
 export function loadLocalModelExamples(db: DB): LocalModelExample[] {
@@ -52,8 +61,11 @@ export function loadLocalModelExamples(db: DB): LocalModelExample[] {
       amountBucket: localModelExamples.amountBucket,
       direction: localModelExamples.direction,
       institutionId: localModelExamples.institutionId,
-      reviewedAt: localModelExamples.reviewedAt,
       source: localModelExamples.source,
+      reviewedAt: localModelExamples.reviewedAt,
+      embedding: localModelExamples.embedding,
+      embeddingModelId: localModelExamples.embeddingModelId,
+      embeddingUpdatedAt: localModelExamples.embeddingUpdatedAt,
     })
     .from(localModelExamples)
     .all()
@@ -74,38 +86,47 @@ export function loadLocalModelExamples(db: DB): LocalModelExample[] {
       institutionId: row.institutionId,
       reviewedAt: row.reviewedAt,
       source: row.source,
+      embedding: row.embedding?.length ? row.embedding : null,
+      embeddingModelId: row.embeddingModelId,
+      embeddingUpdatedAt: row.embeddingUpdatedAt,
     }));
 }
 
-export function recordFeedbackExamples(db: DB, records: FeedbackRecordInput[]): number {
+export async function recordFeedbackExamples(
+  db: DB,
+  records: FeedbackRecordInput[],
+  options: EmbeddingWriteOptions = {},
+): Promise<number> {
   if (records.length === 0) return 0;
-  const reviewedAt = Date.now();
-  db.transaction((tx) => {
-    for (const record of records) {
-      const time = record.reviewedAt ?? reviewedAt;
-      const feedbackId = feedbackIdFor(record.transactionId, record.source);
-      const exampleId = exampleIdFor(record.transactionId, record.source);
-      const matchSignature = signature(record.rawDescription);
-      const example = makeLocalModelExample({
-        id: exampleId,
-        feedbackId,
-        transactionId: record.transactionId,
-        rawDescription: record.rawDescription,
-        merchant: record.merchant,
-        category: record.category,
-        subcategory: record.subcategory,
-        flow: record.flow,
-        amount: record.amount,
-        institutionId: record.institutionId ?? null,
-        reviewedAt: time,
-        source: record.source,
-      });
+  const now = options.now ?? Date.now;
+  const runtime = await embeddingWriter(options);
+  const examples: LocalModelExample[] = [];
 
+  for (const record of records) {
+    const reviewedAt = record.reviewedAt ?? now();
+    const embedding = await runtime.embedText(textForEmbedding(record));
+    const modelId = embedding ? runtime.embeddingModelId : null;
+    examples.push(
+      localExampleValuesFor({
+        ...record,
+        reviewedAt,
+        embedding,
+        embeddingModelId: modelId,
+        embeddingUpdatedAt: embedding ? now() : null,
+      }),
+    );
+  }
+
+  db.transaction((tx) => {
+    for (let index = 0; index < records.length; index++) {
+      const record = records[index];
+      const example = examples[index];
+      const feedbackId = feedbackIdFor(record.transactionId, record.source);
       tx.insert(classificationFeedback)
         .values({
           id: feedbackId,
           transactionId: record.transactionId,
-          matchSignature,
+          matchSignature: signature(record.rawDescription),
           rawDescription: record.rawDescription,
           merchant: record.merchant,
           category: record.category,
@@ -114,12 +135,12 @@ export function recordFeedbackExamples(db: DB, records: FeedbackRecordInput[]): 
           amount: record.amount,
           institutionId: record.institutionId ?? null,
           source: record.source,
-          reviewedAt: time,
+          reviewedAt: example.reviewedAt,
         })
         .onConflictDoUpdate({
           target: classificationFeedback.id,
           set: {
-            matchSignature,
+            matchSignature: signature(record.rawDescription),
             rawDescription: record.rawDescription,
             merchant: record.merchant,
             category: record.category,
@@ -127,8 +148,7 @@ export function recordFeedbackExamples(db: DB, records: FeedbackRecordInput[]): 
             flow: record.flow,
             amount: record.amount,
             institutionId: record.institutionId ?? null,
-            source: record.source,
-            reviewedAt: time,
+            reviewedAt: example.reviewedAt,
           },
         })
         .run();
@@ -136,8 +156,8 @@ export function recordFeedbackExamples(db: DB, records: FeedbackRecordInput[]): 
       tx.insert(localModelExamples)
         .values({
           id: example.id,
-          feedbackId: example.feedbackId,
-          transactionId: example.transactionId,
+          feedbackId,
+          transactionId: record.transactionId,
           signature: example.signature,
           rawDescription: example.rawDescription,
           merchant: example.merchant,
@@ -150,6 +170,9 @@ export function recordFeedbackExamples(db: DB, records: FeedbackRecordInput[]): 
           direction: example.direction,
           institutionId: example.institutionId,
           source: example.source,
+          embedding: example.embedding ?? [],
+          embeddingModelId: example.embeddingModelId ?? null,
+          embeddingUpdatedAt: example.embeddingUpdatedAt ?? null,
           reviewedAt: example.reviewedAt,
         })
         .onConflictDoUpdate({
@@ -167,13 +190,54 @@ export function recordFeedbackExamples(db: DB, records: FeedbackRecordInput[]): 
             direction: example.direction,
             institutionId: example.institutionId,
             source: example.source,
+            embedding: example.embedding ?? [],
+            embeddingModelId: example.embeddingModelId ?? null,
+            embeddingUpdatedAt: example.embeddingUpdatedAt ?? null,
             reviewedAt: example.reviewedAt,
           },
         })
         .run();
     }
+
+    tx.update(localClassifierHeads)
+      .set({ stale: true, updatedAt: now() })
+      .where(eq(localClassifierHeads.id, LOCAL_MODEL_VERSION))
+      .run();
   });
+
   return records.length;
+}
+
+export async function loadLocalClassifierState(
+  db: DB,
+  options: EmbeddingWriteOptions = {},
+): Promise<LocalClassifierState> {
+  const runtime = await embeddingWriter(options);
+  const examples = loadLocalModelExamples(db);
+  const embedded = await backfillMissingEmbeddings(db, examples, runtime, options.now ?? Date.now);
+  const usable = embedded.filter(
+    (example): example is LocalModelExample & { embedding: number[] } =>
+      Array.isArray(example.embedding) &&
+      example.embedding.length === runtime.dimensions &&
+      example.embeddingModelId === runtime.embeddingModelId,
+  );
+  const persisted = loadClassifierHead(db);
+  const needsRebuild =
+    !persisted ||
+    persisted.stale ||
+    persisted.embeddingModelId !== runtime.embeddingModelId ||
+    persisted.dimensions !== runtime.dimensions ||
+    persisted.exampleCount !== usable.length;
+  const head = needsRebuild ? rebuildClassifierHead(db, usable, runtime, options.now ?? Date.now) : persisted.head;
+
+  return {
+    status: runtime.status,
+    embeddingModelId: runtime.embeddingModelId,
+    reason: runtime.reason,
+    examples: embedded,
+    head,
+    embedText: runtime.embedText,
+  };
 }
 
 export function recordLocalDecision(db: DB, transactionId: string, decision: ClassificationDecision): string | null {
@@ -229,21 +293,10 @@ export function recordLocalDecision(db: DB, transactionId: string, decision: Cla
 
     if (decision.reviewStatus === 'suggested') {
       tx.insert(localModelSuggestions)
-        .values({
-          id: suggestionId,
-          predictionId,
-          transactionId,
-          status: 'open',
-          updatedAt: Date.now(),
-        })
+        .values({ id: suggestionId, predictionId, transactionId, status: 'open', updatedAt: Date.now() })
         .onConflictDoUpdate({
           target: localModelSuggestions.id,
-          set: {
-            predictionId,
-            transactionId,
-            status: 'open',
-            updatedAt: Date.now(),
-          },
+          set: { predictionId, transactionId, status: 'open', updatedAt: Date.now() },
         })
         .run();
     }
@@ -268,7 +321,13 @@ export function exampleIdFor(transactionId: string, source: FeedbackSource): str
   return `ex_${source}_${transactionId}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
 }
 
-export function localExampleValuesFor(record: FeedbackRecordInput): LocalModelExample {
+export function localExampleValuesFor(
+  record: FeedbackRecordInput & {
+    embedding?: number[] | null;
+    embeddingModelId?: string | null;
+    embeddingUpdatedAt?: number | null;
+  },
+): LocalModelExample {
   return makeLocalModelExample({
     id: exampleIdFor(record.transactionId, record.source),
     feedbackId: feedbackIdFor(record.transactionId, record.source),
@@ -279,29 +338,134 @@ export function localExampleValuesFor(record: FeedbackRecordInput): LocalModelEx
     subcategory: record.subcategory,
     flow: record.flow,
     amount: record.amount,
-    institutionId: record.institutionId ?? null,
+    institutionId: record.institutionId,
     reviewedAt: record.reviewedAt ?? Date.now(),
     source: record.source,
+    embedding: record.embedding ?? null,
+    embeddingModelId: record.embeddingModelId ?? null,
+    embeddingUpdatedAt: record.embeddingUpdatedAt ?? null,
   });
 }
 
-export function derivedLocalExampleParts(rawDescription: string, amount: number): {
-  signature: string;
-  merchantTokens: string[];
-  amountBucket: string;
-  direction: 'credit' | 'debit';
-} {
+async function embeddingWriter(options: EmbeddingWriteOptions): Promise<EmbeddingRuntime> {
+  if (options.embedText) {
+    return {
+      status: 'ready',
+      embeddingModelId: options.embeddingModelId ?? 'test-embedding',
+      dimensions: options.dimensions ?? 384,
+      embedText: options.embedText,
+    };
+  }
+  return getDefaultEmbeddingRuntime();
+}
+
+async function backfillMissingEmbeddings(
+  db: DB,
+  examples: LocalModelExample[],
+  runtime: EmbeddingRuntime,
+  now: () => number,
+): Promise<LocalModelExample[]> {
+  if (runtime.status !== 'ready') return examples;
+  const updated: LocalModelExample[] = [];
+  for (const example of examples) {
+    if (example.embedding?.length === runtime.dimensions && example.embeddingModelId === runtime.embeddingModelId) {
+      updated.push(example);
+      continue;
+    }
+    const embedding = await runtime.embedText(textForEmbedding(example));
+    if (!embedding) {
+      updated.push(example);
+      continue;
+    }
+    const patched = { ...example, embedding, embeddingModelId: runtime.embeddingModelId, embeddingUpdatedAt: now() };
+    db.update(localModelExamples)
+      .set({ embedding, embeddingModelId: runtime.embeddingModelId, embeddingUpdatedAt: patched.embeddingUpdatedAt })
+      .where(eq(localModelExamples.id, example.id))
+      .run();
+    updated.push(patched);
+  }
+  return updated;
+}
+
+function loadClassifierHead(db: DB): ({ head: LocalClassifierHead; stale: boolean } & Pick<LocalClassifierHead, 'embeddingModelId' | 'dimensions' | 'exampleCount'>) | null {
+  const row = db.select().from(localClassifierHeads).where(eq(localClassifierHeads.id, LOCAL_MODEL_VERSION)).get();
+  if (!row) return null;
   return {
-    signature: signature(rawDescription),
-    merchantTokens: merchantTokensFrom(rawDescription),
-    amountBucket: amountBucketFor(amount),
-    direction: directionForAmount(amount),
+    stale: row.stale,
+    embeddingModelId: row.embeddingModelId,
+    dimensions: row.dimensions,
+    exampleCount: row.exampleCount,
+    head: {
+      modelVersion: row.modelVersion,
+      embeddingModelId: row.embeddingModelId,
+      dimensions: row.dimensions,
+      labels: row.labels as LocalClassifierHead['labels'],
+      weights: row.weights,
+      bias: row.bias,
+      exampleCount: row.exampleCount,
+      checksum: row.checksum,
+      trainedAt: row.trainedAt,
+    },
   };
 }
 
-export function markSuggestionRejected(db: DB, suggestionId: string): void {
-  db.update(localModelSuggestions)
-    .set({ status: 'rejected', updatedAt: Date.now() })
-    .where(eq(localModelSuggestions.id, suggestionId))
+function rebuildClassifierHead(
+  db: DB,
+  examples: Array<LocalModelExample & { embedding: number[] }>,
+  runtime: EmbeddingRuntime,
+  now: () => number,
+): LocalClassifierHead | null {
+  const trainingExamples = examples.map((example) => ({
+    id: example.id,
+    merchant: example.merchant,
+    flow: example.flow,
+    category: example.category,
+    subcategory: example.subcategory,
+    embedding: example.embedding,
+  }));
+  const head = trainSoftmaxHead(trainingExamples, {
+    modelVersion: LOCAL_MODEL_VERSION,
+    embeddingModelId: runtime.embeddingModelId,
+    dimensions: runtime.dimensions,
+    trainedAt: now(),
+  });
+  if (!head) return null;
+
+  db.insert(localClassifierHeads)
+    .values({
+      id: LOCAL_MODEL_VERSION,
+      modelVersion: head.modelVersion,
+      embeddingModelId: head.embeddingModelId,
+      dimensions: head.dimensions,
+      labels: head.labels,
+      weights: head.weights,
+      bias: head.bias,
+      exampleCount: head.exampleCount,
+      checksum: head.checksum,
+      stale: false,
+      trainedAt: head.trainedAt,
+      updatedAt: now(),
+    })
+    .onConflictDoUpdate({
+      target: localClassifierHeads.id,
+      set: {
+        modelVersion: head.modelVersion,
+        embeddingModelId: head.embeddingModelId,
+        dimensions: head.dimensions,
+        labels: head.labels,
+        weights: head.weights,
+        bias: head.bias,
+        exampleCount: head.exampleCount,
+        checksum: head.checksum,
+        stale: false,
+        trainedAt: head.trainedAt,
+        updatedAt: now(),
+      },
+    })
     .run();
+  return head;
+}
+
+function textForEmbedding(record: Pick<FeedbackRecordInput, 'merchant' | 'rawDescription' | 'institutionId'>): string {
+  return [record.merchant, record.rawDescription, record.institutionId].filter(Boolean).join(' ');
 }

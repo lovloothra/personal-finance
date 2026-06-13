@@ -21,14 +21,14 @@ import { buildBaseContext } from './context';
 import { rebuildClassificationReviewItems } from './review-items';
 import { detectSubscriptions } from '@/ledger/subscriptions';
 import { decideClassification } from '@/intelligence/local-model';
-import { loadLocalModelExamples, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
+import { loadLocalClassifierState, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
 
 export interface ReclassifyResult {
   transactions: number;
   changed: number;
 }
 
-export function reclassifyAll(db: DB): ReclassifyResult {
+export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
   const base = buildBaseContext(db);
 
   const rows = db
@@ -39,6 +39,7 @@ export function reclassifyAll(db: DB): ReclassifyResult {
       amount: transactions.amount,
       currency: transactions.currency,
       rawDescription: transactions.rawDescription,
+      institutionId: transactions.institutionId,
       category: transactions.category,
       flow: transactions.flow,
       merchant: transactions.merchant,
@@ -52,16 +53,17 @@ export function reclassifyAll(db: DB): ReclassifyResult {
     amount: r.amount,
     currency: r.currency ?? 'INR',
     rawDescription: r.rawDescription ?? '',
+    institutionId: r.institutionId ?? undefined,
   }));
   const recurrence = buildRecurrenceIndex(rawTxns);
   const ctx: ClassifyContext = { ...base, recurrence };
-  const localExamples = loadLocalModelExamples(db);
+  const localState = await loadLocalClassifierState(db);
 
-  const results = rawTxns.map((raw, i) => {
+  const results = await Promise.all(rawTxns.map(async (raw, i) => {
     const deterministic = classify(raw, ctx);
-    const decision = decideClassification(raw, deterministic, localExamples);
+    const decision = await decideClassification(raw, deterministic, localState);
     return { raw, prev: rows[i], deterministic, decision, c: decision.finalResult };
-  });
+  }));
 
   let selfNames: string[] = [];
   try {
