@@ -298,9 +298,9 @@ export function incomeRollup(db: DB, fy: FyKey): IncomeRollup {
       employer = null;
     }
   }
-  // Exclude suspected transfers from the income transaction list as well.
+  // Exclude suspected transfers and internal transfers from the income transaction list as well.
   const txns = db.select(recentCols).from(transactions).leftJoin(gmailMessages, eq(transactions.messageId, gmailMessages.id))
-    .where(and(eq(transactions.fyKey, fy), eq(transactions.flow, 'income'), eq(transactions.suspectedTransfer, false)))
+    .where(and(eq(transactions.fyKey, fy), eq(transactions.flow, 'income'), eq(transactions.isInternalTransfer, false), eq(transactions.suspectedTransfer, false)))
     .orderBy(desc(transactions.txnDate)).limit(50).all().map(rowToRecent);
 
   return { fy, hasData: rows.length > 0, total: salaryTotal + otherTotal, salaryTotal, otherTotal, employer, months, txns };
@@ -507,7 +507,7 @@ export function liabilitiesRollup(db: DB, fy: FyKey): LiabilitiesRollup {
       tax: sql<string | null>`max(${transactions.taxSection})`,
     })
     .from(transactions)
-    .where(and(eq(transactions.fyKey, fy), eq(transactions.category, 'Loan')))
+    .where(and(eq(transactions.fyKey, fy), sql`lower(${transactions.category}) = 'loan'`))
     .groupBy(sql`coalesce(${transactions.subcategory}, ${transactions.category})`)
     .all();
   const loans: LiabilityRow[] = loanRows.map((r, i) => ({
@@ -529,7 +529,7 @@ export function liabilitiesRollup(db: DB, fy: FyKey): LiabilitiesRollup {
       section: sql<string | null>`max(${transactions.taxSection})`,
     })
     .from(transactions)
-    .where(and(eq(transactions.fyKey, fy), eq(transactions.category, 'Insurance')))
+    .where(and(eq(transactions.fyKey, fy), sql`lower(${transactions.category}) = 'insurance'`))
     .groupBy(sql`coalesce(${transactions.merchant}, ${transactions.subcategory}, 'Insurance')`)
     .all();
   const insurance: InsuranceRow[] = insRows.map((r, i) => ({
@@ -698,7 +698,7 @@ export function reviewRollup(db: DB): ReviewRollup {
     db
       .select({ n: sql<number>`count(*)` })
       .from(transactions)
-      .where(and(eq(transactions.reviewRequired, true), eq(transactions.category, 'Uncategorised')))
+      .where(and(eq(transactions.reviewRequired, true), sql`lower(${transactions.category}) = 'uncategorised'`))
       .get()?.n ?? 0;
   if (uncat > 0) {
     items.push({
@@ -715,7 +715,7 @@ export function reviewRollup(db: DB): ReviewRollup {
     db
       .select({ n: sql<number>`count(*)` })
       .from(transactions)
-      .where(and(eq(transactions.reviewRequired, true), sql`${transactions.category} != 'Uncategorised'`))
+      .where(and(eq(transactions.reviewRequired, true), sql`lower(${transactions.category}) != 'uncategorised'`))
       .get()?.n ?? 0;
   if (lowConf > 0) {
     items.push({

@@ -13,7 +13,7 @@ process.env.PF_DB_PASSPHRASE = 'test-passphrase';
 
 import { getDb, type DB } from '@/db/client';
 import { transactions } from '@/db/schema';
-import { incomeRollup, overviewRollup } from '@/ledger/rollups';
+import { incomeRollup, overviewRollup, liabilitiesRollup } from '@/ledger/rollups';
 
 let db: DB;
 let n = 0;
@@ -71,4 +71,17 @@ test('overviewRollup income excludes suspected transfers via flowSum', () => {
   const rollup = overviewRollup(db, '2025-26');
   // The overview income should be ₹50,000 (not ₹1,50,000)
   assert.equal(rollup.income, 50_000, `Expected ₹50,000 overview income but got ₹${rollup.income}`);
+});
+
+test('liabilitiesRollup finds loan rows stored with lowercase canonical category', () => {
+  // Insert a loan expense with canonical lowercase category (post-backfill form).
+  insertTxn({ flow: 'expense', amount: -500_000, date: '2025-07-01', fyKey: '2025-26', category: 'loan' });
+  // Also insert one with legacy Title-Case to confirm both are matched.
+  insertTxn({ flow: 'expense', amount: -300_000, date: '2025-08-01', fyKey: '2025-26', category: 'Loan' });
+
+  const rollup = liabilitiesRollup(db, '2025-26');
+  assert.ok(rollup.hasData, 'hasData should be true when loan rows exist');
+  assert.ok(rollup.loans.length >= 2, `Expected at least 2 loan groups (got ${rollup.loans.length})`);
+  const totalEmi = rollup.loans.reduce((s, l) => s + l.emi, 0);
+  assert.ok(totalEmi > 0, 'Total EMI from loan rows must be > 0');
 });
