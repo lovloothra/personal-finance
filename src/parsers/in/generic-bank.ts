@@ -46,7 +46,7 @@ const ACCOUNT_HEADER_RE =
 // A UPI VPA: handle@bank (letters/digits/._- before @, letters after).
 const VPA_RE = /\b([a-z0-9._-]{2,}@[a-z]{2,})\b/i;
 // NEFT/IMPS/RTGS beneficiary: "<RAIL> <DR|CR>-<IFSC/REF>-<NAME>-<REF>". The
-// name is the UPPERCASE word group sitting between hyphenated code segments.
+// name is the word group sitting between the hyphen-delimited code segments.
 const BENEFICIARY_RE = /\b(?:neft|imps|rtgs)\b[^-]*-[^-]+-([A-Z][A-Z .]{2,}?)-/i;
 
 function extractCounterparty(desc: string): string | null {

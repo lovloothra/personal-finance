@@ -225,3 +225,9 @@ test('generic mobile-banking line has null counterparty', () => {
   const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
   assert.equal(out.txns[0].counterpartyRaw, null);
 });
+
+test('extracts numeric-handle VPA counterparty from the raw line', () => {
+  const text = '01/03/2025 UPI/12345@ybl/Pay 250.00 9,750.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, '12345@ybl');
+});
