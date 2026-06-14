@@ -57,3 +57,26 @@ test('leaves a single-sided NEFT payment to a vendor as an expense', () => {
   const { transferIds } = linkInternalTransfers(txns);
   assert.equal(transferIds.size, 0, 'unpaired outgoing NEFT stays an expense');
 });
+
+test('counterparty resolving to an own account is a single-sided transfer', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'NEFT to self', counterpartyKind: 'own_account' },
+  ]);
+  assert.ok(transferIds.has('d1'));
+});
+
+test('own debit <-> own credit pair with no keyword is a transfer', () => {
+  const { transferIds, links } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_icici' },
+    { id: 'c1', date: '2025-10-02', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_hdfc', documentId: 'doc2' },
+  ]);
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+  assert.equal(links[0].kind, 'account_transfer');
+});
+
+test('own credit with no matching own debit is NOT auto-paired', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-10-01', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_hdfc' },
+  ]);
+  assert.equal(transferIds.has('c1'), false);
+});

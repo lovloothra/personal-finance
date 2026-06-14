@@ -32,6 +32,12 @@ export interface LinkTxn {
   rawDescription: string;
   documentId?: string | null;
   flow?: string;
+  /** The own account this txn sits in (from document reconciliation). */
+  ownAccountId?: string | null;
+  /** Resolved counterparty kind, when known. */
+  counterpartyKind?: 'own_account' | 'known_own' | 'external' | 'unknown';
+  /** Resolved merchant, used by the suspected-transfer heuristic (Task 9). */
+  merchant?: string | null;
 }
 
 export interface TransferLink {
@@ -56,7 +62,14 @@ function selfNameHit(desc: string, selfNames: string[]): boolean {
 }
 
 function isCandidate(t: LinkTxn, selfNames: string[]): boolean {
-  return t.flow === 'transfer' || TRANSFER_RE.test(t.rawDescription) || selfNameHit(t.rawDescription, selfNames);
+  return (
+    t.flow === 'transfer' ||
+    t.counterpartyKind === 'own_account' ||
+    t.counterpartyKind === 'known_own' ||
+    !!t.ownAccountId ||
+    TRANSFER_RE.test(t.rawDescription) ||
+    selfNameHit(t.rawDescription, selfNames)
+  );
 }
 
 /**
@@ -83,7 +96,10 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
         !usedCredit.has(c.id) &&
         Math.abs(c.amount) === Math.abs(d.amount) &&
         within(c.date, d.date, windowDays) &&
-        !(d.documentId && c.documentId && d.documentId === c.documentId),
+        !(d.documentId && c.documentId && d.documentId === c.documentId) &&
+        (!!d.ownAccountId && !!c.ownAccountId
+          ? d.ownAccountId !== c.ownAccountId // both own accounts: relaxed, but not the same account
+          : TRANSFER_RE.test(d.rawDescription) || TRANSFER_RE.test(c.rawDescription)),
     );
     if (match) {
       usedCredit.add(match.id);
@@ -103,6 +119,15 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
   }
   for (const c of credits) {
     if (!transferIds.has(c.id) && /\bpayment received\b/i.test(c.rawDescription)) transferIds.add(c.id);
+  }
+
+  // 3. Own-entity counterparty: a transfer by definition, even single-sided.
+  //    Iterate all txns (not just candidates) in case the txn has counterpartyKind
+  //    but no keyword or ownAccountId that would have placed it in debits/credits.
+  for (const t of txns) {
+    if (!transferIds.has(t.id) && (t.counterpartyKind === 'own_account' || t.counterpartyKind === 'known_own')) {
+      transferIds.add(t.id);
+    }
   }
 
   return { transferIds, links };
