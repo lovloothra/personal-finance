@@ -201,3 +201,9 @@ test('extracts card last4 written with spaces', () => {
   const out = parseStatement(text, { providerId: 'hdfc-bank-cards', docType: 'card_statement' });
   assert.equal(out.accountLast4, '1234');
 });
+
+test('yields undefined when statement has no account header', () => {
+  const text = 'HDFC BANK STATEMENT\n01/03/2025 SWIGGY 500.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, undefined);
+});
