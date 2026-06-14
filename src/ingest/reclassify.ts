@@ -10,10 +10,11 @@
 import 'server-only';
 import { eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { transactions, internalTransferLinks } from '@/db/schema';
+import { transactions, internalTransferLinks, counterparties as counterpartiesTable } from '@/db/schema';
 import { buildRecurrenceIndex } from '@/classifier/recurrence';
 import { classify } from '@/classifier/pipeline';
 import { linkInternalTransfers } from '@/classifier/transfers';
+import { resolveCounterparty, type CounterpartyEntry } from '@/classifier/counterparties';
 import type { RawTxn, ClassifyContext } from '@/classifier/types';
 import { fyForDate } from '@/ledger/fy';
 import { loadProfileSeed } from '@/profile/signals';
@@ -43,9 +44,17 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
       category: transactions.category,
       flow: transactions.flow,
       merchant: transactions.merchant,
+      ownAccountId: transactions.ownAccountId,
+      counterpartyRaw: transactions.counterpartyRaw,
     })
     .from(transactions)
     .all();
+
+  const cpRegistry: CounterpartyEntry[] = db
+    .select()
+    .from(counterpartiesTable)
+    .all()
+    .map((c) => ({ id: c.id, kind: c.kind, isOwnMoney: c.isOwnMoney, matchers: c.matchers ?? undefined }));
 
   const rawTxns: RawTxn[] = rows.map((r) => ({
     id: r.id,
@@ -54,6 +63,7 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
     currency: r.currency ?? 'INR',
     rawDescription: r.rawDescription ?? '',
     institutionId: r.institutionId ?? undefined,
+    counterpartyRaw: r.counterpartyRaw ?? null,
   }));
   const recurrence = buildRecurrenceIndex(rawTxns);
   const ctx: ClassifyContext = { ...base, recurrence };
@@ -76,7 +86,20 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
     selfNames = [];
   }
   const transfer = linkInternalTransfers(
-    results.map(({ raw, prev, deterministic }) => ({ id: raw.id, date: raw.date, amount: raw.amount, rawDescription: raw.rawDescription, documentId: prev.documentId ?? '', flow: deterministic.flow })),
+    results.map(({ raw, prev, deterministic }) => {
+      const cp = resolveCounterparty(raw.counterpartyRaw, cpRegistry);
+      return {
+        id: raw.id,
+        date: raw.date,
+        amount: raw.amount,
+        rawDescription: raw.rawDescription,
+        documentId: prev.documentId ?? '',
+        flow: deterministic.flow,
+        ownAccountId: prev.ownAccountId ?? null,
+        counterpartyKind: cp.counterpartyKind,
+        merchant: deterministic.merchant ?? null,
+      };
+    }),
     { selfNames },
   );
 
@@ -92,6 +115,7 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
         !isTransfer && decision.source === 'local_ml' && decision.localPrediction
           ? predictionIdFor(raw.id, decision.localPrediction.modelVersion)
           : null;
+      const cp = resolveCounterparty(raw.counterpartyRaw, cpRegistry);
       if (category !== prev.category || flow !== prev.flow || merchant !== prev.merchant) changed++;
 
       tx.update(transactions)
@@ -106,12 +130,16 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
           layer: final.layer,
           classificationSource: isTransfer ? 'deterministic' : decision.source,
           acceptedPredictionId,
-          reviewRequired: isTransfer ? false : final.reviewRequired,
+          reviewRequired: isTransfer ? false : (final.reviewRequired || transfer.suspectedIds.has(raw.id)),
           isInternalTransfer: isTransfer,
           isRecurring: final.isRecurring ?? false,
           projectId: final.projectId ?? null,
           taxSection: final.taxSection ?? null,
           fyKey: fyForDate(raw.date),
+          counterpartyRaw: raw.counterpartyRaw ?? null,
+          counterpartyId: cp.counterpartyId ?? null,
+          counterpartyKind: cp.counterpartyKind ?? 'unknown',
+          suspectedTransfer: transfer.suspectedIds.has(raw.id),
           updatedAt: Date.now(),
         })
         .where(eq(transactions.id, raw.id))
