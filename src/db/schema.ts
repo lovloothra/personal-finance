@@ -316,6 +316,9 @@ export const parsedDocuments = sqliteTable('parsed_documents', {
   periodEnd: text('period_end'),
   rawText: text('raw_text'),
   status: text('status').default('parsed'), // parsed | partial | failed
+  accountLast4: text('account_last4'),
+  ownAccountId: text('own_account_id'),
+  ownAccountKind: text('own_account_kind').$type<'bank' | 'card'>(),
   createdAt: createdAt(),
 });
 
@@ -349,6 +352,12 @@ export const transactions = sqliteTable(
     isRecurring: integer('is_recurring', { mode: 'boolean' }).default(false),
     projectId: text('project_id').references(() => profileOneTimeProjects.id),
     taxSection: text('tax_section'), // 80C | 80D | 80CCD1B | 24b | HRA
+    ownAccountId: text('own_account_id'),
+    ownAccountKind: text('own_account_kind').$type<'bank' | 'card'>(),
+    counterpartyRaw: text('counterparty_raw'),
+    counterpartyId: text('counterparty_id'),
+    counterpartyKind: text('counterparty_kind').$type<'own_account' | 'known_own' | 'external' | 'unknown'>(),
+    suspectedTransfer: integer('suspected_transfer', { mode: 'boolean' }).default(false),
     fyKey: text('fy_key'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -532,6 +541,23 @@ export const internalTransferLinks = sqliteTable('internal_transfer_links', {
   creditTxnId: text('credit_txn_id').references(() => transactions.id),
   confidence: text('confidence').$type<Confidence>().default('high'),
   createdAt: createdAt(),
+});
+
+export const counterparties = sqliteTable('counterparties', {
+  id: text('id').primaryKey(),
+  displayName: text('display_name').notNull(),
+  kind: text('kind').$type<'own_account' | 'card_bill' | 'family' | 'broker' | 'other_own'>().notNull(),
+  matchers: text('matchers', { mode: 'json' }).$type<{
+    vpaFragments?: string[];
+    nameTokens?: string[];
+    last4?: string[];
+    institutionId?: string;
+  }>(),
+  linkedOwnAccountId: text('linked_own_account_id'),
+  linkedOwnAccountKind: text('linked_own_account_kind').$type<'bank' | 'card'>(),
+  isOwnMoney: integer('is_own_money', { mode: 'boolean' }).notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
 export const taxEvidence = sqliteTable('tax_evidence', {
