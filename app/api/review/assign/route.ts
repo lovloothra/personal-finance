@@ -105,6 +105,7 @@ export async function POST(req: Request): Promise<Response> {
               subcategory,
               flow,
               isInternalTransfer: flow === 'transfer',
+              suspectedTransfer: false,
               confidence: 'high',
                 layer: 1,
                 classificationSource: 'deterministic',
@@ -182,7 +183,7 @@ export async function POST(req: Request): Promise<Response> {
             const ids = chunk.filter((t) => flowFor(category, t.amount) === flow).map((t) => t.id);
             if (!ids.length) continue;
             tx.update(transactions)
-                .set({ merchant, category, subcategory, flow, confidence: 'high', layer: 4, classificationSource: 'deterministic', acceptedPredictionId: null, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
+                .set({ merchant, category, subcategory, flow, suspectedTransfer: false, confidence: 'high', layer: 4, classificationSource: 'deterministic', acceptedPredictionId: null, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
               .where(inArray(transactions.id, ids))
               .run();
           }
