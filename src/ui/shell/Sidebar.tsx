@@ -11,7 +11,6 @@ export type WorkbenchPage =
   | 'liabilities'
   | 'subscriptions'
   | 'tax'
-  | 'review'
   | 'sources'
   | 'profile'
   | 'settings';
@@ -43,7 +42,7 @@ export function Sidebar({ page, setPage }: SidebarProps) {
   const MAIN: NavItem[] = [
     { id: 'overview', label: 'Overview', icon: 'layout-dashboard' },
     { id: 'income', label: 'Income', icon: 'arrow-down-to-line' },
-    { id: 'expenses', label: 'Expenses', icon: 'arrow-up-from-line' },
+    { id: 'expenses', label: 'Spending', icon: 'arrow-up-from-line', count: reviewCount > 0 ? reviewCount : undefined, alert: reviewCount > 0 },
     { id: 'investments', label: 'Investments', icon: 'trending-up' },
     { id: 'liabilities', label: 'Liabilities', icon: 'landmark' },
     { id: 'subscriptions', label: 'Subscriptions', icon: 'repeat', count: subs > 0 ? subs : undefined },
@@ -51,7 +50,6 @@ export function Sidebar({ page, setPage }: SidebarProps) {
   ];
 
   const EVIDENCE: NavItem[] = [
-    { id: 'review', label: 'Review queue', icon: 'inbox', count: reviewCount > 0 ? reviewCount : undefined, alert: true },
     { id: 'sources', label: 'Sources', icon: 'mail-search' },
     { id: 'profile', label: 'Profile', icon: 'user-round' },
     { id: 'settings', label: 'Settings', icon: 'settings' },

@@ -12,7 +12,7 @@ export type ReviewKind =
   | 'low_confidence'
   | 'missing_profile';
 
-export type FyKey = '2025-26' | '2026-27';
+export type FyKey = string; // was '2025-26' | '2026-27'
 
 export interface FySummary {
   label: string;
@@ -65,6 +65,7 @@ export interface Txn {
   sub: string;
   amt: number;
   flow: FlowDir;
+  ledgerFlow?: 'income' | 'expense' | 'transfer' | 'investment';
   conf: Confidence;
   acct: string;
   method: string;
@@ -234,6 +235,15 @@ export const fys: Record<FyKey, FySummary> = {
     runDate: '28 May 2026, 7:42 AM',
   },
 };
+
+/** A summary for any FY key — falls back to a synthesized label for live FYs
+ *  not present in the demo `fys` map. */
+export function fySummary(key: FyKey): FySummary {
+  return fys[key] ?? {
+    ...fys['2025-26'],
+    label: `FY ${key}`,
+  };
+}
 
 export const incomeMonths: IncomeMonth[] = [
   { m: 'Apr', salary: 318000, other: 0 },

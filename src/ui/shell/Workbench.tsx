@@ -8,12 +8,11 @@ import { Sidebar, type WorkbenchPage } from './Sidebar';
 import { Topbar } from './Topbar';
 import { Overview } from '../pages/Overview';
 import { Income } from '../pages/Income';
-import { Expenses } from '../pages/Expenses';
+import { SpendingPage } from '../pages/spending/SpendingPage';
 import { Investments } from '../pages/Investments';
 import { Liabilities } from '../pages/Liabilities';
 import { Subscriptions } from '../pages/Subscriptions';
 import { Tax } from '../pages/Tax';
-import { Review } from '../pages/Review';
 import { Sources } from '../pages/Sources';
 import { Profile } from '../pages/Profile';
 import { Settings } from '../pages/Settings';
@@ -29,12 +28,11 @@ function WorkbenchShell({ initialPage }: { initialPage: WorkbenchPage }) {
   const pages: Record<WorkbenchPage, React.ReactNode> = {
     overview: <Overview setPage={setPage} />,
     income: <Income />,
-    expenses: <Expenses />,
+    expenses: <SpendingPage />,
     investments: <Investments />,
     liabilities: <Liabilities />,
     subscriptions: <Subscriptions />,
     tax: <Tax />,
-    review: <Review />,
     sources: <Sources />,
     profile: <Profile />,
     settings: <Settings />,

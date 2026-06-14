@@ -1,6 +1,6 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { fys, household, incomeMonths, txns } from '../lib/fixtures';
+import { fySummary, household, incomeMonths, txns } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
@@ -12,7 +12,7 @@ export function Income() {
   const { fy } = useFy();
   const { data } = useDashboard<IncomeDTO>('income', fy);
   const live = data?.hasData ? data : null;
-  const f = fys[fy];
+  const f = fySummary(fy);
 
   const months = live ? live.months : incomeMonths;
   const maxM = Math.max(1, ...months.map((m) => m.salary + m.other));

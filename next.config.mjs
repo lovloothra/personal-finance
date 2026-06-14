@@ -1,7 +1,15 @@
+import { fileURLToPath } from 'node:url';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Pin the workspace root to this project. Without this, Next/Turbopack can
+  // infer the wrong root when a stray lockfile exists higher up the tree
+  // (e.g. ~/package-lock.json), which breaks runtime module resolution.
+  turbopack: {
+    root: fileURLToPath(new URL('.', import.meta.url)),
+  },
   // Native/Node-only modules must not be bundled by the server compiler; they
   // are required at runtime from node_modules instead.
   serverExternalPackages: [

@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="public/assets/logo-wordmark.svg" alt="personal-finance" height="42">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/assets/logo-wordmark-white.svg">
+    <source media="(prefers-color-scheme: light)" srcset="public/assets/logo-wordmark.svg">
+    <img src="public/assets/logo-wordmark.svg" alt="personal-finance" height="42">
+  </picture>
 </p>
 
 <p align="center">

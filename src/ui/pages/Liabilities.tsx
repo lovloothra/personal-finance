@@ -1,7 +1,7 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { fys, insurance, liabilities } from '../lib/fixtures';
-import { Glyph } from '../primitives/Glyph';
+import { fySummary, insurance, liabilities } from '../lib/fixtures';
+import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
@@ -20,7 +20,7 @@ export function Liabilities() {
 
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Liabilities" sub={`${fys[fy].label} · loans, EMIs and insurance detected from statements`} />
+      <PageHead title="Liabilities" sub={`${fySummary(fy).label} · loans, EMIs and insurance detected from statements`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Total outstanding" icon="landmark" val={totalOut > 0 ? <Money amount={totalOut} /> : '—'} sub={totalOut > 0 ? undefined : 'Not in statements'} />
         <StatCard lbl="Monthly EMIs" icon="calendar-clock" val={<Money amount={totalEmi} />} sub={`Across ${loans.length} active loan${loans.length === 1 ? '' : 's'}`} />
@@ -34,7 +34,7 @@ export function Liabilities() {
         <div className="card-list">
           {loans.map((l) => (
             <div key={l.name} className="txn" style={{ cursor: 'default' }}>
-              <Glyph ch={l.glyph} color={l.color} />
+              <MerchantLogo name={l.name} color={l.color} size={38} />
               <div className="txn-mid">
                 <div className="mer">
                   {l.name}
@@ -69,7 +69,7 @@ export function Liabilities() {
         <div className="card-list">
           {insuranceList.map((i) => (
             <div key={i.name} className="txn" style={{ cursor: 'default' }}>
-              <Glyph ch={i.glyph} color={i.color} />
+              <MerchantLogo name={i.name} color={i.color} size={38} />
               <div className="txn-mid">
                 <div className="mer">{i.name}</div>
                 <div className="cat">

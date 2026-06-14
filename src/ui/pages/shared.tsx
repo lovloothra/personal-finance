@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { fys, type Txn } from '../lib/fixtures';
-import { Glyph } from '../primitives/Glyph';
+import { fySummary, type Txn } from '../lib/fixtures';
+import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { ConfidenceBadge } from '../primitives/ConfidenceBadge';
@@ -34,7 +34,7 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
   const open = onOpen ?? drawer.openProv;
   return (
     <div className="txn click" onClick={() => open(t)}>
-      <Glyph ch={t.glyph} color={t.color} />
+      <MerchantLogo name={t.merchant} color={t.color} size={38} />
       <div className="txn-mid">
         <div className="mer">{t.merchant}</div>
         <div className="cat">
@@ -81,7 +81,7 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
 export function FootMeta() {
   const { fy } = useFy();
   const { sources } = useShellMeta();
-  const f = fys[fy];
+  const f = fySummary(fy);
   const coverage = sources ? sources.coverage : f.coverage;
   const runDate = sources ? sources.lastRunDate : f.runDate;
   const messages = sources ? sources.messagesScanned : f.messages;

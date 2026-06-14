@@ -71,7 +71,7 @@ export async function GET(req: Request): Promise<Response> {
         .map((t) => ({ ...t, amount: Math.round(t.amount / 100) })); // paise → rupees
       return json({ signature: detailSig, txns: detail.slice(0, 100) });
     }
-    const rows = db
+    const allRows = db
       .select({
         id: transactions.id,
         rawDescription: transactions.rawDescription,
@@ -83,6 +83,11 @@ export async function GET(req: Request): Promise<Response> {
       .from(transactions)
       .where(eq(transactions.reviewRequired, true))
       .all();
+
+    const q = new URL(req.url).searchParams.get('q')?.trim().toLowerCase() ?? '';
+    const rows = q
+      ? allRows.filter((r) => (r.rawDescription ?? '').toLowerCase().includes(q))
+      : allRows;
 
     const suggestions = db
       .select({
@@ -147,11 +152,13 @@ export async function GET(req: Request): Promise<Response> {
 
     // Amounts leave the API in whole rupees, matching every other dashboard DTO.
     const sorted = [...groups.values()]
-      .sort((a, b) => b.count - a.count || b.total - a.total)
+      .sort((a, b) => b.total - a.total || b.count - a.count)
       .map((g) => ({ ...g, total: Math.round(g.total / 100) }));
 
+    // The category chooser must stay global — it's the picker's full option list,
+    // so it comes from allRows, not the search-filtered subset.
     const cats = new Set<string>(BASE_CATEGORIES);
-    for (const r of rows) if (r.category && r.category !== 'Uncategorised') cats.add(r.category);
+    for (const r of allRows) if (r.category && r.category !== 'Uncategorised') cats.add(r.category);
 
     return json({
       hasData: rows.length > 0,

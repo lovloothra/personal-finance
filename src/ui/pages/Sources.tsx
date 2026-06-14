@@ -1,18 +1,71 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFy } from '../contexts/FyCtx';
-import { fys, runs } from '../lib/fixtures';
+import { fySummary, runs } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
-import { useDashboard, type SourcesDTO } from '../data/useDashboard';
+import { useDashboard, type ReviewDTO, type SourcesDTO } from '../data/useDashboard';
+import { useShellMeta } from '../contexts/ShellMetaCtx';
 
 export function Sources() {
   const { fy } = useFy();
-  const f = fys[fy];
+  const f = fySummary(fy);
   const { data } = useDashboard<SourcesDTO>('sources', fy);
   const [importOpen, setImportOpen] = useState(false);
   const live = data?.hasData ? data : null;
+
+  // Unlock state
+  const [reviewItems, setReviewItems] = useState<ReviewDTO['items']>([]);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const { refresh: refreshShellMeta } = useShellMeta();
+
+  const loadReview = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard/review');
+      const data: ReviewDTO = await res.json();
+      setReviewItems(data.hasData ? data.items : []);
+    } catch {
+      /* keep empty */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadReview();
+  }, [loadReview]);
+
+  const lockedCount = reviewItems.filter((i) => i.kind === 'locked_pdf').length;
+
+  const submitPassword = async () => {
+    if (!password.trim()) return;
+    setUnlocking(true);
+    setFlash(null);
+    try {
+      const res = await fetch('/api/review/unlock', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Unlock failed');
+      setFlash(
+        data.unlocked > 0
+          ? `Unlocked ${data.unlocked} statement${data.unlocked === 1 ? '' : 's'} — ${data.transactions} transactions imported.`
+          : `That password didn't match any locked statements. ${data.stillLocked} still locked.`,
+      );
+      setPassword('');
+      setUnlockOpen(false);
+      await loadReview();
+      void refreshShellMeta();
+    } catch (e) {
+      setFlash(e instanceof Error ? e.message : 'Unlock failed');
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const runList = live ? live.runs : runs;
   const messages = live ? live.messagesScanned : f.messages;
@@ -29,6 +82,53 @@ export function Sources() {
       </PageHead>
 
       {importOpen && <ReimportPanel fy={fy} onClose={() => setImportOpen(false)} />}
+
+      {/* Locked-PDF unlock card */}
+      {lockedCount > 0 && (
+        <div className="card card-pad" style={{ marginBottom: 16, borderColor: 'var(--amber-400)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--amber-50, #fff7ed)', color: 'var(--amber-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon name="lock-keyhole" size={18} />
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{lockedCount} statement{lockedCount === 1 ? '' : 's'} still locked</div>
+              <div className="muted" style={{ fontSize: 12.5 }}>Enter the document password and we&apos;ll try it on every locked statement, on-device.</div>
+            </div>
+            {!unlockOpen ? (
+              <button className="btn btn-primary btn-sm" onClick={() => setUnlockOpen(true)}>Add password</button>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  className="inp"
+                  type="password"
+                  autoFocus
+                  placeholder="Statement password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submitPassword()}
+                  style={{ width: 200 }}
+                />
+                <button className="btn btn-primary btn-sm" disabled={unlocking || !password.trim()} onClick={submitPassword}>
+                  {unlocking ? 'Trying…' : 'Unlock'}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setUnlockOpen(false); setPassword(''); }}>Cancel</button>
+              </div>
+            )}
+          </div>
+          {flash && <div className="muted" style={{ fontSize: 13, marginTop: 10, color: 'var(--fg-1)' }}>{flash}</div>}
+        </div>
+      )}
+
+      {/* When the last statement clears, the amber card collapses — keep the
+          success message visible in its own banner. */}
+      {flash && lockedCount === 0 && (
+        <div className="card card-pad" style={{ marginBottom: 16, borderColor: 'var(--mint-500)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="check-check" size={16} color="var(--mint-600)" />
+            <span style={{ fontSize: 13.5 }}>{flash}</span>
+          </div>
+        </div>
+      )}
 
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Messages scanned" icon="mail" val={messages.toLocaleString('en-IN')} />

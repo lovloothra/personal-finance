@@ -76,6 +76,22 @@ function flowSum(db: DB, fy: string, flow: Flow): number {
   return row?.total ?? 0;
 }
 
+/** Distinct FY keys that have at least one transaction, newest first. */
+export function availableFys(db: DB): string[] {
+  return db
+    .selectDistinct({ fy: transactions.fyKey })
+    .from(transactions)
+    .orderBy(desc(transactions.fyKey))
+    .all()
+    .map((r) => r.fy)
+    .filter((fy): fy is string => Boolean(fy));
+}
+
+/** The newest FY that has data, or null on a fresh DB. */
+export function latestFyWithData(db: DB): string | null {
+  return availableFys(db)[0] ?? null;
+}
+
 function savingsRate(incomeR: number, expenseR: number): number {
   return incomeR > 0 ? Math.round(((incomeR - expenseR) / incomeR) * 100) : 0;
 }
