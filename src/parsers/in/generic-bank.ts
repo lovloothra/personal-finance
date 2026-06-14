@@ -57,7 +57,7 @@ function extractCounterparty(desc: string): string | null {
   return null;
 }
 
-function extractAccountLast4(text: string): string | undefined {
+export function extractAccountLast4(text: string): string | undefined {
   const header = text.split('\n').slice(0, 20).join('\n');
   const m = ACCOUNT_HEADER_RE.exec(header);
   if (!m) return undefined;
