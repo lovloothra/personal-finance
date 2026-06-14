@@ -13,7 +13,6 @@ import { Investments } from '../pages/Investments';
 import { Liabilities } from '../pages/Liabilities';
 import { Subscriptions } from '../pages/Subscriptions';
 import { Tax } from '../pages/Tax';
-import { Review } from '../pages/Review';
 import { Sources } from '../pages/Sources';
 import { Profile } from '../pages/Profile';
 import { Settings } from '../pages/Settings';
@@ -34,7 +33,6 @@ function WorkbenchShell({ initialPage }: { initialPage: WorkbenchPage }) {
     liabilities: <Liabilities />,
     subscriptions: <Subscriptions />,
     tax: <Tax />,
-    review: <Review />,
     sources: <Sources />,
     profile: <Profile />,
     settings: <Settings />,

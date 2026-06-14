@@ -188,7 +188,7 @@ export function Overview({ setPage }: OverviewProps) {
           </div>
         </div>
         <div className="stack">
-          <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('review')}>
+          <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('expenses')}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: 0 }}>Needs your eye</h3>
               <span className={`badge ${review && review.total === 0 ? 'mint' : 'cau'}`}>
@@ -203,7 +203,7 @@ export function Overview({ setPage }: OverviewProps) {
                 : '2 locked PDFs, 14 uncategorised merchants, 6 low-confidence and 1 profile gap. Clear them to push coverage past 98%.'}
             </p>
             <span className="link" style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 13, marginTop: 8, display: 'inline-block' }}>
-              Open review queue →
+              Go to Spending →
             </span>
           </div>
           <div className="card card-pad">

@@ -11,7 +11,6 @@ export type WorkbenchPage =
   | 'liabilities'
   | 'subscriptions'
   | 'tax'
-  | 'review'
   | 'sources'
   | 'profile'
   | 'settings';
@@ -51,7 +50,6 @@ export function Sidebar({ page, setPage }: SidebarProps) {
   ];
 
   const EVIDENCE: NavItem[] = [
-    { id: 'review', label: 'Review queue', icon: 'inbox', count: reviewCount > 0 ? reviewCount : undefined, alert: true },
     { id: 'sources', label: 'Sources', icon: 'mail-search' },
     { id: 'profile', label: 'Profile', icon: 'user-round' },
     { id: 'settings', label: 'Settings', icon: 'settings' },

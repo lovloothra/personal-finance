@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { Icon } from '../primitives/Icon';
 import { FootMeta, PageHead } from './shared';
 import { InstitutionPicker } from '../onboarding/InstitutionPicker';
+import type { ReviewDTO } from '../data/useDashboard';
 
 type FieldType = 'text' | 'date' | 'number' | 'select' | 'institution';
 
@@ -221,6 +222,7 @@ export function Profile() {
   const [sections, setSections] = useState<SectionView[]>([]);
   const [overall, setOverall] = useState(0);
   const [editing, setEditing] = useState<SectionView | null>(null);
+  const [profileGaps, setProfileGaps] = useState<ReviewDTO['items']>([]);
 
   const load = useCallback(async () => {
     try {
@@ -237,9 +239,37 @@ export function Profile() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    fetch('/api/dashboard/review')
+      .then((r) => r.json())
+      .then((data: ReviewDTO) => {
+        setProfileGaps(data.hasData ? data.items.filter((i) => i.kind === 'missing_profile') : []);
+      })
+      .catch(() => { /* leave empty */ });
+  }, []);
+
   return (
     <div className="content-wrap fade-in">
       <PageHead title="Profile" sub="The more we know, the more we can recognise. All of it stays local." />
+
+      {/* Profile-gap nudge banner */}
+      {profileGaps.length > 0 && (
+        <div className="card card-pad" style={{ marginBottom: 16, borderColor: 'var(--amber-400)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <Icon name="info" size={16} color="var(--amber-600)" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>A few profile gaps are affecting classification</div>
+              {profileGaps.map((item) => (
+                <div key={item.id} style={{ fontSize: 13, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 500 }}>{item.title}</span>
+                  {item.desc && <span className="muted" style={{ marginLeft: 6 }}>{item.desc}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card card-pad" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
         <div className="ring" style={{ ['--p' as string]: overall, width: 56, height: 56 } as CSSProperties}>
           <i style={{ width: 44, height: 44, fontSize: 13 }}>{overall}%</i>
