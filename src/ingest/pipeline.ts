@@ -197,7 +197,23 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       { institutionId: att.providerId, accountLast4: statement.accountLast4, docType: statement.docType },
       ownAccounts,
     );
+    // Surface documents whose account could not be identified so the user can
+    // assign them manually. ownAccountId/ownAccountKind remain null — that is
+    // intentional; we just create a review item to prompt the user.
+    if (docAccount.needsAssignment) {
+      addReview(
+        'account_unresolved',
+        docId,
+        'Statement account not identified',
+        'No account/card number found in the statement header; assign this statement\'s account manually.',
+        'warn',
+      );
+    }
+
     if (docAccount.stubCreated && docAccount.ownAccountId) {
+      // Note: att.providerId may be null here, so the stub's institutionId can
+      // also be null. Null-provider stubs are not unified across ingest runs —
+      // they will be re-minted on each run until the user assigns a provider.
       const stub = { id: docAccount.ownAccountId, institutionId: att.providerId, last4: statement.accountLast4 ?? null };
       if (docAccount.ownAccountKind === 'card') db.insert(accountsCard).values(stub).onConflictDoNothing().run();
       else db.insert(accountsBank).values(stub).onConflictDoNothing().run();
