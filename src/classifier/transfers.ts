@@ -109,7 +109,11 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
         Math.abs(c.amount) === Math.abs(d.amount) &&
         within(c.date, d.date, windowDays) &&
         !(d.documentId && c.documentId && d.documentId === c.documentId) &&
-        ((!!d.ownAccountId && !!c.ownAccountId && d.ownAccountId !== c.ownAccountId) ||
+        // Relaxed keyword-less pairing: two different own accounts with no
+        // resolved merchant on either leg. Requiring bare legs prevents
+        // coincidental equal-amount expense/income (e.g. rent debit from HDFC
+        // and salary credit into ICICI) from being mislinked as a transfer.
+        ((!!d.ownAccountId && !!c.ownAccountId && d.ownAccountId !== c.ownAccountId && !d.merchant && !c.merchant) ||
           (hasExplicitSignal(d, selfNames) && hasExplicitSignal(c, selfNames))),
     );
     if (match) {

@@ -107,3 +107,21 @@ test('two unrelated equal-amount txns with only ownAccountId (no signal) do NOT 
   assert.equal(transferIds.has('d1'), false);
   assert.equal(transferIds.has('c1'), false);
 });
+
+test('coincidental equal-amount expense/income across DIFFERENT own accounts do NOT pair', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -50000_00, rawDescription: 'RENT PAYMENT', ownAccountId: 'acc_hdfc', merchant: 'Landlord', documentId: 'doc_hdfc' },
+    { id: 'c1', date: '2025-10-02', amount: 50000_00, rawDescription: 'SALARY CREDIT', ownAccountId: 'acc_icici', merchant: 'Acme Corp', documentId: 'doc_icici' },
+  ]);
+  assert.equal(transferIds.has('d1'), false);
+  assert.equal(transferIds.has('c1'), false);
+});
+
+test('bare equal-amount debit/credit across different own accounts DO pair (keyword-less transfer)', () => {
+  const { transferIds, links } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_icici', documentId: 'doc_a' },
+    { id: 'c1', date: '2025-10-02', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_hdfc', documentId: 'doc_b' },
+  ]);
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+  assert.equal(links[0].kind, 'account_transfer');
+});
