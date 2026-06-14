@@ -125,3 +125,32 @@ test('bare equal-amount debit/credit across different own accounts DO pair (keyw
   assert.ok(transferIds.has('d1') && transferIds.has('c1'));
   assert.equal(links[0].kind, 'account_transfer');
 });
+
+test('large round-number credit with no merchant/counterparty is suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-11-02', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank' },
+  ]);
+  assert.ok(suspectedIds.has('c1'));
+});
+
+test('round credit that is already a confirmed transfer is not also suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'x', ownAccountId: 'a', documentId: 'd1doc' },
+    { id: 'c1', date: '2025-10-01', amount: 500000_00, rawDescription: 'x', ownAccountId: 'b', documentId: 'd2' },
+  ]);
+  assert.equal(suspectedIds.has('c1'), false);
+});
+
+test('non-round credit is not suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-11-02', amount: 137_50, rawDescription: 'refund' },
+  ]);
+  assert.equal(suspectedIds.has('c1'), false);
+});
+
+test('credit with a resolved merchant is not suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-11-02', amount: 500000_00, rawDescription: 'salary', merchant: 'Acme Corp' },
+  ]);
+  assert.equal(suspectedIds.has('c1'), false);
+});

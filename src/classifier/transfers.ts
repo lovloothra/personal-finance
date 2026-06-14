@@ -20,6 +20,12 @@
 /** Explicit transfer rails (not generic UPI, which is mostly real spending). */
 const TRANSFER_RE = /\b(neft|imps|rtgs|inft|fund(?:s)?\s*(?:trf|transfer)|funds? trf|self|own a\/?c|own account|trf to|transfer to|cc payment|credit card payment|card payment|payment received|bill ?desk|billpay|auto ?pay)\b|cred\.club/i;
 
+/** Suspected-transfer thresholds (one tunable place). A credit at/above the
+ * minimum that is an exact multiple of the step, with no merchant and no
+ * resolved counterparty, is quarantined rather than counted as income. */
+const ROUND_TRANSFER_MIN_PAISE = 100_000 * 100; // ₹1,00,000
+const ROUND_TRANSFER_STEP_PAISE = 10_000 * 100; // ₹10,000
+
 /** Signals specific to credit-card bill payments (safe to mark single-sided).
  * cred.club is CRED's card-bill VPA — a debit there is a card payment by
  * definition (CRED's utility/rent VPAs use different handles). */
@@ -48,6 +54,7 @@ export interface TransferLink {
 
 export interface TransferResult {
   transferIds: Set<string>;
+  suspectedIds: Set<string>;
   links: TransferLink[];
 }
 
@@ -95,6 +102,7 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
   const windowDays = opts.windowDays ?? 4;
   const selfNames = opts.selfNames ?? [];
   const transferIds = new Set<string>();
+  const suspectedIds = new Set<string>();
   const links: TransferLink[] = [];
 
   const debits = txns.filter((t) => t.amount < 0 && isCandidate(t, selfNames));
@@ -145,5 +153,16 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
     }
   }
 
-  return { transferIds, links };
+  // 4. Suspected-transfer heuristic: large round-number credits with no
+  //    merchant and no resolved counterparty, not already confirmed transfers.
+  for (const c of txns.filter((t) => t.amount > 0)) {
+    if (transferIds.has(c.id)) continue;
+    if (c.merchant) continue;
+    if (c.counterpartyKind && c.counterpartyKind !== 'unknown') continue;
+    if (c.amount >= ROUND_TRANSFER_MIN_PAISE && c.amount % ROUND_TRANSFER_STEP_PAISE === 0) {
+      suspectedIds.add(c.id);
+    }
+  }
+
+  return { transferIds, suspectedIds, links };
 }
