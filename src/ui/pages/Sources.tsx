@@ -119,6 +119,17 @@ export function Sources() {
         </div>
       )}
 
+      {/* When the last statement clears, the amber card collapses — keep the
+          success message visible in its own banner. */}
+      {flash && lockedCount === 0 && (
+        <div className="card card-pad" style={{ marginBottom: 16, borderColor: 'var(--mint-500)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="check-check" size={16} color="var(--mint-600)" />
+            <span style={{ fontSize: 13.5 }}>{flash}</span>
+          </div>
+        </div>
+      )}
+
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Messages scanned" icon="mail" val={messages.toLocaleString('en-IN')} />
         <StatCard
