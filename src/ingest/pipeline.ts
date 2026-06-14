@@ -14,7 +14,8 @@ import 'server-only';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks } from '@/db/schema';
+import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard } from '@/db/schema';
+import { resolveOwnAccount, type OwnAccountRow } from './account-reconcile';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
@@ -68,6 +69,8 @@ interface PendingTxn {
   amount: number;
   currency: string;
   rawDescription: string;
+  ownAccountId: string | null;
+  ownAccountKind: 'bank' | 'card' | null;
 }
 
 export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } = {}): Promise<IngestResult> {
@@ -84,6 +87,13 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   // Append any passwords the user added manually (tried first — they're exact).
   const userPasswords = db.select({ v: documentPasswords.value }).from(documentPasswords).all().map((r) => r.v);
   candidates = [...userPasswords, ...candidates];
+
+  // Load all registered own accounts once; stubs created during this run
+  // are appended so subsequent docs in the same batch can match them.
+  const ownAccounts: OwnAccountRow[] = [
+    ...db.select({ id: accountsBank.id, institutionId: accountsBank.institutionId, last4: accountsBank.last4 }).from(accountsBank).all().map((a) => ({ ...a, kind: 'bank' as const })),
+    ...db.select({ id: accountsCard.id, institutionId: accountsCard.institutionId, last4: accountsCard.last4 }).from(accountsCard).all().map((a) => ({ ...a, kind: 'card' as const })),
+  ];
 
   // Clear transfer links up front — they reference transactions that the
   // per-attachment cleanup may delete, and they're rebuilt at the end.
@@ -181,6 +191,19 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     const statement = parseStatement(text, { providerId, docType: 'bank_statement' });
     // Deterministic doc id keyed to the attachment so re-ingest is idempotent.
     const docId = `doc_${att.id}`;
+
+    // Resolve (or mint) the own account for this document.
+    const docAccount = resolveOwnAccount(
+      { institutionId: att.providerId, accountLast4: statement.accountLast4, docType: statement.docType },
+      ownAccounts,
+    );
+    if (docAccount.stubCreated && docAccount.ownAccountId) {
+      const stub = { id: docAccount.ownAccountId, institutionId: att.providerId, last4: statement.accountLast4 ?? null };
+      if (docAccount.ownAccountKind === 'card') db.insert(accountsCard).values(stub).onConflictDoNothing().run();
+      else db.insert(accountsBank).values(stub).onConflictDoNothing().run();
+      ownAccounts.push({ ...stub, kind: docAccount.ownAccountKind! });
+    }
+
     // Clear any prior output for this attachment before re-inserting.
     db.delete(transactions).where(eq(transactions.documentId, docId)).run();
     db.delete(parsedDocuments).where(eq(parsedDocuments.id, docId)).run();
@@ -194,12 +217,15 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
         docType: 'bank_statement',
         rawText: text.slice(0, 20000),
         status: statement.txns.length ? 'parsed' : 'partial',
+        accountLast4: statement.accountLast4 ?? null,
+        ownAccountId: docAccount.ownAccountId,
+        ownAccountKind: docAccount.ownAccountKind,
       })
       .run();
     docCount++;
 
     statement.txns.forEach((t, j) => {
-      parsed.push({ id: `txn_${docId}_${j}`, docId, providerId: att.providerId, messageId: att.messageId, date: t.date, amount: t.amount, currency: t.currency, rawDescription: t.rawDescription });
+      parsed.push({ id: `txn_${docId}_${j}`, docId, providerId: att.providerId, messageId: att.messageId, date: t.date, amount: t.amount, currency: t.currency, rawDescription: t.rawDescription, ownAccountId: docAccount.ownAccountId, ownAccountKind: docAccount.ownAccountKind });
     });
     setStatus(att.id, 'extracted', unlockMethod ? { locked: true, unlockMethod } : {});
     onProgress({ phase: 'parse', message: `Parsed ${att.filename ?? 'statement'} — ${statement.txns.length} transactions`, documents: docCount });
@@ -299,6 +325,8 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           projectId: final.projectId ?? null,
           taxSection: final.taxSection ?? null,
           fyKey,
+          ownAccountId: meta.ownAccountId ?? null,
+          ownAccountKind: meta.ownAccountKind ?? null,
         })
         .onConflictDoUpdate({
           target: transactions.id,
@@ -318,6 +346,8 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
             projectId: final.projectId ?? null,
             taxSection: final.taxSection ?? null,
             fyKey,
+            ownAccountId: meta.ownAccountId ?? null,
+            ownAccountKind: meta.ownAccountKind ?? null,
           },
         })
         .run();
