@@ -17,7 +17,7 @@ test('signals a stub when institution+last4 known but no account matches', () =>
   assert.equal(r.stubCreated, true);
   assert.equal(r.ownAccountKind, 'bank');
   assert.equal(r.needsAssignment, false);
-  assert.ok(r.ownAccountId.startsWith('acc_'));
+  assert.ok(r.ownAccountId?.startsWith('acc_'));
 });
 
 test('flags for manual assignment when no last4 in header', () => {
