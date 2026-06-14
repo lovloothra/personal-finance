@@ -63,7 +63,7 @@ export function GroupRow({ group, categories, spending, focused }: {
             <span style={{ fontSize: 13, fontWeight: 600 }}>{sug.merchant} → {sug.category}{sug.subcategory ? ` / ${sug.subcategory}` : ''}</span>
             <span className="muted" style={{ fontSize: 12.5 }}>{Math.round(sug.confidenceScore * 100)}% {sug.confidence}, {sug.evidenceCount} reviewed</span>
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={accept}>Accept</button>
-            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => spending.rejectSuggestion(sug.id)}>Reject</button>
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => spending.rejectSuggestion(sug.id).catch((e) => setError(e instanceof Error ? e.message : 'Reject failed'))}>Reject</button>
           </div>
         )}
 
