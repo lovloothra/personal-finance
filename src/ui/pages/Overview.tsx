@@ -1,7 +1,7 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
 import { categories, fySummary, household, txns, type Txn } from '../lib/fixtures';
-import { Glyph } from '../primitives/Glyph';
+import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
@@ -210,7 +210,7 @@ export function Overview({ setPage }: OverviewProps) {
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '0 0 12px' }}>Top merchants</h3>
             {merchants.map((m) => (
               <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
-                <Glyph ch={m.glyph} color={m.color} size={30} />
+                <MerchantLogo name={m.name} color={m.color} size={30} />
                 <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.name}</span>
                 <span style={{ marginLeft: 'auto' }}>
                   <Money amount={m.amt} />

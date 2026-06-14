@@ -4,7 +4,7 @@ import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
 import { fySummary, type Txn } from '../lib/fixtures';
-import { Glyph } from '../primitives/Glyph';
+import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { ConfidenceBadge } from '../primitives/ConfidenceBadge';
@@ -34,7 +34,7 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
   const open = onOpen ?? drawer.openProv;
   return (
     <div className="txn click" onClick={() => open(t)}>
-      <Glyph ch={t.glyph} color={t.color} />
+      <MerchantLogo name={t.merchant} color={t.color} size={38} />
       <div className="txn-mid">
         <div className="mer">{t.merchant}</div>
         <div className="cat">

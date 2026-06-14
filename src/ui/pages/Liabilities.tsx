@@ -1,7 +1,7 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
 import { fySummary, insurance, liabilities } from '../lib/fixtures';
-import { Glyph } from '../primitives/Glyph';
+import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead } from './shared';
@@ -34,7 +34,7 @@ export function Liabilities() {
         <div className="card-list">
           {loans.map((l) => (
             <div key={l.name} className="txn" style={{ cursor: 'default' }}>
-              <Glyph ch={l.glyph} color={l.color} />
+              <MerchantLogo name={l.name} color={l.color} size={38} />
               <div className="txn-mid">
                 <div className="mer">
                   {l.name}
@@ -69,7 +69,7 @@ export function Liabilities() {
         <div className="card-list">
           {insuranceList.map((i) => (
             <div key={i.name} className="txn" style={{ cursor: 'default' }}>
-              <Glyph ch={i.glyph} color={i.color} />
+              <MerchantLogo name={i.name} color={i.color} size={38} />
               <div className="txn-mid">
                 <div className="mer">{i.name}</div>
                 <div className="cat">

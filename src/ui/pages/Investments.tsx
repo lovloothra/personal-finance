@@ -3,7 +3,7 @@ import { useFy } from '../contexts/FyCtx';
 import { useMask } from '../contexts/MaskCtx';
 import { fySummary, investments } from '../lib/fixtures';
 import { inr } from '../lib/format';
-import { Glyph } from '../primitives/Glyph';
+import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
@@ -59,7 +59,7 @@ export function Investments() {
                   <tr key={i.platform}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Glyph ch={i.glyph} color={i.color} size={32} />
+                        <MerchantLogo name={i.platform} color={i.color} size={32} />
                         <b>{i.platform}</b>
                       </div>
                     </td>
