@@ -185,3 +185,19 @@ Card Statement Date: 31/03/2026
   assert.equal(st.txns.length, 1);
   assert.match(st.txns[0].rawDescription, /DR\. REDDYS/i);
 });
+
+test('extracts masked account last4 from the statement header', () => {
+  const text = [
+    'HDFC BANK STATEMENT',
+    'Account No: XXXXXXXX7702',
+    '01/03/2025 UPI/zomato 250.00 9,750.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, '7702');
+});
+
+test('extracts card last4 written with spaces', () => {
+  const text = ['Card Number 4321 5678 9012 1234', '01/03/2025 SWIGGY 500.00'].join('\n');
+  const out = parseStatement(text, { providerId: 'hdfc-bank-cards', docType: 'card_statement' });
+  assert.equal(out.accountLast4, '1234');
+});

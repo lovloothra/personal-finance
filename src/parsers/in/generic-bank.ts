@@ -38,6 +38,18 @@ const NON_TXN_RE =
 const CREDIT_RE = /\b(cr|credit|refund|reversal|reversed|cashback|received|repayment)\b|\(cr\)|\+\s*$/i;
 const DEBIT_RE = /\b(dr|debit)\b|\(dr\)/i;
 
+// Account/card number in a header line: a masked or full run whose last group
+// is 4 digits. Matches "XXXXXX7702", "4321 5678 9012 1234", "A/c No 0011...7702".
+const ACCOUNT_HEADER_RE =
+  /\b(?:a\/?c|acc(?:oun)?t|card)\s*(?:no\.?|number|#)?\s*[:\-]?\s*((?:[xX*\d][xX*\d \-]{2,})\d{4})\b/i;
+
+function extractAccountLast4(text: string): string | undefined {
+  const m = ACCOUNT_HEADER_RE.exec(text);
+  if (!m) return undefined;
+  const digits = m[1].replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : undefined;
+}
+
 /** Parse an Indian-formatted amount string to paise. */
 export function amountToPaise(s: string): number {
   const n = Number(s.replace(/,/g, ''));
@@ -222,5 +234,5 @@ export function parseGenericBank(text: string, ctx: ParseContext): ParsedStateme
     txns.push({ date: r.date, amount: signed, currency: 'INR', rawDescription: description, balance });
   }
 
-  return { providerId: ctx.providerId, docType: ctx.docType, txns, unparsedLines };
+  return { providerId: ctx.providerId, docType: ctx.docType, accountLast4: extractAccountLast4(text), txns, unparsedLines };
 }
