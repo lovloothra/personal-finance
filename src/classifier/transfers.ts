@@ -61,6 +61,18 @@ function selfNameHit(desc: string, selfNames: string[]): boolean {
   return selfNames.some((n) => n.length >= 3 && d.includes(n.toLowerCase()));
 }
 
+/** A genuine transfer signal on a single txn, independent of account stamping.
+ * (ownAccountId alone is NOT a signal — it's on nearly every txn now.) */
+function hasExplicitSignal(t: LinkTxn, selfNames: string[]): boolean {
+  return (
+    t.flow === 'transfer' ||
+    t.counterpartyKind === 'own_account' ||
+    t.counterpartyKind === 'known_own' ||
+    TRANSFER_RE.test(t.rawDescription) ||
+    selfNameHit(t.rawDescription, selfNames)
+  );
+}
+
 function isCandidate(t: LinkTxn, selfNames: string[]): boolean {
   return (
     t.flow === 'transfer' ||
@@ -97,9 +109,8 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
         Math.abs(c.amount) === Math.abs(d.amount) &&
         within(c.date, d.date, windowDays) &&
         !(d.documentId && c.documentId && d.documentId === c.documentId) &&
-        (!!d.ownAccountId && !!c.ownAccountId
-          ? d.ownAccountId !== c.ownAccountId // both own accounts: relaxed, but not the same account
-          : TRANSFER_RE.test(d.rawDescription) || TRANSFER_RE.test(c.rawDescription)),
+        ((!!d.ownAccountId && !!c.ownAccountId && d.ownAccountId !== c.ownAccountId) ||
+          (hasExplicitSignal(d, selfNames) && hasExplicitSignal(c, selfNames))),
     );
     if (match) {
       usedCredit.add(match.id);

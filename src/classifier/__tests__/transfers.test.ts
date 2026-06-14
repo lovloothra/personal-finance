@@ -80,3 +80,30 @@ test('own credit with no matching own debit is NOT auto-paired', () => {
   ]);
   assert.equal(transferIds.has('c1'), false);
 });
+
+test('self-name-only pair (no keyword, no ownAccountId) still links', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -25000_00, rawDescription: 'UPI TO LOV LOOTHRA' },
+    { id: 'c1', date: '2025-10-02', amount: 25000_00, rawDescription: 'UPI FROM LOV LOOTHRA', documentId: 'doc2' },
+  ], { selfNames: ['lov', 'loothra'] });
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+});
+
+test('flow=transfer-only pair (no keyword) still links', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -25000_00, rawDescription: 'PLAIN UPI XYZ', flow: 'transfer' },
+    { id: 'c1', date: '2025-10-02', amount: 25000_00, rawDescription: 'PLAIN UPI ABC', flow: 'transfer', documentId: 'doc2' },
+  ]);
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+});
+
+test('two unrelated equal-amount txns with only ownAccountId (no signal) do NOT falsely pair', () => {
+  // a plain expense and a plain income, each merely stamped with an account,
+  // no transfer signal on either, SAME-amount coincidence within window.
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500_00, rawDescription: 'SWIGGY ORDER', ownAccountId: 'acc_a', merchant: 'Swiggy' },
+    { id: 'c1', date: '2025-10-02', amount: 500_00, rawDescription: 'CASHFREE PAYOUT', ownAccountId: 'acc_a', documentId: 'doc2', merchant: 'Cashfree' },
+  ]);
+  assert.equal(transferIds.has('d1'), false);
+  assert.equal(transferIds.has('c1'), false);
+});
