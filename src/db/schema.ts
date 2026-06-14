@@ -355,7 +355,7 @@ export const transactions = sqliteTable(
     ownAccountId: text('own_account_id'),
     ownAccountKind: text('own_account_kind').$type<'bank' | 'card'>(),
     counterpartyRaw: text('counterparty_raw'),
-    counterpartyId: text('counterparty_id'),
+    counterpartyId: text('counterparty_id').references(() => counterparties.id),
     counterpartyKind: text('counterparty_kind').$type<'own_account' | 'known_own' | 'external' | 'unknown'>(),
     suspectedTransfer: integer('suspected_transfer', { mode: 'boolean' }).default(false),
     fyKey: text('fy_key'),
