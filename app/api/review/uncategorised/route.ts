@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { classificationPredictions, gmailMessages, localModelSuggestions, transactions } from '@/db/schema';
+import { accountsBank, accountsCard, classificationPredictions, gmailMessages, localModelSuggestions, transactions } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
 import { json, badRequest } from '@/server/api';
 
@@ -24,6 +24,15 @@ interface Group {
   category: string | null;
   firstDate: string;
   lastDate: string;
+  // Account-aware fields (null when unknown / not yet wired)
+  ownAccountId: string | null;
+  ownAccountKind: 'bank' | 'card' | null;
+  accountNickname: string | null;
+  accountLast4: string | null;
+  institutionId: string | null;
+  counterpartyRaw: string | null;
+  counterpartyKind: 'own_account' | 'known_own' | 'external' | 'unknown' | null;
+  suspectedTransfer: boolean;
   localSuggestion?: {
     id: string;
     merchant: string;
@@ -79,10 +88,31 @@ export async function GET(req: Request): Promise<Response> {
         txnDate: transactions.txnDate,
         flow: transactions.flow,
         category: transactions.category,
+        ownAccountId: transactions.ownAccountId,
+        ownAccountKind: transactions.ownAccountKind,
+        counterpartyRaw: transactions.counterpartyRaw,
+        counterpartyKind: transactions.counterpartyKind,
+        suspectedTransfer: transactions.suspectedTransfer,
       })
       .from(transactions)
       .where(eq(transactions.reviewRequired, true))
       .all();
+
+    // Pre-fetch all relevant bank and card accounts for account-chip lookup.
+    const bankAccounts = db.select({
+      id: accountsBank.id,
+      nickname: accountsBank.nickname,
+      last4: accountsBank.last4,
+      institutionId: accountsBank.institutionId,
+    }).from(accountsBank).all();
+    const cardAccounts = db.select({
+      id: accountsCard.id,
+      nickname: accountsCard.nickname,
+      last4: accountsCard.last4,
+      institutionId: accountsCard.institutionId,
+    }).from(accountsCard).all();
+    const bankById = new Map(bankAccounts.map((a) => [a.id, a]));
+    const cardById = new Map(cardAccounts.map((a) => [a.id, a]));
 
     const q = new URL(req.url).searchParams.get('q')?.trim().toLowerCase() ?? '';
     const rows = q
@@ -134,7 +164,23 @@ export async function GET(req: Request): Promise<Response> {
         if (r.txnDate < g.firstDate) g.firstDate = r.txnDate;
         if (r.txnDate > g.lastDate) g.lastDate = r.txnDate;
         if (!g.localSuggestion && localSuggestion) g.localSuggestion = localSuggestion;
+        // Propagate suspected-transfer flag if any txn in the group has it.
+        if (r.suspectedTransfer) g.suspectedTransfer = true;
       } else {
+        // Resolve account info from pre-fetched maps.
+        let accountNickname: string | null = null;
+        let accountLast4: string | null = null;
+        let institutionId: string | null = null;
+        if (r.ownAccountId && r.ownAccountKind) {
+          const acct = r.ownAccountKind === 'bank'
+            ? bankById.get(r.ownAccountId)
+            : cardById.get(r.ownAccountId);
+          if (acct) {
+            accountNickname = acct.nickname ?? null;
+            accountLast4 = acct.last4 ?? null;
+            institutionId = acct.institutionId ?? null;
+          }
+        }
         groups.set(sig, {
           signature: sig,
           sample: desc.trim().slice(0, 80),
@@ -145,6 +191,14 @@ export async function GET(req: Request): Promise<Response> {
           category: r.category === 'Uncategorised' ? null : r.category,
           firstDate: r.txnDate,
           lastDate: r.txnDate,
+          ownAccountId: r.ownAccountId ?? null,
+          ownAccountKind: r.ownAccountKind ?? null,
+          accountNickname,
+          accountLast4,
+          institutionId,
+          counterpartyRaw: r.counterpartyRaw ?? null,
+          counterpartyKind: r.counterpartyKind ?? null,
+          suspectedTransfer: r.suspectedTransfer ?? false,
           localSuggestion,
         });
       }

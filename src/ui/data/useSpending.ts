@@ -12,6 +12,15 @@ export interface UncatGroup {
   category: string | null;
   firstDate: string;
   lastDate: string;
+  // Account-aware fields added in feat/account-aware-transactions
+  ownAccountId?: string | null;
+  ownAccountKind?: 'bank' | 'card' | null;
+  accountNickname?: string | null;
+  accountLast4?: string | null;
+  institutionId?: string | null;
+  counterpartyRaw?: string | null;
+  counterpartyKind?: 'own_account' | 'known_own' | 'external' | 'unknown' | null;
+  suspectedTransfer?: boolean;
   localSuggestion?: {
     id: string; merchant: string; category: string; subcategory: string | null;
     confidence: string; confidenceScore: number; reason: string; evidenceCount: number;
