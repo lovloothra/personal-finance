@@ -107,11 +107,9 @@ export function GroupRow({ group, spending, focused }: {
   };
 
   /**
-   * "Mark as transfer" — uses the existing /api/review/assign endpoint with
-   * category='Transfer', which sets flow='transfer' and isInternalTransfer=true
-   * via flowFor(). The suspectedTransfer flag on the DB row is NOT cleared by
-   * this path (assign route doesn't touch that column), but reviewRequired is
-   * set to false so it leaves the triage queue.
+   * "Mark as transfer" — calls /api/review/assign with category='Transfer',
+   * which sets flow='transfer', isInternalTransfer=true, and clears
+   * suspectedTransfer so the row is counted per its new flow.
    */
   const markAsTransfer = async () => {
     setBusy(true); setError(null);
@@ -120,11 +118,9 @@ export function GroupRow({ group, spending, focused }: {
   };
 
   /**
-   * "It's income" — uses the existing /api/review/assign endpoint with
-   * category='Income'. flowFor('Income', positive_amount) returns 'income'.
-   * suspectedTransfer is not cleared on the DB row by this path (same
-   * limitation as above), but the transaction leaves review and is counted
-   * as income in all rollups.
+   * "It's income" — calls /api/review/assign with category='Income',
+   * which sets flow='income' and clears suspectedTransfer so the row is
+   * counted as income in all rollups.
    */
   const markAsIncome = async () => {
     setBusy(true); setError(null);

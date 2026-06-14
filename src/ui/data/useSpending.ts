@@ -28,7 +28,7 @@ export interface UncatGroup {
 }
 export interface UncatDTO {
   hasData: boolean; totalTransactions: number; totalGroups: number;
-  groups: UncatGroup[]; categories: string[];
+  groups: UncatGroup[];
 }
 
 export function useSpending(fy: string) {

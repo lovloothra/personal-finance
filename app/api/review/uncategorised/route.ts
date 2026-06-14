@@ -7,12 +7,6 @@ import { json, badRequest } from '@/server/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const BASE_CATEGORIES = [
-  'Food Delivery', 'Quick Commerce', 'Groceries', 'Dining', 'Travel', 'Transport', 'Shopping',
-  'Utilities', 'Housing', 'Loan', 'Insurance', 'Investment', 'Health', 'Fitness', 'Education',
-  'Entertainment', 'Ott', 'Subscriptions', 'Software', 'Salary', 'Income', 'Refund', 'Transfer',
-  'Credit card payment', 'Cash', 'Household', 'Fees & Charges', 'Gifts & Donations', 'Personal Care',
-];
 
 interface Group {
   signature: string;
@@ -209,17 +203,11 @@ export async function GET(req: Request): Promise<Response> {
       .sort((a, b) => b.total - a.total || b.count - a.count)
       .map((g) => ({ ...g, total: Math.round(g.total / 100) }));
 
-    // The category chooser must stay global — it's the picker's full option list,
-    // so it comes from allRows, not the search-filtered subset.
-    const cats = new Set<string>(BASE_CATEGORIES);
-    for (const r of allRows) if (r.category && r.category !== 'Uncategorised') cats.add(r.category);
-
     return json({
       hasData: rows.length > 0,
       totalTransactions: rows.length,
       totalGroups: sorted.length,
       groups: sorted.slice(0, 150),
-      categories: [...cats].sort(),
     });
   } catch (err) {
     return badRequest(err instanceof Error ? err.message : 'Failed to list uncategorised transactions.', 500);

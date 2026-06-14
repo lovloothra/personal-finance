@@ -8,7 +8,7 @@ import { rebuildClassificationReviewItems } from '@/ingest/review-items';
 import type { Flow } from '@/classifier/types';
 import { json, badRequest, assertSameOrigin } from '@/server/api';
 import { recordFeedbackExamples } from '@/intelligence/store';
-import { TAXONOMY } from '@/classifier/taxonomy';
+import { TAXONOMY, normalizeCategory } from '@/classifier/taxonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -111,6 +111,10 @@ export async function POST(req: Request): Promise<Response> {
     const matched = pending.filter((t) => signature(t.rawDescription ?? '') === sig);
     if (matched.length === 0) return badRequest('No review-pending transactions match that signature.');
 
+    // Normalize once; flowFor still receives the original `category` so legacy
+    // strings like 'Transfer' and 'Income' are handled by its fallback rules.
+    const canonicalCategory = normalizeCategory(category);
+
     const reason = `User override: assigned "${merchant}" → ${category}${subcategory ? ` / ${subcategory}` : ''}.`;
 
     db.transaction((tx) => {
@@ -124,7 +128,7 @@ export async function POST(req: Request): Promise<Response> {
           tx.update(transactions)
             .set({
               merchant,
-              category,
+              category: canonicalCategory,
               subcategory,
               flow,
               isInternalTransfer: flow === 'transfer',
@@ -153,7 +157,7 @@ export async function POST(req: Request): Promise<Response> {
       const overrideFlow: Flow | null = flowForCanonical(category.toLowerCase().replace(/ /g, '_')) === 'transfer' || category === 'Transfer'
         ? 'transfer'
         : null;
-      const values = { matchSignature: sig, merchant, category, subcategory, flow: overrideFlow, updatedAt: Date.now() };
+      const values = { matchSignature: sig, merchant, category: canonicalCategory, subcategory, flow: overrideFlow, updatedAt: Date.now() };
       if (existing) {
         tx.update(userOverrides).set(values).where(eq(userOverrides.id, existing.id)).run();
       } else {
@@ -198,7 +202,7 @@ export async function POST(req: Request): Promise<Response> {
       db.transaction((tx) => {
         // Persist the alias as a user row (layer-4 source) so re-ingests reuse it.
         const aliasId = `ua_${aliasToken}`;
-        const aliasVals = { pattern: aliasToken!, canonicalMerchant: merchant, category, subcategory, source: 'user' as const, confidence: 'high' as const, updatedAt: Date.now() };
+        const aliasVals = { pattern: aliasToken!, canonicalMerchant: merchant, category: canonicalCategory, subcategory, source: 'user' as const, confidence: 'high' as const, updatedAt: Date.now() };
         const existingAlias = tx.select({ id: merchantAliases.id }).from(merchantAliases).where(eq(merchantAliases.id, aliasId)).get();
         if (existingAlias) tx.update(merchantAliases).set(aliasVals).where(eq(merchantAliases.id, aliasId)).run();
         else tx.insert(merchantAliases).values({ id: aliasId, ...aliasVals }).run();
@@ -209,7 +213,7 @@ export async function POST(req: Request): Promise<Response> {
             const ids = chunk.filter((t) => flowFor(category, t.amount) === flow).map((t) => t.id);
             if (!ids.length) continue;
             tx.update(transactions)
-                .set({ merchant, category, subcategory, flow, suspectedTransfer: false, confidence: 'high', layer: 4, classificationSource: 'deterministic', acceptedPredictionId: null, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
+                .set({ merchant, category: canonicalCategory, subcategory, flow, suspectedTransfer: false, confidence: 'high', layer: 4, classificationSource: 'deterministic', acceptedPredictionId: null, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
               .where(inArray(transactions.id, ids))
               .run();
           }
