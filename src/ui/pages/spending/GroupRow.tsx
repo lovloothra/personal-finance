@@ -4,6 +4,8 @@ import type { useSpending, UncatGroup } from '../../data/useSpending';
 import { Money } from '../../primitives/Money';
 import { CategoryChipPicker } from '../../primitives/CategoryChipPicker';
 import { InstLogo } from '../../primitives/InstLogo';
+import { categoriesForFlow } from '@/classifier/taxonomy';
+import type { Flow } from '@/classifier/types';
 
 interface Detail { id: string; date: string; amount: number; rawDescription: string | null; from: string | null; subject: string | null; }
 
@@ -62,9 +64,15 @@ function CounterpartyLine({ raw, flow }: { raw: string; flow: string }) {
   );
 }
 
-export function GroupRow({ group, categories, spending, focused }: {
-  group: UncatGroup; categories: string[]; spending: ReturnType<typeof useSpending>; focused?: boolean;
+export function GroupRow({ group, spending, focused }: {
+  group: UncatGroup; spending: ReturnType<typeof useSpending>; focused?: boolean;
 }) {
+  // Derive the group's flow so we can filter categories appropriately.
+  // The group carries an explicit flow from the DB; fall back to sign-derived.
+  const groupFlow = (['income', 'expense', 'transfer', 'investment'] as Flow[]).includes(group.flow as Flow)
+    ? (group.flow as Flow)
+    : group.total > 0 ? 'income' : 'expense';
+  const flowCategories = categoriesForFlow(groupFlow);
   const [merchant, setMerchant] = useState(group.localSuggestion?.merchant ?? group.suggestedMerchant);
   const [category, setCategory] = useState(group.localSuggestion?.category ?? group.category ?? '');
   const [busy, setBusy] = useState(false);
@@ -195,7 +203,7 @@ export function GroupRow({ group, categories, spending, focused }: {
         <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <input className="inp" value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="Merchant" style={{ flex: '0 0 200px', maxWidth: 220 }} />
           <div style={{ flex: '1 1 320px', minWidth: 240 }}>
-            <CategoryChipPicker categories={categories} value={category} onPick={setCategory} suggested={sug?.category ?? null} />
+            <CategoryChipPicker categories={flowCategories} value={category} onPick={setCategory} suggested={sug?.category ?? null} />
           </div>
           <button className="btn btn-primary btn-sm" disabled={busy || !merchant.trim() || !category} onClick={assign}>
             {busy ? 'Assigning…' : `Assign ${group.count > 1 ? `all ${group.count}` : ''}`}
