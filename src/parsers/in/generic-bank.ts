@@ -43,6 +43,20 @@ const DEBIT_RE = /\b(dr|debit)\b|\(dr\)/i;
 const ACCOUNT_HEADER_RE =
   /\b(?:a\/?c|acc(?:oun)?t|card)\s*(?:no\.?|number|#)?\s*[:-]?\s*((?:[xX*\d][xX*\d \-]{2,})\d{4})\b/i;
 
+// A UPI VPA: handle@bank (letters/digits/._- before @, letters after).
+const VPA_RE = /\b([a-z0-9._-]{2,}@[a-z]{2,})\b/i;
+// NEFT/IMPS/RTGS beneficiary: "<RAIL> <DR|CR>-<IFSC/REF>-<NAME>-<REF>". The
+// name is the UPPERCASE word group sitting between hyphenated code segments.
+const BENEFICIARY_RE = /\b(?:neft|imps|rtgs)\b[^-]*-[^-]+-([A-Z][A-Z .]{2,}?)-/i;
+
+function extractCounterparty(desc: string): string | null {
+  const vpa = VPA_RE.exec(desc);
+  if (vpa) return vpa[1];
+  const ben = BENEFICIARY_RE.exec(desc);
+  if (ben) return ben[1].trim();
+  return null;
+}
+
 function extractAccountLast4(text: string): string | undefined {
   const header = text.split('\n').slice(0, 20).join('\n');
   const m = ACCOUNT_HEADER_RE.exec(header);
@@ -232,7 +246,7 @@ export function parseGenericBank(text: string, ctx: ParseContext): ParsedStateme
     }
     seen.add(sig);
 
-    txns.push({ date: r.date, amount: signed, currency: 'INR', rawDescription: description, balance });
+    txns.push({ date: r.date, amount: signed, currency: 'INR', rawDescription: description, balance, counterpartyRaw: extractCounterparty(r.raw) });
   }
 
   return { providerId: ctx.providerId, docType: ctx.docType, accountLast4: extractAccountLast4(text), txns, unparsedLines };

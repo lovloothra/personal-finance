@@ -207,3 +207,21 @@ test('yields undefined when statement has no account header', () => {
   const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
   assert.equal(out.accountLast4, undefined);
 });
+
+test('extracts UPI VPA counterparty from a line', () => {
+  const text = '01/03/2025 UPI/john.doe@okhdfc/Payment 250.00 9,750.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, 'john.doe@okhdfc');
+});
+
+test('extracts NEFT/IMPS beneficiary name', () => {
+  const text = '01/03/2025 NEFT DR-HDFC0001-JANE SMITH-REF123 5,000.00 4,750.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, 'JANE SMITH');
+});
+
+test('generic mobile-banking line has null counterparty', () => {
+  const text = '02/11/2025 MOBILE BANKING DFC bank 5,00,000.00 15,00,000.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, null);
+});
