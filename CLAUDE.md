@@ -20,7 +20,12 @@ npm run db:generate      # generate Drizzle SQL migrations from schema.ts
 npm run db:load-packs    # seed India institution + merchant data into encrypted DB
 npm run ingest           # process downloaded attachments → parsed docs → classified transactions
 npm run validate:packs   # validate packs/in/*.json against schemas/pack-in.schema.json
+npm run eval:classifier  # golden-set accuracy scorecard for the classifier (pure)
+npm run eval:ledger      # data-quality metrics over the DB (see evals/README.md)
 ```
+
+Project backlog: `docs/GOALS.md` — self-contained goal briefs with eval-based
+acceptance criteria.
 
 **Run a single test file** (always include the react-server condition — pure
 modules don't need it, but DB-touching tests fail without it, and it never hurts):

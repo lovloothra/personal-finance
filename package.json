@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "test": "node --import tsx --conditions=react-server --test \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\" \"src/**/*.test.ts\" \"app/**/*.test.ts\"",
     "validate:packs": "node tools/validate-pack-in.mjs",
+    "eval:classifier": "node --import tsx evals/classifier-golden.eval.ts",
+    "eval:ledger": "tsx --conditions=react-server evals/ledger-health.eval.ts",
     "refresh:packs:in": "node scripts/refresh-pack-in.mjs",
     "db:generate": "drizzle-kit generate",
     "db:load-packs": "tsx --conditions=react-server scripts/load-packs.ts",

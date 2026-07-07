@@ -67,6 +67,12 @@ of which agent you are. Before proposing any architectural or product-direction
 change, read `docs/DECISIONS.md` — it records the load-bearing decisions and the
 product principles behind them; conflicts with it need explicit owner sign-off.
 
+Quality scorecards live in `evals/` (`npm run eval:classifier`, `npm run
+eval:ledger` — see `evals/README.md`). The project backlog is `docs/GOALS.md`:
+self-contained briefs with baselines and acceptance criteria tied to eval
+metrics. When picking up a goal, record the baseline metric first, mark the
+entry `[~]`, and mark it `[x]` with the date when its acceptance criteria pass.
+
 ## Common errors → fix
 
 | Symptom | Cause / fix |

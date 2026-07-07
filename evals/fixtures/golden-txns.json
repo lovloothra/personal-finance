@@ -1,0 +1,43 @@
+{
+  "comment": "Golden classification set. Labels reflect INTENDED behavior of the deterministic pipeline (layers 1-7) with the synthetic eval profile in classifier-golden.eval.ts plus real packs/in aliases and DEFAULT_KEYWORD_RULES. Amounts are signed paise. expectReview marks cases that MUST land in the review queue.",
+  "cases": [
+    { "id": "salary-exact", "desc": "NEFT CR-ACME TECHNOLOGIES PVT LTD-SALARY JUN 2026", "amount": 25000000, "expect": { "flow": "income", "category": "Salary" } },
+    { "id": "salary-within-tolerance", "desc": "NEFT CR-ACME TECHNOLOGIES PVT LTD-SALARY JUL 2026", "amount": 24100000, "expect": { "flow": "income", "category": "Salary" } },
+    { "id": "rent-landlord", "desc": "UPI-MR SHARMA-RENT JUNE-okaxis", "amount": -4500000, "expect": { "flow": "expense", "category": "Housing" } },
+    { "id": "emi-keyword", "desc": "ACH DR-HDFC LTD-HOME LOAN EMI", "amount": -6500000, "expect": { "flow": "expense", "category": "Loan" } },
+    { "id": "broker-sip", "desc": "UPI-ZERODHA BROKING LTD-SIP", "amount": -1000000, "expect": { "flow": "investment", "category": "Investment" } },
+    { "id": "insurer-premium", "desc": "HDFC ERGO GENERAL INSURANCE PREMIUM", "amount": -1500000, "expect": { "flow": "expense", "category": "Insurance" } },
+
+    { "id": "alias-uber", "desc": "UPI-UBER INDIA SYSTEMS-uber@paytm", "amount": -35000, "expect": { "flow": "expense", "category": "Transport" } },
+    { "id": "alias-ola", "desc": "UPI-OLA CABS-olacabs@axisbank", "amount": -28000, "expect": { "flow": "expense", "category": "Transport" } },
+    { "id": "alias-rapido", "desc": "UPI-RAPIDO BIKE TAXI", "amount": -12000, "expect": { "flow": "expense", "category": "Transport" } },
+    { "id": "alias-swiggy", "desc": "SWIGGY FOOD ORDER BANGALORE", "amount": -45000, "expect": { "flow": "expense", "category": "Food Delivery" } },
+    { "id": "alias-zomato", "desc": "ZOMATO ONLINE ORDER", "amount": -62000, "expect": { "flow": "expense", "category": "Food Delivery" } },
+    { "id": "alias-netflix", "desc": "NETFLIX.COM MEMBERSHIP", "amount": -64900, "expect": { "flow": "expense", "category": "Ott" } },
+    { "id": "alias-prime", "desc": "AMAZON PRIME MEMBERSHIP RENEWAL", "amount": -149900, "expect": { "flow": "expense", "category": "Ott" } },
+    { "id": "alias-blinkit", "desc": "BLINKIT ORDER 8829", "amount": -89000, "expect": { "flow": "expense", "category": "Quick Commerce" } },
+    { "id": "alias-zepto", "desc": "ZEPTO NOW GROCERIES", "amount": -54000, "expect": { "flow": "expense", "category": "Quick Commerce" } },
+    { "id": "alias-instamart", "desc": "SWIGGY INSTAMART DAILY", "amount": -70000, "expect": { "flow": "expense", "category": "Quick Commerce" } },
+    { "id": "alias-credit-is-income", "desc": "ZOMATO ONLINE ORDER REVERSAL", "amount": 62000, "expect": { "flow": "income", "category": "Food Delivery" } },
+    { "id": "alias-longest-match", "desc": "UBER EATS DELIVERY", "amount": -30000, "expect": { "flow": "expense", "category": "Transport" } },
+
+    { "id": "kw-cred-club", "desc": "UPI-CRED.CLUB-cc bill", "amount": -2500000, "expect": { "flow": "transfer", "category": "Transfer" } },
+    { "id": "kw-cc-payment", "desc": "CREDIT CARD PAYMENT HDFC 7702", "amount": -3200000, "expect": { "flow": "transfer", "category": "Transfer" } },
+    { "id": "kw-autopay", "desc": "AUTOPAY SI-TAD HDFC CARD", "amount": -1500000, "expect": { "flow": "transfer", "category": "Transfer" } },
+    { "id": "kw-atm", "desc": "ATM WDL-MUMBAI 402934", "amount": -1000000, "expect": { "flow": "expense", "category": "Cash" } },
+    { "id": "kw-petrol", "desc": "HPCL PETROL PUMP GURGAON", "amount": -250000, "expect": { "flow": "expense", "category": "Transport" } },
+    { "id": "kw-electricity", "desc": "BESCOM ELECTRICITY BILL JUN", "amount": -180000, "expect": { "flow": "expense", "category": "Utilities" } },
+    { "id": "kw-water", "desc": "BWSSB WATER BILL", "amount": -75000, "expect": { "flow": "expense", "category": "Utilities" } },
+    { "id": "kw-recharge", "desc": "MOBILE RECHARGE PREPAID 599", "amount": -59900, "expect": { "flow": "expense", "category": "Utilities" } },
+    { "id": "kw-gas", "desc": "GAS CYLINDER BOOKING HP", "amount": -110000, "expect": { "flow": "expense", "category": "Utilities" } },
+    { "id": "kw-interest", "desc": "SAVINGS A/C INTEREST CREDIT", "amount": 45000, "expect": { "flow": "income", "category": "Income" } },
+    { "id": "kw-dividend", "desc": "DIVIDEND RELIANCE INDUSTRIES", "amount": 120000, "expect": { "flow": "income", "category": "Income" } },
+    { "id": "kw-refund", "desc": "AMAZON PAY REFUND ORDER 403", "amount": 89000, "expect": { "flow": "income", "category": "Refund" } },
+    { "id": "kw-salary-other-employer", "desc": "SALARY CREDIT OTHERCO SYSTEMS", "amount": 10000000, "expect": { "flow": "income", "category": "Salary" } },
+
+    { "id": "fallback-bare-vpa", "desc": "UPI-9876543210@YBL-payment", "amount": -50000, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
+    { "id": "fallback-p2p-credit", "desc": "IMPS-RAVI KUMAR-P2P-483920", "amount": 200000, "expect": { "flow": "income", "category": "Uncategorised" }, "expectReview": true },
+    { "id": "fallback-pos", "desc": "POS 4429 XYZ TRADERS", "amount": -134500, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
+    { "id": "fallback-neft-vendor", "desc": "NEFT DR-SOME RANDOM VENDOR-INV 2231", "amount": -890000, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true }
+  ]
+}
