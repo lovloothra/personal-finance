@@ -5,7 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Workflow-specific runbooks live in `.claude/skills/*/SKILL.md` (auto-discovered
 by Claude Code; indexed for other agents in `AGENTS.md`). Consult the matching
 skill before schema/migration work, DB tests/scripts, parser or classifier
-changes, pack edits, local-ML changes, or before claiming a change verified.
+changes, pack edits, local-ML changes, backup/recovery/keychain work, or before
+claiming a change verified. `docs/DECISIONS.md` records the load-bearing
+architecture and product decisions — read it before proposing structural changes.
 
 ## Commands
 

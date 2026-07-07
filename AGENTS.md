@@ -59,10 +59,13 @@ documents a real failure this repo already hit once.
 | Touch `src/intelligence/` (local MiniLM classifier) | `.claude/skills/local-ml-guardrails/SKILL.md` |
 | Edit `packs/in/*.json` institution/merchant data | `.claude/skills/updating-institution-packs/SKILL.md` |
 | Claim any change works / need a safe dev server | `.claude/skills/verifying-changes/SKILL.md` |
+| Touch backups, keychain, wipe/reset, or machine migration | `.claude/skills/backup-and-recovery/SKILL.md` |
 
 Architecture, commands, and conventions are documented in `CLAUDE.md` at the repo
 root — it is a plain markdown file; read it at the start of a session regardless
-of which agent you are.
+of which agent you are. Before proposing any architectural or product-direction
+change, read `docs/DECISIONS.md` — it records the load-bearing decisions and the
+product principles behind them; conflicts with it need explicit owner sign-off.
 
 ## Common errors → fix
 
@@ -76,6 +79,7 @@ of which agent you are.
 | Page shows data although the DB is empty | Demo fixtures (`src/ui/lib/fixtures.ts`) render in the pre-import state |
 | Mutating API call rejected in manual testing | Loopback-origin guard (`src/server/api.ts`); send a localhost `Origin` header |
 | New classifier rule never fires | Shadowed by a higher-priority layer — see debugging-misclassifications skill |
+| `getDb()` throws right after restoring a backup | Keychain passphrase doesn't match the file — see backup-and-recovery skill |
 
 ## Non-negotiable invariants (summary — skills have the details)
 

@@ -38,4 +38,4 @@ eligibility gate → state ready + head trained → compatible examples exist �
 
 ## Testing
 
-`src/intelligence/__tests__/` — `local-model.test.ts` is pure; `store.test.ts` needs the ephemeral-DB env setup (see running-db-tests-and-scripts skill).
+`src/intelligence/__tests__/` — `local-model.test.ts` is pure; `store.test.ts` needs the ephemeral-DB env setup (see running-db-tests-and-scripts skill). The real-ONNX embedding test is opt-in: `PF_RUN_MODEL_TESTS=1 npm test` (skipped by default so the suite stays fast).
