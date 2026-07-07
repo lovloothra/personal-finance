@@ -34,6 +34,16 @@ export function containsAny(desc: string, needles: string[]): boolean {
   return needles.some((n) => c.includes(n.toLowerCase()));
 }
 
+/**
+ * True when the (lowercased) needle appears as a whole word in the cleaned
+ * description. Use instead of contains/containsAny for short tokens that are
+ * substrings of everyday words — 'emi' matches "EMI/04/24" but not "PREMIUM".
+ */
+export function containsWord(desc: string, needle: string): boolean {
+  const escaped = needle.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`).test(clean(desc));
+}
+
 /** Absolute amount equality within a tolerance fraction (default ±5%). */
 export function amountNear(a: number, b: number, tol = 0.05): boolean {
   if (b === 0) return a === 0;
