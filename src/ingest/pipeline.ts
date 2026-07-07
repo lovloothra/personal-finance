@@ -14,7 +14,8 @@ import 'server-only';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks } from '@/db/schema';
+import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard, counterparties as counterpartiesTable } from '@/db/schema';
+import { resolveOwnAccount, type OwnAccountRow } from './account-reconcile';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
@@ -23,6 +24,7 @@ import { buildRecurrenceIndex } from '@/classifier/recurrence';
 import { signature } from '@/classifier/normalize';
 import { classify } from '@/classifier/pipeline';
 import { linkInternalTransfers } from '@/classifier/transfers';
+import { resolveCounterparty, type CounterpartyEntry } from '@/classifier/counterparties';
 import type { RawTxn, ClassifyContext } from '@/classifier/types';
 import { fyForDate } from '@/ledger/fy';
 import { loadProfileSeed, passwordInputs } from '@/profile/signals';
@@ -68,6 +70,11 @@ interface PendingTxn {
   amount: number;
   currency: string;
   rawDescription: string;
+  ownAccountId: string | null;
+  ownAccountKind: 'bank' | 'card' | null;
+  counterpartyRaw: string | null;
+  counterpartyId?: string | null;
+  counterpartyKind?: 'own_account' | 'known_own' | 'external' | 'unknown' | null;
 }
 
 export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } = {}): Promise<IngestResult> {
@@ -84,6 +91,20 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   // Append any passwords the user added manually (tried first — they're exact).
   const userPasswords = db.select({ v: documentPasswords.value }).from(documentPasswords).all().map((r) => r.v);
   candidates = [...userPasswords, ...candidates];
+
+  // Load all registered own accounts once; stubs created during this run
+  // are appended so subsequent docs in the same batch can match them.
+  const ownAccounts: OwnAccountRow[] = [
+    ...db.select({ id: accountsBank.id, institutionId: accountsBank.institutionId, last4: accountsBank.last4 }).from(accountsBank).all().map((a) => ({ ...a, kind: 'bank' as const })),
+    ...db.select({ id: accountsCard.id, institutionId: accountsCard.institutionId, last4: accountsCard.last4 }).from(accountsCard).all().map((a) => ({ ...a, kind: 'card' as const })),
+  ];
+
+  // Load the counterparty registry once for this ingest run.
+  const cpRegistry: CounterpartyEntry[] = db
+    .select()
+    .from(counterpartiesTable)
+    .all()
+    .map((c) => ({ id: c.id, kind: c.kind, isOwnMoney: c.isOwnMoney, matchers: c.matchers ?? undefined }));
 
   // Clear transfer links up front — they reference transactions that the
   // per-attachment cleanup may delete, and they're rebuilt at the end.
@@ -181,6 +202,35 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     const statement = parseStatement(text, { providerId, docType: 'bank_statement' });
     // Deterministic doc id keyed to the attachment so re-ingest is idempotent.
     const docId = `doc_${att.id}`;
+
+    // Resolve (or mint) the own account for this document.
+    const docAccount = resolveOwnAccount(
+      { institutionId: att.providerId, accountLast4: statement.accountLast4, docType: statement.docType },
+      ownAccounts,
+    );
+    // Surface documents whose account could not be identified so the user can
+    // assign them manually. ownAccountId/ownAccountKind remain null — that is
+    // intentional; we just create a review item to prompt the user.
+    if (docAccount.needsAssignment) {
+      addReview(
+        'account_unresolved',
+        docId,
+        'Statement account not identified',
+        'No account/card number found in the statement header; assign this statement\'s account manually.',
+        'warn',
+      );
+    }
+
+    if (docAccount.stubCreated && docAccount.ownAccountId) {
+      // Note: att.providerId may be null here, so the stub's institutionId can
+      // also be null. Null-provider stubs are not unified across ingest runs —
+      // they will be re-minted on each run until the user assigns a provider.
+      const stub = { id: docAccount.ownAccountId, institutionId: att.providerId, last4: statement.accountLast4 ?? null };
+      if (docAccount.ownAccountKind === 'card') db.insert(accountsCard).values(stub).onConflictDoNothing().run();
+      else db.insert(accountsBank).values(stub).onConflictDoNothing().run();
+      ownAccounts.push({ ...stub, kind: docAccount.ownAccountKind! });
+    }
+
     // Clear any prior output for this attachment before re-inserting.
     db.delete(transactions).where(eq(transactions.documentId, docId)).run();
     db.delete(parsedDocuments).where(eq(parsedDocuments.id, docId)).run();
@@ -194,12 +244,15 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
         docType: 'bank_statement',
         rawText: text.slice(0, 20000),
         status: statement.txns.length ? 'parsed' : 'partial',
+        accountLast4: statement.accountLast4 ?? null,
+        ownAccountId: docAccount.ownAccountId,
+        ownAccountKind: docAccount.ownAccountKind,
       })
       .run();
     docCount++;
 
     statement.txns.forEach((t, j) => {
-      parsed.push({ id: `txn_${docId}_${j}`, docId, providerId: att.providerId, messageId: att.messageId, date: t.date, amount: t.amount, currency: t.currency, rawDescription: t.rawDescription });
+      parsed.push({ id: `txn_${docId}_${j}`, docId, providerId: att.providerId, messageId: att.messageId, date: t.date, amount: t.amount, currency: t.currency, rawDescription: t.rawDescription, ownAccountId: docAccount.ownAccountId, ownAccountKind: docAccount.ownAccountKind, counterpartyRaw: t.counterpartyRaw ?? null });
     });
     setStatus(att.id, 'extracted', unlockMethod ? { locked: true, unlockMethod } : {});
     onProgress({ phase: 'parse', message: `Parsed ${att.filename ?? 'statement'} — ${statement.txns.length} transactions`, documents: docCount });
@@ -226,6 +279,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     currency: p.currency,
     rawDescription: p.rawDescription,
     institutionId: p.providerId ?? undefined,
+    counterpartyRaw: p.counterpartyRaw ?? null,
   }));
   const recurrence = buildRecurrenceIndex(rawTxns);
   const ctx: ClassifyContext = { ...base, recurrence };
@@ -257,7 +311,23 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     selfNames = [];
   }
   const transfer = linkInternalTransfers(
-    results.map(({ raw, meta, deterministic }) => ({ id: raw.id, date: raw.date, amount: raw.amount, rawDescription: raw.rawDescription, documentId: meta.docId, flow: deterministic.flow })),
+    results.map(({ raw, meta, deterministic }) => {
+      const cp = resolveCounterparty(raw.counterpartyRaw, cpRegistry);
+      meta.counterpartyId = cp.counterpartyId;
+      meta.counterpartyKind = cp.counterpartyKind;
+      meta.counterpartyRaw = raw.counterpartyRaw ?? null;
+      return {
+        id: raw.id,
+        date: raw.date,
+        amount: raw.amount,
+        rawDescription: raw.rawDescription,
+        documentId: meta.docId,
+        flow: deterministic.flow,
+        ownAccountId: meta.ownAccountId,
+        counterpartyKind: cp.counterpartyKind,
+        merchant: deterministic.merchant ?? null,
+      };
+    }),
     { selfNames },
   );
 
@@ -293,12 +363,18 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           layer: final.layer,
           classificationSource: isTransfer ? 'deterministic' : decision.source,
           acceptedPredictionId,
-          reviewRequired: isTransfer ? false : final.reviewRequired,
+          reviewRequired: isTransfer ? false : (final.reviewRequired || transfer.suspectedIds.has(raw.id)),
           isInternalTransfer: isTransfer,
           isRecurring: final.isRecurring ?? false,
           projectId: final.projectId ?? null,
           taxSection: final.taxSection ?? null,
           fyKey,
+          ownAccountId: meta.ownAccountId ?? null,
+          ownAccountKind: meta.ownAccountKind ?? null,
+          counterpartyRaw: meta.counterpartyRaw ?? null,
+          counterpartyId: meta.counterpartyId ?? null,
+          counterpartyKind: meta.counterpartyKind ?? 'unknown',
+          suspectedTransfer: transfer.suspectedIds.has(raw.id),
         })
         .onConflictDoUpdate({
           target: transactions.id,
@@ -312,12 +388,18 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
             layer: final.layer,
             classificationSource: isTransfer ? 'deterministic' : decision.source,
             acceptedPredictionId,
-            reviewRequired: isTransfer ? false : final.reviewRequired,
+            reviewRequired: isTransfer ? false : (final.reviewRequired || transfer.suspectedIds.has(raw.id)),
             isInternalTransfer: isTransfer,
             isRecurring: final.isRecurring ?? false,
             projectId: final.projectId ?? null,
             taxSection: final.taxSection ?? null,
             fyKey,
+            ownAccountId: meta.ownAccountId ?? null,
+            ownAccountKind: meta.ownAccountKind ?? null,
+            counterpartyRaw: meta.counterpartyRaw ?? null,
+            counterpartyId: meta.counterpartyId ?? null,
+            counterpartyKind: meta.counterpartyKind ?? 'unknown',
+            suspectedTransfer: transfer.suspectedIds.has(raw.id),
           },
         })
         .run();

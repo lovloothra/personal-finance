@@ -47,6 +47,8 @@ export interface RawTxn {
   account?: string;
   /** Payment method hint (upi | card | netbanking | ...). */
   method?: string;
+  /** Counterparty string extracted by the parser (VPA/beneficiary), null when none. */
+  counterpartyRaw?: string | null;
 }
 
 /** The classification verdict for one transaction. */

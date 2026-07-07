@@ -38,6 +38,33 @@ const NON_TXN_RE =
 const CREDIT_RE = /\b(cr|credit|refund|reversal|reversed|cashback|received|repayment)\b|\(cr\)|\+\s*$/i;
 const DEBIT_RE = /\b(dr|debit)\b|\(dr\)/i;
 
+// Account/card number in a header line: a masked or full run whose last group
+// is 4 digits. Matches "XXXXXX7702", "4321 5678 9012 1234", "A/c No 0011...7702".
+const ACCOUNT_HEADER_RE =
+  /\b(?:a\/?c|acc(?:oun)?t|card)\s*(?:no\.?|number|#)?\s*[:-]?\s*((?:[xX*\d][xX*\d \-]{2,})\d{4})\b/i;
+
+// A UPI VPA: handle@bank (letters/digits/._- before @, letters after).
+const VPA_RE = /\b([a-z0-9._-]{2,}@[a-z]{2,})\b/i;
+// NEFT/IMPS/RTGS beneficiary: "<RAIL> <DR|CR>-<IFSC/REF>-<NAME>-<REF>". The
+// name is the word group sitting between the hyphen-delimited code segments.
+const BENEFICIARY_RE = /\b(?:neft|imps|rtgs)\b[^-]*-[^-]+-([A-Z][A-Z .]{2,}?)-/i;
+
+function extractCounterparty(desc: string): string | null {
+  const vpa = VPA_RE.exec(desc);
+  if (vpa) return vpa[1];
+  const ben = BENEFICIARY_RE.exec(desc);
+  if (ben) return ben[1].trim();
+  return null;
+}
+
+export function extractAccountLast4(text: string): string | undefined {
+  const header = text.split('\n').slice(0, 20).join('\n');
+  const m = ACCOUNT_HEADER_RE.exec(header);
+  if (!m) return undefined;
+  const digits = m[1].replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : undefined;
+}
+
 /** Parse an Indian-formatted amount string to paise. */
 export function amountToPaise(s: string): number {
   const n = Number(s.replace(/,/g, ''));
@@ -219,8 +246,8 @@ export function parseGenericBank(text: string, ctx: ParseContext): ParsedStateme
     }
     seen.add(sig);
 
-    txns.push({ date: r.date, amount: signed, currency: 'INR', rawDescription: description, balance });
+    txns.push({ date: r.date, amount: signed, currency: 'INR', rawDescription: description, balance, counterpartyRaw: extractCounterparty(r.raw) });
   }
 
-  return { providerId: ctx.providerId, docType: ctx.docType, txns, unparsedLines };
+  return { providerId: ctx.providerId, docType: ctx.docType, accountLast4: extractAccountLast4(text), txns, unparsedLines };
 }

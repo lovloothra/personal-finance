@@ -20,6 +20,12 @@
 /** Explicit transfer rails (not generic UPI, which is mostly real spending). */
 const TRANSFER_RE = /\b(neft|imps|rtgs|inft|fund(?:s)?\s*(?:trf|transfer)|funds? trf|self|own a\/?c|own account|trf to|transfer to|cc payment|credit card payment|card payment|payment received|bill ?desk|billpay|auto ?pay)\b|cred\.club/i;
 
+/** Suspected-transfer thresholds (one tunable place). A credit at/above the
+ * minimum that is an exact multiple of the step, with no merchant and no
+ * resolved counterparty, is quarantined rather than counted as income. */
+const ROUND_TRANSFER_MIN_PAISE = 100_000 * 100; // ₹1,00,000
+const ROUND_TRANSFER_STEP_PAISE = 10_000 * 100; // ₹10,000
+
 /** Signals specific to credit-card bill payments (safe to mark single-sided).
  * cred.club is CRED's card-bill VPA — a debit there is a card payment by
  * definition (CRED's utility/rent VPAs use different handles). */
@@ -32,6 +38,12 @@ export interface LinkTxn {
   rawDescription: string;
   documentId?: string | null;
   flow?: string;
+  /** The own account this txn sits in (from document reconciliation). */
+  ownAccountId?: string | null;
+  /** Resolved counterparty kind, when known. */
+  counterpartyKind?: 'own_account' | 'known_own' | 'external' | 'unknown';
+  /** Resolved merchant, used by the suspected-transfer heuristic (Task 9). */
+  merchant?: string | null;
 }
 
 export interface TransferLink {
@@ -42,6 +54,7 @@ export interface TransferLink {
 
 export interface TransferResult {
   transferIds: Set<string>;
+  suspectedIds: Set<string>;
   links: TransferLink[];
 }
 
@@ -55,8 +68,27 @@ function selfNameHit(desc: string, selfNames: string[]): boolean {
   return selfNames.some((n) => n.length >= 3 && d.includes(n.toLowerCase()));
 }
 
+/** A genuine transfer signal on a single txn, independent of account stamping.
+ * (ownAccountId alone is NOT a signal — it's on nearly every txn now.) */
+function hasExplicitSignal(t: LinkTxn, selfNames: string[]): boolean {
+  return (
+    t.flow === 'transfer' ||
+    t.counterpartyKind === 'own_account' ||
+    t.counterpartyKind === 'known_own' ||
+    TRANSFER_RE.test(t.rawDescription) ||
+    selfNameHit(t.rawDescription, selfNames)
+  );
+}
+
 function isCandidate(t: LinkTxn, selfNames: string[]): boolean {
-  return t.flow === 'transfer' || TRANSFER_RE.test(t.rawDescription) || selfNameHit(t.rawDescription, selfNames);
+  return (
+    t.flow === 'transfer' ||
+    t.counterpartyKind === 'own_account' ||
+    t.counterpartyKind === 'known_own' ||
+    !!t.ownAccountId ||
+    TRANSFER_RE.test(t.rawDescription) ||
+    selfNameHit(t.rawDescription, selfNames)
+  );
 }
 
 /**
@@ -70,6 +102,7 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
   const windowDays = opts.windowDays ?? 4;
   const selfNames = opts.selfNames ?? [];
   const transferIds = new Set<string>();
+  const suspectedIds = new Set<string>();
   const links: TransferLink[] = [];
 
   const debits = txns.filter((t) => t.amount < 0 && isCandidate(t, selfNames));
@@ -83,7 +116,13 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
         !usedCredit.has(c.id) &&
         Math.abs(c.amount) === Math.abs(d.amount) &&
         within(c.date, d.date, windowDays) &&
-        !(d.documentId && c.documentId && d.documentId === c.documentId),
+        !(d.documentId && c.documentId && d.documentId === c.documentId) &&
+        // Relaxed keyword-less pairing: two different own accounts with no
+        // resolved merchant on either leg. Requiring bare legs prevents
+        // coincidental equal-amount expense/income (e.g. rent debit from HDFC
+        // and salary credit into ICICI) from being mislinked as a transfer.
+        ((!!d.ownAccountId && !!c.ownAccountId && d.ownAccountId !== c.ownAccountId && !d.merchant && !c.merchant) ||
+          (hasExplicitSignal(d, selfNames) && hasExplicitSignal(c, selfNames))),
     );
     if (match) {
       usedCredit.add(match.id);
@@ -105,5 +144,25 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
     if (!transferIds.has(c.id) && /\bpayment received\b/i.test(c.rawDescription)) transferIds.add(c.id);
   }
 
-  return { transferIds, links };
+  // 3. Own-entity counterparty: a transfer by definition, even single-sided.
+  //    Iterate all txns (not just candidates) in case the txn has counterpartyKind
+  //    but no keyword or ownAccountId that would have placed it in debits/credits.
+  for (const t of txns) {
+    if (!transferIds.has(t.id) && (t.counterpartyKind === 'own_account' || t.counterpartyKind === 'known_own')) {
+      transferIds.add(t.id);
+    }
+  }
+
+  // 4. Suspected-transfer heuristic: large round-number credits with no
+  //    merchant and no resolved counterparty, not already confirmed transfers.
+  for (const c of txns.filter((t) => t.amount > 0)) {
+    if (transferIds.has(c.id)) continue;
+    if (c.merchant) continue;
+    if (c.counterpartyKind && c.counterpartyKind !== 'unknown') continue;
+    if (c.amount >= ROUND_TRANSFER_MIN_PAISE && c.amount % ROUND_TRANSFER_STEP_PAISE === 0) {
+      suspectedIds.add(c.id);
+    }
+  }
+
+  return { transferIds, suspectedIds, links };
 }

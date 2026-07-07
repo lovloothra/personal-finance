@@ -13,6 +13,8 @@ export interface ParsedTxn {
   rawDescription: string;
   /** Running balance in paise, when the statement provides it. */
   balance?: number;
+  /** Counterparty string extracted from the line (VPA / beneficiary / "to X"), null when none. */
+  counterpartyRaw?: string | null;
 }
 
 export interface ParsedStatement {
@@ -20,6 +22,8 @@ export interface ParsedStatement {
   docType: string;
   periodStart?: string;
   periodEnd?: string;
+  /** Last 4 of the account/card this statement belongs to, from the header. */
+  accountLast4?: string;
   txns: ParsedTxn[];
   /** Lines the parser could not interpret — surfaced for review. */
   unparsedLines: string[];

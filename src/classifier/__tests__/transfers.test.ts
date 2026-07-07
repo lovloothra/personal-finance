@@ -57,3 +57,100 @@ test('leaves a single-sided NEFT payment to a vendor as an expense', () => {
   const { transferIds } = linkInternalTransfers(txns);
   assert.equal(transferIds.size, 0, 'unpaired outgoing NEFT stays an expense');
 });
+
+test('counterparty resolving to an own account is a single-sided transfer', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'NEFT to self', counterpartyKind: 'own_account' },
+  ]);
+  assert.ok(transferIds.has('d1'));
+});
+
+test('own debit <-> own credit pair with no keyword is a transfer', () => {
+  const { transferIds, links } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_icici' },
+    { id: 'c1', date: '2025-10-02', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_hdfc', documentId: 'doc2' },
+  ]);
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+  assert.equal(links[0].kind, 'account_transfer');
+});
+
+test('own credit with no matching own debit is NOT auto-paired', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-10-01', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_hdfc' },
+  ]);
+  assert.equal(transferIds.has('c1'), false);
+});
+
+test('self-name-only pair (no keyword, no ownAccountId) still links', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -25000_00, rawDescription: 'UPI TO LOV LOOTHRA' },
+    { id: 'c1', date: '2025-10-02', amount: 25000_00, rawDescription: 'UPI FROM LOV LOOTHRA', documentId: 'doc2' },
+  ], { selfNames: ['lov', 'loothra'] });
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+});
+
+test('flow=transfer-only pair (no keyword) still links', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -25000_00, rawDescription: 'PLAIN UPI XYZ', flow: 'transfer' },
+    { id: 'c1', date: '2025-10-02', amount: 25000_00, rawDescription: 'PLAIN UPI ABC', flow: 'transfer', documentId: 'doc2' },
+  ]);
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+});
+
+test('two unrelated equal-amount txns with only ownAccountId (no signal) do NOT falsely pair', () => {
+  // a plain expense and a plain income, each merely stamped with an account,
+  // no transfer signal on either, SAME-amount coincidence within window.
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500_00, rawDescription: 'SWIGGY ORDER', ownAccountId: 'acc_a', merchant: 'Swiggy' },
+    { id: 'c1', date: '2025-10-02', amount: 500_00, rawDescription: 'CASHFREE PAYOUT', ownAccountId: 'acc_a', documentId: 'doc2', merchant: 'Cashfree' },
+  ]);
+  assert.equal(transferIds.has('d1'), false);
+  assert.equal(transferIds.has('c1'), false);
+});
+
+test('coincidental equal-amount expense/income across DIFFERENT own accounts do NOT pair', () => {
+  const { transferIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -50000_00, rawDescription: 'RENT PAYMENT', ownAccountId: 'acc_hdfc', merchant: 'Landlord', documentId: 'doc_hdfc' },
+    { id: 'c1', date: '2025-10-02', amount: 50000_00, rawDescription: 'SALARY CREDIT', ownAccountId: 'acc_icici', merchant: 'Acme Corp', documentId: 'doc_icici' },
+  ]);
+  assert.equal(transferIds.has('d1'), false);
+  assert.equal(transferIds.has('c1'), false);
+});
+
+test('bare equal-amount debit/credit across different own accounts DO pair (keyword-less transfer)', () => {
+  const { transferIds, links } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_icici', documentId: 'doc_a' },
+    { id: 'c1', date: '2025-10-02', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank', ownAccountId: 'acc_hdfc', documentId: 'doc_b' },
+  ]);
+  assert.ok(transferIds.has('d1') && transferIds.has('c1'));
+  assert.equal(links[0].kind, 'account_transfer');
+});
+
+test('large round-number credit with no merchant/counterparty is suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-11-02', amount: 500000_00, rawDescription: 'MOBILE BANKING DFC bank' },
+  ]);
+  assert.ok(suspectedIds.has('c1'));
+});
+
+test('round credit that is already a confirmed transfer is not also suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'd1', date: '2025-10-01', amount: -500000_00, rawDescription: 'x', ownAccountId: 'a', documentId: 'd1doc' },
+    { id: 'c1', date: '2025-10-01', amount: 500000_00, rawDescription: 'x', ownAccountId: 'b', documentId: 'd2' },
+  ]);
+  assert.equal(suspectedIds.has('c1'), false);
+});
+
+test('non-round credit is not suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-11-02', amount: 137_50, rawDescription: 'refund' },
+  ]);
+  assert.equal(suspectedIds.has('c1'), false);
+});
+
+test('credit with a resolved merchant is not suspected', () => {
+  const { suspectedIds } = linkInternalTransfers([
+    { id: 'c1', date: '2025-11-02', amount: 500000_00, rawDescription: 'salary', merchant: 'Acme Corp' },
+  ]);
+  assert.equal(suspectedIds.has('c1'), false);
+});

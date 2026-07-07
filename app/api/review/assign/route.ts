@@ -8,16 +8,39 @@ import { rebuildClassificationReviewItems } from '@/ingest/review-items';
 import type { Flow } from '@/classifier/types';
 import { json, badRequest, assertSameOrigin } from '@/server/api';
 import { recordFeedbackExamples } from '@/intelligence/store';
+import { TAXONOMY, normalizeCategory } from '@/classifier/taxonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Derive flow from a canonical taxonomy category key (e.g. 'salary', 'travel',
+ * 'self_transfer'). Returns undefined when the key is not in the taxonomy so
+ * the caller can fall back to legacy logic.
+ */
+function flowForCanonical(category: string): Flow | undefined {
+  for (const [flow, cats] of Object.entries(TAXONOMY)) {
+    if ((cats as string[]).includes(category)) return flow as Flow;
+  }
+  return undefined;
+}
+
+/**
  * Flow follows from the category and the sign of each transaction — credits are
  * income, Transfer is a transfer, Investment debits are contributions. Users
  * never pick a flow by hand, so a debit can't be mislabelled income.
+ *
+ * Canonical taxonomy keys (e.g. 'salary', 'self_transfer', 'travel') are
+ * resolved first; legacy strings ('Transfer', 'Investment') fall through to the
+ * original rules for backward compatibility.
  */
 function flowFor(category: string, amount: number): Flow {
+  // Canonical taxonomy lookup — handles both new canonical keys and legacy
+  // strings that happen to appear verbatim in the taxonomy (e.g. 'investment').
+  const canonical = flowForCanonical(category.toLowerCase().replace(/ /g, '_'));
+  if (canonical !== undefined) return canonical;
+
+  // Legacy fallback — keeps backward compat for 'Transfer', 'Investment', etc.
   if (category === 'Transfer') return 'transfer';
   if (amount > 0) return 'income';
   if (category === 'Investment') return 'investment';
@@ -88,6 +111,10 @@ export async function POST(req: Request): Promise<Response> {
     const matched = pending.filter((t) => signature(t.rawDescription ?? '') === sig);
     if (matched.length === 0) return badRequest('No review-pending transactions match that signature.');
 
+    // Normalize once; flowFor still receives the original `category` so legacy
+    // strings like 'Transfer' and 'Income' are handled by its fallback rules.
+    const canonicalCategory = normalizeCategory(category);
+
     const reason = `User override: assigned "${merchant}" → ${category}${subcategory ? ` / ${subcategory}` : ''}.`;
 
     db.transaction((tx) => {
@@ -101,10 +128,11 @@ export async function POST(req: Request): Promise<Response> {
           tx.update(transactions)
             .set({
               merchant,
-              category,
+              category: canonicalCategory,
               subcategory,
               flow,
               isInternalTransfer: flow === 'transfer',
+              suspectedTransfer: false,
               confidence: 'high',
                 layer: 1,
                 classificationSource: 'deterministic',
@@ -126,7 +154,10 @@ export async function POST(req: Request): Promise<Response> {
       // Flow is left null on the override so reclassification derives it from
       // each transaction's sign — except Transfer, which is sign-agnostic.
       const existing = tx.select({ id: userOverrides.id }).from(userOverrides).where(eq(userOverrides.matchSignature, sig)).get();
-      const values = { matchSignature: sig, merchant, category, subcategory, flow: category === 'Transfer' ? ('transfer' as Flow) : null, updatedAt: Date.now() };
+      const overrideFlow: Flow | null = flowForCanonical(category.toLowerCase().replace(/ /g, '_')) === 'transfer' || category === 'Transfer'
+        ? 'transfer'
+        : null;
+      const values = { matchSignature: sig, merchant, category: canonicalCategory, subcategory, flow: overrideFlow, updatedAt: Date.now() };
       if (existing) {
         tx.update(userOverrides).set(values).where(eq(userOverrides.id, existing.id)).run();
       } else {
@@ -156,7 +187,7 @@ export async function POST(req: Request): Promise<Response> {
     // are too blunt for credit-card payments).
     let aliasToken: string | null = null;
     let aliasApplied = 0;
-    if (category !== 'Transfer') {
+    if (category !== 'Transfer' && flowFor(category, -1) !== 'transfer') {
       aliasToken = deriveAliasToken(merchant, matched.map((t) => t.rawDescription ?? ''));
     }
     if (aliasToken) {
@@ -171,7 +202,7 @@ export async function POST(req: Request): Promise<Response> {
       db.transaction((tx) => {
         // Persist the alias as a user row (layer-4 source) so re-ingests reuse it.
         const aliasId = `ua_${aliasToken}`;
-        const aliasVals = { pattern: aliasToken!, canonicalMerchant: merchant, category, subcategory, source: 'user' as const, confidence: 'high' as const, updatedAt: Date.now() };
+        const aliasVals = { pattern: aliasToken!, canonicalMerchant: merchant, category: canonicalCategory, subcategory, source: 'user' as const, confidence: 'high' as const, updatedAt: Date.now() };
         const existingAlias = tx.select({ id: merchantAliases.id }).from(merchantAliases).where(eq(merchantAliases.id, aliasId)).get();
         if (existingAlias) tx.update(merchantAliases).set(aliasVals).where(eq(merchantAliases.id, aliasId)).run();
         else tx.insert(merchantAliases).values({ id: aliasId, ...aliasVals }).run();
@@ -182,7 +213,7 @@ export async function POST(req: Request): Promise<Response> {
             const ids = chunk.filter((t) => flowFor(category, t.amount) === flow).map((t) => t.id);
             if (!ids.length) continue;
             tx.update(transactions)
-                .set({ merchant, category, subcategory, flow, confidence: 'high', layer: 4, classificationSource: 'deterministic', acceptedPredictionId: null, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
+                .set({ merchant, category: canonicalCategory, subcategory, flow, suspectedTransfer: false, confidence: 'high', layer: 4, classificationSource: 'deterministic', acceptedPredictionId: null, classificationReason: `${reason} (matched your "${aliasToken}" rule)`, profileSignalUsed: 'user.merchant_alias', reviewRequired: false, updatedAt: Date.now() })
               .where(inArray(transactions.id, ids))
               .run();
           }

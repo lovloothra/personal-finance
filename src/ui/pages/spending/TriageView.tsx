@@ -40,7 +40,7 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
         {loading && <div className="muted" style={{ padding: 16 }}>Loading…</div>}
         {!loading && groups.length === 0 && <div className="muted" style={{ padding: 16 }}>{q ? 'No matches.' : 'Everything is categorised. 🎉'}</div>}
         {groups.map((g, i) => (
-          <GroupRow key={g.signature} group={g} categories={triage!.categories} spending={spending} focused={i === focus} />
+          <GroupRow key={g.signature} group={g} spending={spending} focused={i === focus} />
         ))}
       </div>
     </div>

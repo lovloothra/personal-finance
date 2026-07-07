@@ -185,3 +185,49 @@ Card Statement Date: 31/03/2026
   assert.equal(st.txns.length, 1);
   assert.match(st.txns[0].rawDescription, /DR\. REDDYS/i);
 });
+
+test('extracts masked account last4 from the statement header', () => {
+  const text = [
+    'HDFC BANK STATEMENT',
+    'Account No: XXXXXXXX7702',
+    '01/03/2025 UPI/zomato 250.00 9,750.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, '7702');
+});
+
+test('extracts card last4 written with spaces', () => {
+  const text = ['Card Number 4321 5678 9012 1234', '01/03/2025 SWIGGY 500.00'].join('\n');
+  const out = parseStatement(text, { providerId: 'hdfc-bank-cards', docType: 'card_statement' });
+  assert.equal(out.accountLast4, '1234');
+});
+
+test('yields undefined when statement has no account header', () => {
+  const text = 'HDFC BANK STATEMENT\n01/03/2025 SWIGGY 500.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, undefined);
+});
+
+test('extracts UPI VPA counterparty from a line', () => {
+  const text = '01/03/2025 UPI/john.doe@okhdfc/Payment 250.00 9,750.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, 'john.doe@okhdfc');
+});
+
+test('extracts NEFT/IMPS beneficiary name', () => {
+  const text = '01/03/2025 NEFT DR-HDFC0001-JANE SMITH-REF123 5,000.00 4,750.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, 'JANE SMITH');
+});
+
+test('generic mobile-banking line has null counterparty', () => {
+  const text = '02/11/2025 MOBILE BANKING DFC bank 5,00,000.00 15,00,000.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, null);
+});
+
+test('extracts numeric-handle VPA counterparty from the raw line', () => {
+  const text = '01/03/2025 UPI/12345@ybl/Pay 250.00 9,750.00';
+  const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.txns[0].counterpartyRaw, '12345@ybl');
+});

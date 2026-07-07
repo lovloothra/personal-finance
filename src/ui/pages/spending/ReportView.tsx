@@ -37,7 +37,7 @@ export function ReportView({ spending }: { spending: ReturnType<typeof useSpendi
               <div className="sub" style={{ display: 'block' }}>
                 {isUncat
                   ? (triage?.groups.length
-                      ? triage.groups.map((g) => <GroupRow key={g.signature} group={g} categories={triage.categories} spending={spending} />)
+                      ? triage.groups.map((g) => <GroupRow key={g.signature} group={g} spending={spending} />)
                       : <div className="muted" style={{ fontSize: 12.5, padding: '6px 0' }}>Nothing left to categorise.</div>)
                   : c.children.map((ch) => (
                       <div key={ch.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13, color: 'var(--fg-2)' }}>
