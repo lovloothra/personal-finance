@@ -170,6 +170,26 @@ classification happened.
 There is no telemetry, hosted backend, or external enrichment API. Sensitive
 values are masked in the UI by default.
 
+## Backup and recovery
+
+The database key is generated on first run and stored only in your OS keychain
+— you have never seen it, and backup files are unreadable without it. A real
+backup therefore has two parts:
+
+1. **Snapshot** — `POST /api/settings/backup` writes a consistent encrypted
+   copy to `exports/`. Copy it off this machine.
+2. **Passphrase escrow** — save the key in your password manager. macOS:
+
+   ```sh
+   security find-generic-password -s personal-finance -a db-passphrase -w
+   ```
+
+Restore order matters: on a new machine, put the escrowed passphrase into the
+keychain **before** first launch, then copy the snapshot to
+`data/personal-finance.db`. Starting the app first generates a fresh key that
+cannot open the old database. Full procedure and failure modes:
+`.claude/skills/backup-and-recovery/SKILL.md`.
+
 ## CLI
 
 The guided browser onboarding flow is the recommended path for new users. These
@@ -183,6 +203,8 @@ npm start                      # serve production build
 npm run lint                   # run ESLint
 npm test                       # run the full test suite
 npm run validate:packs         # validate packs/in JSON
+npm run eval:classifier        # classifier accuracy scorecard (golden set)
+npm run eval:ledger            # ledger data-quality metrics
 npm run profile:seed           # load secrets/profile.local.json
 npm run gmail:auth             # authorize read-only Gmail from CLI
 npm run gmail:fetch -- --fy=2025-26 [--all] [--yes]
@@ -209,6 +231,7 @@ when Ollama is not running or the configured model is missing.
 | Ledger | Income, expense, subscription, investment, liability, tax, source rollups |
 | Re-ingestion | Idempotent document ids and cross-statement de-duplication |
 | Assistant | Typed ledger tools with optional localhost Ollama synthesis |
+| Quality | Golden-set classifier eval and ledger data-quality scorecard (`evals/`) |
 
 ## Repo layout
 
@@ -230,4 +253,22 @@ when Ollama is not running or the configured model is missing.
 | `models/classification/` | Bundled local classifier embedding model assets |
 | `packs/in/` | India pack seed data |
 | `schemas/` | Pack validation schemas |
+| `evals/` | Classifier golden-set and ledger data-quality scorecards |
+| `docs/` | Load-bearing decisions (`DECISIONS.md`), goal backlog (`GOALS.md`), plans/specs |
 | `tools/`, `scripts/`, `tests/` | Validation tools, operational scripts, automated tests |
+
+## For contributors and AI agents
+
+Engineering guidance lives in-repo and is written to be agent-agnostic:
+
+- `AGENTS.md` — entry point for any coding agent: skill index, non-negotiable
+  invariants, common errors with fixes.
+- `CLAUDE.md` — architecture, commands, and conventions.
+- `.claude/skills/` — nine workflow runbooks (schema/migrations, DB tests,
+  parsers, classifier, misclassification debugging, local-ML guardrails,
+  packs, verification, backup/recovery), each anchored to a real incident
+  from this repo's history.
+- `docs/DECISIONS.md` — the product principles and load-bearing technical
+  decisions; read before proposing structural changes.
+- `docs/GOALS.md` — the backlog: self-contained project briefs with
+  eval-based acceptance criteria.
