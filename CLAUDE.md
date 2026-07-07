@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Workflow-specific runbooks live in `.claude/skills/*/SKILL.md` (auto-discovered
+by Claude Code; indexed for other agents in `AGENTS.md`). Consult the matching
+skill before schema/migration work, DB tests/scripts, parser or classifier
+changes, pack edits, local-ML changes, or before claiming a change verified.
+
 ## Commands
 
 ```sh
@@ -15,9 +20,10 @@ npm run ingest           # process downloaded attachments → parsed docs → cl
 npm run validate:packs   # validate packs/in/*.json against schemas/pack-in.schema.json
 ```
 
-**Run a single test file:**
+**Run a single test file** (always include the react-server condition — pure
+modules don't need it, but DB-touching tests fail without it, and it never hurts):
 ```sh
-node --import tsx --test src/classifier/__tests__/pipeline.test.ts
+node --import tsx --conditions=react-server --test src/classifier/__tests__/pipeline.test.ts
 ```
 
 **Scripts that touch the DB or Gmail require the react-server condition:**

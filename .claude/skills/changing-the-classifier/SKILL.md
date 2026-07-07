@@ -7,7 +7,7 @@ description: Use when transactions are miscategorized, when adding or changing c
 
 ## Overview
 
-`src/classifier/pipeline.ts` runs 7 layers in strict priority order; the first match wins. Layers 8–9 (transfer dedupe, project isolation) re-stamp verdicts afterwards. The verdict shape maps 1:1 to the ProvenanceDrawer in the UI — always fill an honest human-readable `reason` and machine `signal`.
+`src/classifier/pipeline.ts` runs 7 layers in strict priority order; the first match wins. Layers 8–9 (transfer dedupe, project isolation) re-stamp verdicts afterwards. At ingest, a WEAK verdict (low confidence / fallback) may additionally be superseded by the local ML model (layer 10) — see the local-ml-guardrails skill. The verdict shape maps 1:1 to the ProvenanceDrawer in the UI — always fill an honest human-readable `reason` and machine `signal`.
 
 ## Iron rule: purity
 

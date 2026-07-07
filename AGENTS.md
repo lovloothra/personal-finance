@@ -40,3 +40,52 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 - For debugging, use raw command without rtk prefix
 - `rtk proxy <cmd>` runs command without filtering but tracks usage
 <!-- /headroom:rtk-instructions -->
+
+# Project Skills (all agents: Claude Code, Codex, Cursor, etc.)
+
+Detailed workflow guides live in `.claude/skills/<name>/SKILL.md`. They follow the
+agentskills.io SKILL.md format (YAML frontmatter with `name` + `description`).
+Claude Code auto-discovers them. **If your agent does not auto-discover skills,
+read the matching file below BEFORE starting that kind of work** — each one
+documents a real failure this repo already hit once.
+
+| Before you… | Read |
+|---|---|
+| Change `src/db/schema.ts` or touch Drizzle migrations | `.claude/skills/changing-db-schema/SKILL.md` |
+| Run/write any test or script touching the DB, keychain, or Gmail | `.claude/skills/running-db-tests-and-scripts/SKILL.md` |
+| Add/fix a statement parser | `.claude/skills/adding-a-parser/SKILL.md` |
+| Change classification rules, taxonomy, or transfer detection | `.claude/skills/changing-the-classifier/SKILL.md` |
+| Investigate a wrongly categorized transaction | `.claude/skills/debugging-misclassifications/SKILL.md` |
+| Touch `src/intelligence/` (local MiniLM classifier) | `.claude/skills/local-ml-guardrails/SKILL.md` |
+| Edit `packs/in/*.json` institution/merchant data | `.claude/skills/updating-institution-packs/SKILL.md` |
+| Claim any change works / need a safe dev server | `.claude/skills/verifying-changes/SKILL.md` |
+
+Architecture, commands, and conventions are documented in `CLAUDE.md` at the repo
+root — it is a plain markdown file; read it at the start of a session regardless
+of which agent you are.
+
+## Common errors → fix
+
+| Symptom | Cause / fix |
+|---|---|
+| `Error: server-only cannot be imported...` | Run with `--conditions=react-server` (see running-db-tests-and-scripts skill) |
+| `file is not a database` from sqlite3 | DB is SQLCipher-encrypted; go through `getDb()` (`src/db/client.ts`) |
+| Test hangs or shows a keychain prompt | Set `PF_DB_PASSPHRASE` before importing `@/db/client` |
+| Migration seems ignored, app boots anyway | Migrate failures are warn-only; set `PF_DB_STRICT_MIGRATE=1` to surface them |
+| `drizzle-kit generate` produces a weird diff | Stale meta snapshot — see changing-db-schema skill; do NOT hand-edit SQL |
+| Page shows data although the DB is empty | Demo fixtures (`src/ui/lib/fixtures.ts`) render in the pre-import state |
+| Mutating API call rejected in manual testing | Loopback-origin guard (`src/server/api.ts`); send a localhost `Origin` header |
+| New classifier rule never fires | Shadowed by a higher-priority layer — see debugging-misclassifications skill |
+
+## Non-negotiable invariants (summary — skills have the details)
+
+- Money is **signed integer paise** (₹1 = 100 paise). Never floats. Negative = debit.
+- Modules touching DB/keychain/secrets import `server-only`: run them with
+  `--conditions=react-server` (npm test already does; ad-hoc `node`/`tsx` must too).
+- In DB tests, set `PF_DB_PATH` (ephemeral tmp dir) and `PF_DB_PASSPHRASE`
+  **before** importing `@/db/client`, or you will open the real encrypted DB.
+- `src/classifier/` is pure: no DB, no I/O, no `Date.now()` — inputs only via `ClassifyContext`.
+- Never hand-edit generated migrations or Drizzle meta snapshots.
+- Never rename a pack provider `id` — it is a foreign key everywhere.
+- The DB file is SQLCipher-encrypted; plain `sqlite3` cannot open it.
+- `data/`, `attachments/`, `exports/`, `secrets/` are gitignored — never commit them.
