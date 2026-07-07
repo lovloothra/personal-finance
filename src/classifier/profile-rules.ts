@@ -8,7 +8,7 @@
  */
 import type { Classification, ClassifyContext, RawTxn } from './types';
 import { LAYER } from './types';
-import { amountNear, clean, containsAny } from './normalize';
+import { amountNear, clean, containsAny, containsWord } from './normalize';
 
 const isCredit = (t: RawTxn) => t.amount > 0;
 const isDebit = (t: RawTxn) => t.amount < 0;
@@ -100,7 +100,9 @@ export function classifyByProfile(
   const aliasEvidence = ctx.merchantAliases.some((a) => a.pattern.length >= 5 && desc.includes(a.pattern));
   for (const loan of p.loans ?? []) {
     const emiHit = loan.emiAmount != null && amountNear(txn.amount, loan.emiAmount, 0.02) && !aliasEvidence;
-    const kindHit = containsAny(desc, ['emi', `${loan.kind} loan`]);
+    // 'emi' only counts as a whole word — it is a substring of "premium",
+    // "chemist", etc., and a substring hit here would shadow every later layer.
+    const kindHit = containsWord(desc, 'emi') || containsAny(desc, [`${loan.kind} loan`]);
     if (isDebit(txn) && (emiHit || kindHit)) {
       return {
         flow: 'expense',

@@ -20,6 +20,6 @@ dist/
 *.sqlite-wal
 *.log
 .DS_Store
-secrets/
+/secrets/
 oauth-token*.json
 google-credentials*.json
