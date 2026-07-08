@@ -29,7 +29,7 @@ export function Investments() {
     <div className="content-wrap fade-in">
       <PageHead title="Investments" sub={`${fySummary(fy).label} · reconstructed from broker & platform emails`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Invested" icon="banknote" val={<Money amount={totInvested} />} sub="Contributions detected" />
+        <StatCard lbl="Invested" icon="banknote" val={<Money compact amount={totInvested} />} sub="Contributions detected" />
         <StatCard lbl="Current value" icon="trending-up" val={totValue != null ? <Money amount={totValue} pos /> : '—'} accent="var(--mint-600)" sub={totValue == null ? 'No holdings data in statements' : undefined} />
         <StatCard lbl="Unrealised gain" icon="sparkles" val={gain != null ? <Money amount={gain} pos /> : '—'} delta={gainPct != null ? `+${gainPct}%` : undefined} dir="up" />
       </div>

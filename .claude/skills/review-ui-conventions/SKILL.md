@@ -35,6 +35,30 @@ description: Use when changing the triage/review UI, category picker, spending p
 
 `j`/`k` navigate (exists) · `/` search (exists) · `1`–`5` pick ranked suggestion · `Enter` assign · `x` mark transfer · `u` undo last. Every assign path must work without the mouse — triage is a repetition task.
 
+## Overflow prevention (crore-scale money, long merchants)
+
+Indian amounts reach 11+ characters (₹1,07,21,886); merchant names and UPI
+descriptors are unbounded. Rules:
+
+- Headline/stat money renders **compact**: `<Money compact …/>` → `₹1.07 Cr`
+  via `inrCompact` (`src/ui/lib/format.ts`), exact value auto-moves to the
+  tooltip. Tables/rows keep full precision at small sizes.
+- Unbounded text in flex rows needs `minWidth: 0` on the flex child plus
+  ellipsis or `overflowWrap` (see `.ttl` in GroupRow for the pattern).
+- After any layout/typography change, stress-seed the scratch DB (crore
+  amounts, 100+ char merchant/descriptor strings) and run the overflow
+  detector on every page at desktop AND 768px:
+
+```js
+[...document.querySelectorAll('*')].filter(el =>
+  getComputedStyle(el).overflowX === 'visible' &&
+  el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 2)
+```
+
+Validate the detector first with an injected known-overflow probe — an empty
+result you haven't tested the test for proves nothing. Sub-768px is not a
+supported form factor (desktop workbench).
+
 ## Verify
 
 `dev-fresh` server (see verifying-changes skill); confirm an assign round-trip updates the DB row AND creates the override/feedback rows, not just the UI state.

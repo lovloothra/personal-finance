@@ -26,9 +26,9 @@ export function Income() {
     <div className="content-wrap fade-in">
       <PageHead title="Income" sub={`${f.label} · salary credits detected from ${employer}`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Total income" icon="wallet" val={<Money amount={totalIncome} pos />} />
-        <StatCard lbl="Salary (employer)" icon="building-2" val={<Money amount={totalSalary} />} sub="monthly credits matched" />
-        <StatCard lbl="Other income" icon="plus-circle" val={<Money amount={totalOther} />} sub="Bonus, freelance, reimbursements" />
+        <StatCard lbl="Total income" icon="wallet" val={<Money compact amount={totalIncome} pos />} />
+        <StatCard lbl="Salary (employer)" icon="building-2" val={<Money compact amount={totalSalary} />} sub="monthly credits matched" />
+        <StatCard lbl="Other income" icon="plus-circle" val={<Money compact amount={totalOther} />} sub="Bonus, freelance, reimbursements" />
       </div>
 
       <div className="card card-pad" style={{ marginBottom: 16 }}>

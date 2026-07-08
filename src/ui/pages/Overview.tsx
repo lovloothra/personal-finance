@@ -81,12 +81,12 @@ export function Overview({ setPage }: OverviewProps) {
       </PageHead>
 
       <div className="grid-4" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Income" icon="arrow-down-to-line" val={<Money amount={income} pos />} delta="vs prior FY" dir="up" />
-        <StatCard lbl="Expenses" icon="arrow-up-from-line" val={<Money amount={expenses} />} sub="CC payments de-duped" />
+        <StatCard lbl="Income" icon="arrow-down-to-line" val={<Money compact amount={income} pos />} delta="vs prior FY" dir="up" />
+        <StatCard lbl="Expenses" icon="arrow-up-from-line" val={<Money compact amount={expenses} />} sub="CC payments de-duped" />
         <StatCard
           lbl="Money kept"
           icon="piggy-bank"
-          val={<Money amount={net} pos={net >= 0} sign={net < 0} />}
+          val={<Money compact amount={net} pos={net >= 0} sign={net < 0} />}
           accent={net >= 0 ? 'var(--mint-600)' : 'var(--red-500)'}
           sub={net < 0 ? 'Spent more than earned' : undefined}
         />
