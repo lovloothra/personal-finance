@@ -60,12 +60,16 @@ documents a real failure this repo already hit once.
 | Edit `packs/in/*.json` institution/merchant data | `.claude/skills/updating-institution-packs/SKILL.md` |
 | Claim any change works / need a safe dev server | `.claude/skills/verifying-changes/SKILL.md` |
 | Touch backups, keychain, wipe/reset, or machine migration | `.claude/skills/backup-and-recovery/SKILL.md` |
+| Change the triage/review UI, category picker, or assign flow | `.claude/skills/review-ui-conventions/SKILL.md` |
 
 Architecture, commands, and conventions are documented in `CLAUDE.md` at the repo
 root — it is a plain markdown file; read it at the start of a session regardless
-of which agent you are. Before proposing any architectural or product-direction
-change, read `docs/DECISIONS.md` — it records the load-bearing decisions and the
-product principles behind them; conflicts with it need explicit owner sign-off.
+of which agent you are. When working alongside Fable 5, Opus 4.8, Sonnet 5,
+Codex, or any other agent, read `docs/AGENT_COORDINATION.md` and use its
+artifact-first handoff contract to avoid drift. Before proposing any
+architectural or product-direction change, read `docs/DECISIONS.md` — it records
+the load-bearing decisions and the product principles behind them; conflicts with
+it need explicit owner sign-off.
 
 Quality scorecards live in `evals/` (`npm run eval:classifier`, `npm run
 eval:ledger` — see `evals/README.md`). The project backlog is `docs/GOALS.md`:
