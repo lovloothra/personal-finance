@@ -7,7 +7,7 @@
  */
 import type { Classification, ClassifyContext, KeywordRule, RawTxn, Flow } from './types';
 import { LAYER } from './types';
-import { clean } from './normalize';
+import { clean, containsWord } from './normalize';
 
 export const DEFAULT_KEYWORD_RULES: KeywordRule[] = [
   // Internal transfers — excluded from income/expense rollups to avoid
@@ -34,6 +34,28 @@ export const DEFAULT_KEYWORD_RULES: KeywordRule[] = [
   { keyword: 'refund', category: 'Refund', flow: 'income', confidence: 'low' },
 ];
 
+/**
+ * Single-token keywords are substrings of everyday words — 'interest' matches
+ * PINTEREST, 'gas' matches GASTRO — so they only match as whole words.
+ * Multi-word phrases ("credit card payment") and punctuated handles
+ * ("cred.club") are specific enough to keep substring matching.
+ */
+function keywordMatches(desc: string, keyword: string): boolean {
+  return /^[a-z0-9]+$/.test(keyword) ? containsWord(desc, keyword) : desc.includes(keyword);
+}
+
+/**
+ * A rule's forced flow must not contradict the transaction sign — an income
+ * rule stamping a debit would push a negative amount into income rollups.
+ * Transfers are valid in both directions (bank leg is a debit, card leg a
+ * credit). Mirrors isPredictionFlowCompatible in src/intelligence/local-model.ts.
+ */
+function flowCompatible(amount: number, flow: Flow): boolean {
+  if (flow === 'transfer') return true;
+  if (amount > 0) return flow === 'income';
+  return flow === 'expense' || flow === 'investment';
+}
+
 export function classifyByKeyword(
   txn: RawTxn,
   ctx: ClassifyContext,
@@ -41,7 +63,8 @@ export function classifyByKeyword(
   const desc = clean(txn.rawDescription);
 
   for (const rule of ctx.keywordRules) {
-    if (rule.keyword && desc.includes(rule.keyword)) {
+    if (rule.keyword && keywordMatches(desc, rule.keyword)) {
+      if (rule.flow && !flowCompatible(txn.amount, rule.flow)) continue;
       const flow: Flow = rule.flow ?? (txn.amount > 0 ? 'income' : 'expense');
       return {
         flow,
