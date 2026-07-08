@@ -33,15 +33,9 @@ Before changing code or docs, every agent should:
 
 ## Handoff Contract
 
-Every handoff between Fable, Opus, Sonnet, Codex, or a human should state:
-
-- Goal ID or task name.
-- Source docs and skills read.
-- Branch or worktree used.
-- Files touched.
-- Tests and evals run, with command names and outcomes.
-- Known risks.
-- Unresolved decisions.
+The required handoff shape is defined canonically in `AGENTS.md`
+("Multi-agent handoff — required shape") — one list, one place; do not
+duplicate it here.
 
 If two agents need to touch the same file or subsystem in parallel, pause and
 reconcile through a written spec or plan before editing. In normal parallel
