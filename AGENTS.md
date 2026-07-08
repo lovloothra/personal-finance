@@ -66,12 +66,29 @@ behind each rule. Read it once per session; apply it always.
 
 Architecture, commands, and conventions are documented in `CLAUDE.md` at the repo
 root — it is a plain markdown file; read it at the start of a session regardless
-of which agent you are. When working alongside Fable 5, Opus 4.8, Sonnet 5,
-Codex, or any other agent, read `docs/AGENT_COORDINATION.md` and use its
-artifact-first handoff contract to avoid drift. Before proposing any
-architectural or product-direction change, read `docs/DECISIONS.md` — it records
-the load-bearing decisions and the product principles behind them; conflicts with
-it need explicit owner sign-off.
+of which agent you are. Process detail for parallel work lives in
+`docs/AGENT_COORDINATION.md`. Before proposing any architectural or
+product-direction change, read `docs/DECISIONS.md` — it records the load-bearing
+decisions and the product principles behind them; conflicts with it need
+explicit owner sign-off.
+
+## Multi-agent handoff — required shape
+
+This is the canonical handoff contract (AGENT_COORDINATION.md defers to it).
+Every handoff — PR body, session summary, or plan doc — from any agent
+(Fable, Opus, Sonnet, Codex, or a human) states:
+
+1. Goal/task ID or name.
+2. Docs and skills read — **when touching a governed area, name the
+   `.claude/skills/*` file you followed**; that makes skill-vs-practice drift
+   visible without adding bureaucracy.
+3. Branch or worktree used.
+4. Files touched.
+5. Tests/evals run, with command names and outcomes (evidence, not assertions).
+6. Known risks and unresolved decisions.
+7. **Overlapping local changes you intentionally avoided** — uncommitted work,
+   parallel worktrees, or files another session owns that you saw and left
+   alone (or deliberately included, with attribution).
 
 Quality scorecards live in `evals/` (`npm run eval:classifier`, `npm run
 eval:ledger` — see `evals/README.md`). The project backlog is `docs/GOALS.md`:
