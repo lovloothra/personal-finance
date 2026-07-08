@@ -12,8 +12,9 @@ and report metrics instead of asserting individual cases.
 
 - Golden labels encode **intended** behavior. When the eval disagrees with the
   code, first decide which is wrong; a known code bug keeps its intended label
-  so the mismatch stays visible in every run until fixed (current example:
-  `insurer-premium` — the `'emi'` keyword substring-matches "pr**emi**um").
+  so the mismatch stays visible in every run until fixed (this is how the
+  since-fixed `insurer-premium` bug — `'emi'` substring-matching "pr**emi**um" —
+  was caught and tracked).
 - When adding classifier rules, add golden cases for them — including at least
   one *negative* case showing what the rule must NOT capture.
 - `docs/GOALS.md` acceptance criteria reference `eval:ledger` metrics; run it
