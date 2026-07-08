@@ -14,41 +14,61 @@ function AccountChip({ group }: { group: UncatGroup }) {
   const { institutionId, accountLast4, accountNickname, ownAccountKind } = group;
 
   if (!group.ownAccountId) {
+    // Honest state, not a fake action: nothing is clickable here (yet — the
+    // document-level assign flow is G1). Explain the gap on hover instead.
     return (
-      <span className="muted" style={{ fontSize: 11.5, fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-        Assign account
+      <span
+        className="badge neutral"
+        style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+        title="The statement this came from didn't reveal an account number the app could match to one of your registered accounts."
+      >
+        No account detected
       </span>
     );
   }
 
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '2px 8px 2px 4px',
-      borderRadius: 20,
-      background: 'var(--bg-2)',
-      border: '1px solid var(--border)',
-      fontSize: 11.5,
-      fontWeight: 500,
-      whiteSpace: 'nowrap',
-      flexShrink: 0,
-    }}>
-      {institutionId
-        ? <InstLogo id={institutionId} name={accountNickname ?? institutionId} size={16} />
-        : (
-          <span style={{
-            width: 16, height: 16, borderRadius: 4,
-            background: 'var(--indigo-50)', color: 'var(--indigo-600)',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 700, fontSize: 9, flexShrink: 0,
-          }}>
-            {ownAccountKind === 'card' ? '▣' : '▪'}
-          </span>
-        )
-      }
+    <span
+      title={`${accountNickname ?? institutionId ?? 'Account'}${accountLast4 ? ` ··${accountLast4}` : ''} (${ownAccountKind === 'card' ? 'card' : 'bank'})`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '2px 9px 2px 3px',
+        borderRadius: 20,
+        background: 'var(--bg-0, #fff)',
+        border: '1px solid var(--border)',
+        fontSize: 12,
+        fontWeight: 500,
+        color: 'var(--fg-2)',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+      }}
+    >
+      {/* Bank marks are detailed — they need a white well and real pixels to read. */}
+      <span style={{
+        width: 22, height: 22, borderRadius: '50%',
+        background: '#fff',
+        border: '1px solid var(--border)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, overflow: 'hidden',
+      }}>
+        {institutionId
+          ? <InstLogo id={institutionId} name={accountNickname ?? institutionId} size={16} />
+          : (
+            <span style={{
+              color: 'var(--indigo-600)', fontWeight: 700, fontSize: 10,
+            }}>
+              {ownAccountKind === 'card' ? '▣' : '▪'}
+            </span>
+          )
+        }
+      </span>
       <span>
         {accountNickname ? `${accountNickname} ` : ''}
-        {accountLast4 ? `··${accountLast4}` : ''}
+        {accountLast4 && (
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--fg-1)' }}>
+            ··{accountLast4}
+          </span>
+        )}
       </span>
     </span>
   );
