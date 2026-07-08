@@ -8,6 +8,8 @@ skill before schema/migration work, DB tests/scripts, parser or classifier
 changes, pack edits, local-ML changes, backup/recovery/keychain work, or before
 claiming a change verified. `docs/DECISIONS.md` records the load-bearing
 architecture and product decisions — read it before proposing structural changes.
+`docs/METHODS.md` records the working methods (signal → required move, with
+real cases) — the judgment layer that skills don't cover.
 
 ## Commands
 

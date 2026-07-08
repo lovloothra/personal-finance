@@ -47,7 +47,9 @@ Detailed workflow guides live in `.claude/skills/<name>/SKILL.md`. They follow t
 agentskills.io SKILL.md format (YAML frontmatter with `name` + `description`).
 Claude Code auto-discovers them. **If your agent does not auto-discover skills,
 read the matching file below BEFORE starting that kind of work** — each one
-documents a real failure this repo already hit once.
+documents a real failure this repo already hit once. `docs/METHODS.md` is the
+judgment layer above all of them: signal → required move, with the real case
+behind each rule. Read it once per session; apply it always.
 
 | Before you… | Read |
 |---|---|
