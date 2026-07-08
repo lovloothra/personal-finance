@@ -58,6 +58,29 @@ export function categoriesForFlow(flow: Flow): string[] {
   return TAXONOMY[flow];
 }
 
+/** Display-label exceptions where plain title-casing reads wrong. */
+const LABEL_OVERRIDES: Record<string, string> = {
+  mobile_internet: 'Mobile & Internet',
+  cc_payment: 'Credit Card Payment',
+  atm_cash: 'ATM / Cash',
+};
+
+/**
+ * Human display label for a canonical taxonomy key. Storage keeps snake_case
+ * keys; the UI must always render through this. Legacy display strings
+ * ('Transfer', 'Uncategorised') pass through unchanged.
+ */
+export function labelForCategory(key: string): string {
+  const override = LABEL_OVERRIDES[key];
+  if (override) return override;
+  if (!key.includes('_') && /^[A-Z]/.test(key)) return key; // legacy display string
+  return key
+    .split('_')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 export function normalizeCategory(legacy: string | null | undefined): string {
   if (!legacy) return 'uncategorised';
   const key = legacy.trim().toLowerCase();

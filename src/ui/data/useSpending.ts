@@ -29,6 +29,8 @@ export interface UncatGroup {
 export interface UncatDTO {
   hasData: boolean; totalTransactions: number; totalGroups: number;
   groups: UncatGroup[];
+  /** User's most-assigned category keys, ranked — feeds the picker shortlist. */
+  topCategories?: string[];
 }
 
 export function useSpending(fy: string) {

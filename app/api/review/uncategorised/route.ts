@@ -203,11 +203,30 @@ export async function GET(req: Request): Promise<Response> {
       .sort((a, b) => b.total - a.total || b.count - a.count)
       .map((g) => ({ ...g, total: Math.round(g.total / 100) }));
 
+    // The user's most-assigned categories, so the picker can lead with a
+    // ranked shortlist instead of the full taxonomy wall.
+    const catCounts = new Map<string, number>();
+    const categorized = db
+      .select({ category: transactions.category })
+      .from(transactions)
+      .where(eq(transactions.reviewRequired, false))
+      .all();
+    for (const { category } of categorized) {
+      if (!category || category.toLowerCase() === 'uncategorised') continue;
+      const key = category.toLowerCase();
+      catCounts.set(key, (catCounts.get(key) ?? 0) + 1);
+    }
+    const topCategories = [...catCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([k]) => k);
+
     return json({
       hasData: rows.length > 0,
       totalTransactions: rows.length,
       totalGroups: sorted.length,
       groups: sorted.slice(0, 150),
+      topCategories,
     });
   } catch (err) {
     return badRequest(err instanceof Error ? err.message : 'Failed to list uncategorised transactions.', 500);

@@ -10,6 +10,7 @@ import type { WorkbenchPage } from '../shell/Sidebar';
 import { useOverview, recentToTxn } from '../data/useOverview';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
 import { useDashboard, type TaxDTO } from '../data/useDashboard';
+import { labelForCategory } from '@/classifier/taxonomy';
 
 interface OverviewProps {
   setPage: (p: WorkbenchPage) => void;
@@ -107,7 +108,7 @@ export function Overview({ setPage }: OverviewProps) {
                 <div className="top">
                   <span className="nm">
                     <span className="swatch" style={{ background: c.color }} />
-                    {c.name}
+                    {labelForCategory(c.name)}
                     {c.recurring ? null : (
                       <span className="badge neutral" style={{ padding: '1px 7px' }}>
                         one-time
@@ -211,7 +212,7 @@ export function Overview({ setPage }: OverviewProps) {
             {merchants.map((m) => (
               <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
                 <MerchantLogo name={m.name} color={m.color} size={30} />
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.name}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{labelForCategory(m.name)}</span>
                 <span style={{ marginLeft: 'auto' }}>
                   <Money amount={m.amt} />
                 </span>

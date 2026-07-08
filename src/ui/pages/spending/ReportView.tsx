@@ -5,6 +5,7 @@ import { Money } from '../../primitives/Money';
 import { Icon } from '../../primitives/Icon';
 import { CategoryGlyph } from '../../primitives/CategoryGlyph';
 import { GroupRow } from './GroupRow';
+import { labelForCategory } from '@/classifier/taxonomy';
 
 export function ReportView({ spending }: { spending: ReturnType<typeof useSpending> }) {
   const { report, triage, highlight } = spending;
@@ -24,7 +25,7 @@ export function ReportView({ spending }: { spending: ReturnType<typeof useSpendi
               <span className="nm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={15} color="var(--fg-3)" />
                 <CategoryGlyph name={c.name} size={26} />
-                {c.name}
+                {labelForCategory(c.name)}
                 {!c.recurring && <span className="badge neutral" style={{ padding: '1px 7px' }}>one-time</span>}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

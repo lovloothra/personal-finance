@@ -8,6 +8,7 @@ import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { ConfidenceBadge } from '../primitives/ConfidenceBadge';
+import { labelForCategory } from '@/classifier/taxonomy';
 
 export function PageHead({
   title,
@@ -36,11 +37,11 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
     <div className="txn click" onClick={() => open(t)}>
       <MerchantLogo name={t.merchant} color={t.color} size={38} />
       <div className="txn-mid">
-        <div className="mer">{t.merchant}</div>
+        <div className="mer">{labelForCategory(t.merchant)}</div>
         <div className="cat">
           <span>
-            {t.cat}
-            {t.sub ? ' · ' + t.sub : ''}
+            {labelForCategory(t.cat)}
+            {t.sub ? ' · ' + labelForCategory(t.sub) : ''}
           </span>
           <ConfidenceBadge level={t.conf} showLabel={false} />
           {t.transfer && (

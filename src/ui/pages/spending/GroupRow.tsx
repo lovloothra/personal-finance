@@ -4,7 +4,7 @@ import type { useSpending, UncatGroup } from '../../data/useSpending';
 import { Money } from '../../primitives/Money';
 import { CategoryChipPicker } from '../../primitives/CategoryChipPicker';
 import { InstLogo } from '../../primitives/InstLogo';
-import { categoriesForFlow } from '@/classifier/taxonomy';
+import { categoriesForFlow, labelForCategory, normalizeCategory } from '@/classifier/taxonomy';
 import type { Flow } from '@/classifier/types';
 
 interface Detail { id: string; date: string; amount: number; rawDescription: string | null; from: string | null; subject: string | null; }
@@ -73,7 +73,11 @@ export function GroupRow({ group, spending, focused }: {
     ? (group.flow as Flow)
     : group.total > 0 ? 'income' : 'expense';
   const flowCategories = categoriesForFlow(groupFlow);
-  const [merchant, setMerchant] = useState(group.localSuggestion?.merchant ?? group.suggestedMerchant);
+  // Prefill only from a real ML suggestion — never from the title-cased
+  // signature guess, which pollutes overrides and training data with junk
+  // "merchants" like "Mobile Banking Sh Idfb". The guess stays visible as a
+  // placeholder hint the user can choose to type.
+  const [merchant, setMerchant] = useState(group.localSuggestion?.merchant ?? '');
   const [category, setCategory] = useState(group.localSuggestion?.category ?? group.category ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +97,7 @@ export function GroupRow({ group, spending, focused }: {
   };
 
   const assign = async () => {
-    if (!merchant.trim() || !category) return;
+    if (!category) return;
     setBusy(true); setError(null);
     try { await spending.assign(group.signature, merchant.trim(), category); }
     catch (e) { setError(e instanceof Error ? e.message : 'Assign failed'); setBusy(false); }
@@ -113,7 +117,9 @@ export function GroupRow({ group, spending, focused }: {
    */
   const markAsTransfer = async () => {
     setBusy(true); setError(null);
-    try { await spending.assign(group.signature, group.suggestedMerchant, 'Transfer'); }
+    // No merchant: a transfer between own accounts has no merchant, and the
+    // signature-derived guess must never be recorded as one.
+    try { await spending.assign(group.signature, '', 'Transfer'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Mark as transfer failed'); setBusy(false); }
   };
 
@@ -124,7 +130,7 @@ export function GroupRow({ group, spending, focused }: {
    */
   const markAsIncome = async () => {
     setBusy(true); setError(null);
-    try { await spending.assign(group.signature, group.suggestedMerchant, 'Income'); }
+    try { await spending.assign(group.signature, '', 'Income'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Mark as income failed'); setBusy(false); }
   };
 
@@ -148,7 +154,7 @@ export function GroupRow({ group, spending, focused }: {
         {sug && (
           <div style={{ marginTop: 10, padding: '10px 12px', border: '1px solid var(--mint-500)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className="badge mint">Suggested</span>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{sug.merchant} → {sug.category}{sug.subcategory ? ` / ${sug.subcategory}` : ''}</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{sug.merchant} → {labelForCategory(normalizeCategory(sug.category))}{sug.subcategory ? ` / ${sug.subcategory}` : ''}</span>
             <span className="muted" style={{ fontSize: 12.5 }}>{Math.round(sug.confidenceScore * 100)}% {sug.confidence}, {sug.evidenceCount} reviewed</span>
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={accept}>Accept</button>
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => spending.rejectSuggestion(sug.id).catch((e) => setError(e instanceof Error ? e.message : 'Reject failed'))}>Reject</button>
@@ -197,13 +203,32 @@ export function GroupRow({ group, spending, focused }: {
         )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <input className="inp" value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="Merchant" style={{ flex: '0 0 200px', maxWidth: 220 }} />
+          <input
+            className="inp"
+            value={merchant}
+            onChange={(e) => setMerchant(e.target.value)}
+            placeholder={group.suggestedMerchant ? `Merchant — e.g. ${group.suggestedMerchant}` : 'Merchant (optional)'}
+            style={{ flex: '0 0 200px', maxWidth: 220 }}
+          />
           <div style={{ flex: '1 1 320px', minWidth: 240 }}>
-            <CategoryChipPicker categories={flowCategories} value={category} onPick={setCategory} suggested={sug?.category ?? null} />
+            <CategoryChipPicker
+              categories={flowCategories}
+              value={category}
+              onPick={setCategory}
+              suggested={sug ? normalizeCategory(sug.category) : null}
+              priority={spending.triage?.topCategories ?? []}
+            />
           </div>
-          <button className="btn btn-primary btn-sm" disabled={busy || !merchant.trim() || !category} onClick={assign}>
+          <button className="btn btn-primary btn-sm" disabled={busy || !category} onClick={assign}>
             {busy ? 'Assigning…' : `Assign ${group.count > 1 ? `all ${group.count}` : ''}`}
           </button>
+          {/* Transfer must be reachable on every debit group, not only when the
+              classifier already suspected it (see review-ui-conventions skill). */}
+          {groupFlow === 'expense' && !group.suspectedTransfer && (
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsTransfer}>
+              Mark as transfer
+            </button>
+          )}
         </div>
         {error && <div style={{ fontSize: 12.5, color: 'var(--red-600)', marginTop: 6 }}>{error}</div>}
       </div>
