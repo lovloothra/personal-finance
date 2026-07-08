@@ -34,6 +34,9 @@
     { "id": "kw-dividend", "desc": "DIVIDEND RELIANCE INDUSTRIES", "amount": 120000, "expect": { "flow": "income", "category": "Income" } },
     { "id": "kw-refund", "desc": "AMAZON PAY REFUND ORDER 403", "amount": 89000, "expect": { "flow": "income", "category": "Refund" } },
     { "id": "kw-salary-other-employer", "desc": "SALARY CREDIT OTHERCO SYSTEMS", "amount": 10000000, "expect": { "flow": "income", "category": "Salary" } },
+    { "id": "kw-interest-not-pinterest", "desc": "PINTEREST* ADS SUBSCRIPTION", "amount": -49900, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
+    { "id": "kw-gas-not-gastro", "desc": "GASTRO CARE CENTRE BLR", "amount": -350000, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
+    { "id": "kw-interest-debit-not-income", "desc": "INTEREST CHARGED ON OD ACCOUNT", "amount": -50000, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
 
     { "id": "fallback-bare-vpa", "desc": "UPI-9876543210@YBL-payment", "amount": -50000, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
     { "id": "fallback-p2p-credit", "desc": "IMPS-RAVI KUMAR-P2P-483920", "amount": 200000, "expect": { "flow": "income", "category": "Uncategorised" }, "expectReview": true },
