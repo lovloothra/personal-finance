@@ -114,8 +114,8 @@ export function Subscriptions() {
         sub={`${confirmed.length} active · ${likely.length} to review`}
       />
       <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Per month" icon="repeat" val={<Money amount={monthlyEquivalent} />} sub="Monthly-equivalent of all plans" />
-        <StatCard lbl="Per year" icon="calendar" val={<Money amount={annualTotal} />} sub={`Across ${confirmed.length} active subscriptions`} />
+        <StatCard lbl="Per month" icon="repeat" val={<Money compact amount={monthlyEquivalent} />} sub="Monthly-equivalent of all plans" />
+        <StatCard lbl="Per year" icon="calendar" val={<Money compact amount={annualTotal} />} sub={`Across ${confirmed.length} active subscriptions`} />
         <StatCard lbl="Needs review" icon="help-circle" val={String(likely.length)} accent="var(--amber-600)" sub="Likely — confirm or dismiss" />
       </div>
 

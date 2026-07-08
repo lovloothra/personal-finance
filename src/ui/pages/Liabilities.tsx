@@ -23,8 +23,8 @@ export function Liabilities() {
       <PageHead title="Liabilities" sub={`${fySummary(fy).label} · loans, EMIs and insurance detected from statements`} />
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Total outstanding" icon="landmark" val={totalOut > 0 ? <Money amount={totalOut} /> : '—'} sub={totalOut > 0 ? undefined : 'Not in statements'} />
-        <StatCard lbl="Monthly EMIs" icon="calendar-clock" val={<Money amount={totalEmi} />} sub={`Across ${loans.length} active loan${loans.length === 1 ? '' : 's'}`} />
-        <StatCard lbl="Insurance / year" icon="shield" val={<Money amount={totalInsurance} />} sub={`${insuranceList.length} ${insuranceList.length === 1 ? 'policy' : 'policies'}`} />
+        <StatCard lbl="Monthly EMIs" icon="calendar-clock" val={<Money compact amount={totalEmi} />} sub={`Across ${loans.length} active loan${loans.length === 1 ? '' : 's'}`} />
+        <StatCard lbl="Insurance / year" icon="shield" val={<Money compact amount={totalInsurance} />} sub={`${insuranceList.length} ${insuranceList.length === 1 ? 'policy' : 'policies'}`} />
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
