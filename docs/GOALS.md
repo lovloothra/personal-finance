@@ -85,6 +85,15 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (date).
 **Accept when:** Precision metric in eval:ledger; documented recommendation (keep/raise/lower gates) with data; re-embed script exists and is idempotent.
 **Start with:** local-ml-guardrails skill; `src/intelligence/store.ts`.
 
+## [ ] G11 — Triage UX overhaul: from chip wall to ranked decisions
+
+**Objective:** Make categorising a transaction a 2-second, keyboard-first decision instead of scanning 24 chips.
+**Why:** 1,800 items sit in review (G3 baseline); the current per-card taxonomy dump makes triage feel endless, and the forced merchant prefill ("Mobile Banking Sh Idfb") poisons override + ML training data with junk merchants. Fixing this UI is also the engine for G3 and G9 — every faster correction is a training example.
+**⚠ Read `.claude/skills/review-ui-conventions/SKILL.md` first** — it maps the components, the invariants (flow stays server-derived; every assign is training data), and the six verified dead-ends.
+**Work:** Ranked top-3–5 category shortlist (from ML distribution + amount/counterparty context) with typeahead for the rest; always-available "mark as transfer" on debit groups; merchant field optional and never junk-prefilled; display labels instead of snake_case keys; count-based progress framing in the group header; complete the keyboard flow (`1`–`5` pick, `Enter` assign, `x` transfer, `u` undo).
+**Accept when:** A full assign is possible without the mouse; default card shows ≤6 category options; transfer is reachable on every debit group; no assign writes a merchant the user didn't type or explicitly accept; review-queue count drops measurably in one real session (`npm run eval:ledger` before/after).
+**Start with:** review-ui-conventions + verifying-changes skills; `src/ui/pages/spending/GroupRow.tsx`, `TriageView.tsx`.
+
 ## [ ] G10 — Data-quality dashboard in-app
 
 **Objective:** Surface `eval:ledger` metrics (G1/G2/G3/G6 baselines) as an in-app "data health" card so drift is visible without running a terminal command.
