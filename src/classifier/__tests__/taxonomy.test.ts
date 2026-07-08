@@ -1,6 +1,31 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { categoriesForFlow, normalizeCategory, TAXONOMY } from '../taxonomy';
+import { categoriesForFlow, labelForCategory, normalizeCategory, TAXONOMY } from '../taxonomy';
+
+test('labelForCategory renders human display labels, never snake_case', () => {
+  assert.equal(labelForCategory('mobile_internet'), 'Mobile & Internet');
+  assert.equal(labelForCategory('quick_commerce'), 'Quick Commerce');
+  assert.equal(labelForCategory('food_delivery'), 'Food Delivery');
+  assert.equal(labelForCategory('cc_payment'), 'Credit Card Payment');
+  assert.equal(labelForCategory('atm_cash'), 'ATM / Cash');
+  assert.equal(labelForCategory('self_transfer'), 'Self Transfer');
+  assert.equal(labelForCategory('groceries'), 'Groceries');
+});
+
+test('every taxonomy key has a label without underscores', () => {
+  for (const flow of Object.keys(TAXONOMY) as (keyof typeof TAXONOMY)[]) {
+    for (const key of TAXONOMY[flow]) {
+      const label = labelForCategory(key);
+      assert.ok(label.length > 0, `label for ${key}`);
+      assert.ok(!label.includes('_'), `no underscore in label for ${key}: ${label}`);
+    }
+  }
+});
+
+test('labelForCategory tolerates legacy display strings', () => {
+  assert.equal(labelForCategory('Transfer'), 'Transfer');
+  assert.equal(labelForCategory('Uncategorised'), 'Uncategorised');
+});
 
 test('income flow exposes the new income categories', () => {
   const cats = categoriesForFlow('income');

@@ -86,10 +86,11 @@ export async function POST(req: Request): Promise<Response> {
       subcategory?: string | null;
     };
     const sig = body.signature?.trim();
-    const merchant = body.merchant?.trim();
+    // Merchant is optional: transfers, P2P payments, and bank charges have no
+    // merchant, and forcing one poisons overrides + ML training data.
+    const merchant = body.merchant?.trim() ?? '';
     let category = body.category?.trim();
     if (!sig) return badRequest('Provide the description signature to match.');
-    if (!merchant) return badRequest('Provide a merchant name.');
     if (!category) return badRequest('Provide a category.');
     let subcategory = body.subcategory?.trim() || null;
 
@@ -115,7 +116,9 @@ export async function POST(req: Request): Promise<Response> {
     // strings like 'Transfer' and 'Income' are handled by its fallback rules.
     const canonicalCategory = normalizeCategory(category);
 
-    const reason = `User override: assigned "${merchant}" → ${category}${subcategory ? ` / ${subcategory}` : ''}.`;
+    const reason = merchant
+      ? `User override: assigned "${merchant}" → ${category}${subcategory ? ` / ${subcategory}` : ''}.`
+      : `User override: assigned ${category}${subcategory ? ` / ${subcategory}` : ''}.`;
 
     db.transaction((tx) => {
       // Chunk id lists to stay well under SQLite's bound-parameter limit.
@@ -127,7 +130,7 @@ export async function POST(req: Request): Promise<Response> {
           if (ids.length === 0) continue;
           tx.update(transactions)
             .set({
-              merchant,
+              merchant: merchant || null,
               category: canonicalCategory,
               subcategory,
               flow,
@@ -157,7 +160,7 @@ export async function POST(req: Request): Promise<Response> {
       const overrideFlow: Flow | null = flowForCanonical(category.toLowerCase().replace(/ /g, '_')) === 'transfer' || category === 'Transfer'
         ? 'transfer'
         : null;
-      const values = { matchSignature: sig, merchant, category: canonicalCategory, subcategory, flow: overrideFlow, updatedAt: Date.now() };
+      const values = { matchSignature: sig, merchant: merchant || null, category: canonicalCategory, subcategory, flow: overrideFlow, updatedAt: Date.now() };
       if (existing) {
         tx.update(userOverrides).set(values).where(eq(userOverrides.id, existing.id)).run();
       } else {

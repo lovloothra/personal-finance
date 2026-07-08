@@ -2,38 +2,64 @@
 import { useMemo, useState } from 'react';
 import { Icon } from './Icon';
 import { CategoryGlyph } from './CategoryGlyph';
+import { labelForCategory } from '@/classifier/taxonomy';
+
+const SHORTLIST_SIZE = 6;
 
 export function CategoryChipPicker({
-  categories, value, onPick, suggested, autoFocus,
+  categories, value, onPick, suggested, priority, autoFocus,
 }: {
   categories: string[];
   value: string;
   onPick: (category: string) => void;
   suggested?: string | null;
+  /** Ranked categories (e.g. the user's most-assigned) shown before the rest. */
+  priority?: string[];
   autoFocus?: boolean;
 }) {
   const [q, setQ] = useState('');
-  const ordered = useMemo(() => {
+  const [expanded, setExpanded] = useState(false);
+
+  // Ranked shortlist: suggestion first, then priority ranking, then taxonomy
+  // order as filler. The full set stays reachable via search or "More".
+  const shortlist = useMemo(() => {
     const seen = new Set<string>();
-    const front: string[] = [];
-    if (suggested && categories.includes(suggested)) { front.push(suggested); seen.add(suggested); }
-    const rest = categories.filter((c) => !seen.has(c));
-    return [...front, ...rest].filter((c) => c.toLowerCase().includes(q.toLowerCase()));
-  }, [categories, suggested, q]);
+    const out: string[] = [];
+    const push = (c: string) => {
+      if (c && categories.includes(c) && !seen.has(c)) { seen.add(c); out.push(c); }
+    };
+    if (suggested) push(suggested);
+    for (const c of priority ?? []) push(c);
+    for (const c of categories) { if (out.length >= SHORTLIST_SIZE) break; push(c); }
+    if (value) push(value); // the current selection must always be visible
+    return out.slice(0, Math.max(SHORTLIST_SIZE, value ? SHORTLIST_SIZE + 1 : SHORTLIST_SIZE));
+  }, [categories, suggested, priority, value]);
+
+  const visible = useMemo(() => {
+    if (q) {
+      const needle = q.toLowerCase();
+      return categories.filter(
+        (c) => c.toLowerCase().includes(needle) || labelForCategory(c).toLowerCase().includes(needle),
+      );
+    }
+    return expanded ? categories : shortlist;
+  }, [categories, shortlist, expanded, q]);
+
+  const collapsed = !q && !expanded && categories.length > shortlist.length;
 
   return (
     <div className="chip-picker">
       <input
         className="inp"
-        placeholder="Filter categories…"
+        placeholder="Search categories…"
         value={q}
         autoFocus={autoFocus}
         onChange={(e) => setQ(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && ordered[0]) { e.preventDefault(); onPick(ordered[0]); } }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && visible[0]) { e.preventDefault(); onPick(visible[0]); setQ(''); } }}
         style={{ width: '100%', marginBottom: 8 }}
       />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 168, overflowY: 'auto' }}>
-        {ordered.map((c) => {
+        {visible.map((c) => {
           const isSug = c === suggested;
           const on = c === value;
           return (
@@ -44,12 +70,22 @@ export function CategoryChipPicker({
               onClick={() => onPick(c)}
             >
               <CategoryGlyph name={c} size={18} />
-              {c}
+              {labelForCategory(c)}
               {isSug && <Icon name="sparkles" size={12} />}
             </button>
           );
         })}
-        {ordered.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>No match.</span>}
+        {collapsed && (
+          <button type="button" className="cat-pill" onClick={() => setExpanded(true)}>
+            More…
+          </button>
+        )}
+        {!q && expanded && (
+          <button type="button" className="cat-pill" onClick={() => setExpanded(false)}>
+            Fewer
+          </button>
+        )}
+        {visible.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>No match.</span>}
       </div>
     </div>
   );
