@@ -127,6 +127,11 @@ function isoDate(dd: string, mm: string, yy: string): string | null {
   const month = Number(mm);
   const year = yy.length === 2 ? Number(yy) + 2000 : Number(yy);
   if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2000 || year > 2099) return null;
+  // Round-trip through Date: 31/02/2025 passes the range checks above but is
+  // not a real date — stored as-is it became fyKey "NaN-NaN" and the txn
+  // vanished from every FY view.
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return null;
   return `${year}-${mm}-${dd}`;
 }
 

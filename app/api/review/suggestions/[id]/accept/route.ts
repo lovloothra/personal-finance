@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { getDb } from '@/db/client';
-import { classificationPredictions, localModelSuggestions, transactions } from '@/db/schema';
+import { classificationPredictions, localModelSuggestions, transactions, userOverrides } from '@/db/schema';
+import { signature } from '@/classifier/normalize';
+import { normalizeCategory } from '@/classifier/taxonomy';
 import { LOCAL_ML_LAYER } from '@/intelligence/local-model';
 import { recordFeedbackExamples } from '@/intelligence/store';
 import { rebuildClassificationReviewItems } from '@/ingest/review-items';
@@ -69,6 +72,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         .set({ status: 'accepted', updatedAt: Date.now() })
         .where(eq(localModelSuggestions.id, row.suggestionId))
         .run();
+
+      // Persist the acceptance as a signature-keyed user override (mirrors the
+      // assign flow). Without it, a full reclassify re-runs the ML gates —
+      // which usually fail for a single training example — and the accepted
+      // transaction silently reverts to the review queue.
+      const sig = signature(row.rawDescription ?? '');
+      if (sig) {
+        const canonicalCategory = normalizeCategory(row.category);
+        const values = {
+          matchSignature: sig,
+          merchant: row.merchant || null,
+          category: canonicalCategory,
+          subcategory: row.subcategory,
+          flow: row.flow === 'transfer' ? ('transfer' as const) : null,
+          updatedAt: Date.now(),
+        };
+        const existing = tx.select({ id: userOverrides.id }).from(userOverrides).where(eq(userOverrides.matchSignature, sig)).get();
+        if (existing) tx.update(userOverrides).set(values).where(eq(userOverrides.id, existing.id)).run();
+        else tx.insert(userOverrides).values({ id: `ov_${randomUUID()}`, ...values }).run();
+      }
     });
 
     await recordFeedbackExamples(db, [
