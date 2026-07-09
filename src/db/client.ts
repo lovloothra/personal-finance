@@ -57,9 +57,11 @@ export async function getDb(): Promise<DB> {
   try {
     migrate(db, { migrationsFolder: MIGRATIONS_DIR });
   } catch (err) {
-    // Migrations may not be generated yet during early bootstrap; surface a
-    // clear hint rather than a cryptic failure.
-    if (process.env.PF_DB_STRICT_MIGRATE === '1') throw err;
+    // STRICT BY DEFAULT: a failed migration means the app would run on a stale
+    // schema and die later with cryptic "no such column" errors. Set
+    // PF_DB_STRICT_MIGRATE=0 only for early dev bootstrap before migrations
+    // are generated.
+    if (process.env.PF_DB_STRICT_MIGRATE !== '0') throw err;
     console.warn(
       '[db] migrations not applied (run `npx drizzle-kit generate`):',
       (err as Error).message,

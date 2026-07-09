@@ -16,7 +16,7 @@ Schema source of truth is `src/db/schema.ts`. Migrations are generated SQL in `s
 3. Read the generated SQL — drizzle-kit sometimes rebuilds whole tables for small changes.
 4. Rehearse on an ephemeral DB before the real one applies it:
    ```sh
-   PF_DB_PATH=/tmp/pf-migrate-test.db PF_DB_PASSPHRASE=test PF_DB_STRICT_MIGRATE=1 \
+   PF_DB_PATH=/tmp/pf-migrate-test.db PF_DB_PASSPHRASE=test \
      node --import tsx --conditions=react-server --test src/ledger/__tests__/rollups.test.ts
    ```
    (any DB-touching test forces a fresh migrate run)
@@ -42,6 +42,6 @@ Schema source of truth is `src/db/schema.ts`. Migrations are generated SQL in `s
 
 ## Common mistakes
 
-- **Silent failure**: by default migrate errors are only console warnings and the app continues. Set `PF_DB_STRICT_MIGRATE=1` to make them fatal when testing a migration.
+- **Strict by default**: migrate failures now throw at boot (audit #16). `PF_DB_STRICT_MIGRATE=0` relaxes to warn-only for early dev bootstrap before migrations exist.
 - Editing schema.ts and forgetting `db:generate` — the DB silently drifts from the schema.
 - Adding a NOT NULL column without a default to a populated table — SQLite rejects it; add a default or ship a backfill script (see the running-db-tests-and-scripts skill).

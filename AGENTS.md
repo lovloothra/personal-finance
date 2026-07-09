@@ -103,7 +103,7 @@ entry `[~]`, and mark it `[x]` with the date when its acceptance criteria pass.
 | `Error: server-only cannot be imported...` | Run with `--conditions=react-server` (see running-db-tests-and-scripts skill) |
 | `file is not a database` from sqlite3 | DB is SQLCipher-encrypted; go through `getDb()` (`src/db/client.ts`) |
 | Test hangs or shows a keychain prompt | Set `PF_DB_PASSPHRASE` before importing `@/db/client` |
-| Migration seems ignored, app boots anyway | Migrate failures are warn-only; set `PF_DB_STRICT_MIGRATE=1` to surface them |
+| App throws at boot after a schema change | Migrate failures are strict by default; fix the migration (changing-db-schema skill) — `PF_DB_STRICT_MIGRATE=0` relaxes for bootstrap only |
 | `drizzle-kit generate` produces a weird diff | Stale meta snapshot — see changing-db-schema skill; do NOT hand-edit SQL |
 | Page shows data although the DB is empty | Demo fixtures (`src/ui/lib/fixtures.ts`) render in the pre-import state |
 | Mutating API call rejected in manual testing | Loopback-origin guard (`src/server/api.ts`); send a localhost `Origin` header |

@@ -28,7 +28,7 @@ export function rebuildClassificationReviewItems(db: DB): number {
       tx.insert(reviewItems)
         .values({
           id: `rev_txn_${r.id}`.slice(0, 80),
-          kind: r.category === 'Uncategorised' ? 'uncategorised' : 'low_confidence',
+          kind: (r.category ?? '').toLowerCase() === 'uncategorised' ? 'uncategorised' : 'low_confidence',
           refId: r.id,
           title: `Needs a look: ${(r.rawDescription ?? 'transaction').slice(0, 48)}`,
           detail: r.reason ?? '',

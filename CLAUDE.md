@@ -48,7 +48,7 @@ This is a local-first, single-user Next.js app with no hosted backend. All state
 
 - **DB**: SQLCipher-encrypted SQLite via `better-sqlite3-multiple-ciphers`. Passphrase is stored in the OS keychain (`src/secrets/keychain.ts`) and set as the very first PRAGMA before any query runs.
 - **Schema + ORM**: Drizzle ORM. Schema is the source of truth in `src/db/schema.ts`; migrations live in `src/db/migrations/`. Run `db:generate` after schema changes, then restart the app to apply.
-- **Singleton connection**: `src/db/client.ts` caches one connection per process. Use `PF_DB_PATH` to override the DB path (used in tests). Set `PF_DB_STRICT_MIGRATE=1` to make migration failures fatal.
+- **Singleton connection**: `src/db/client.ts` caches one connection per process. Use `PF_DB_PATH` to override the DB path (used in tests). Migration failures are fatal by default; set `PF_DB_STRICT_MIGRATE=0` to relax during early bootstrap.
 - **Money**: All monetary amounts are stored as **integer paise** (₹1 = 100 paise). Never use floats for money.
 
 ### Security model

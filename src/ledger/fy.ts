@@ -32,9 +32,29 @@ export function fyWindow(key: FyKey): FyWindow {
   };
 }
 
-/** The FY key containing a given ISO date (or Date). */
+/** The FY key containing a given ISO date (or Date). Throws on an invalid
+ * date — silently producing "NaN-NaN" once hid transactions from every FY
+ * view. Parsers must validate dates before they reach here (see isoDate in
+ * the generic bank parser); this is the backstop. */
 export function fyForDate(date: string | Date): FyKey {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === 'string') {
+    // V8 ROLLS OVER impossible ISO dates ('2025-02-31' → Mar 3) instead of
+    // rejecting them — a silently wrong FY. Validate the components round-trip.
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+    d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : new Date(NaN);
+    if (
+      !m ||
+      d.getUTCFullYear() !== Number(m[1]) ||
+      d.getUTCMonth() !== Number(m[2]) - 1 ||
+      d.getUTCDate() !== Number(m[3])
+    ) {
+      throw new Error(`fyForDate: invalid date "${date}"`);
+    }
+  } else {
+    d = date;
+    if (Number.isNaN(d.getTime())) throw new Error('fyForDate: invalid Date');
+  }
   const y = d.getUTCFullYear();
   const m = d.getUTCMonth(); // 0 = Jan
   // Jan–Mar belong to the FY that started the previous calendar year.
