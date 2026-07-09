@@ -32,7 +32,13 @@ export function clearDocumentOutput(db: DB, docId: string): void {
     .where(eq(transactions.documentId, docId))
     .all()
     .map((r) => r.id);
+  detachTransactionChildren(db, txnIds);
+  db.delete(transactions).where(eq(transactions.documentId, docId)).run();
+}
 
+/** Detach/remove every FK child of the given transaction ids so the rows can
+ * be deleted. Also used by the duplicate-cleanup script. */
+export function detachTransactionChildren(db: DB, txnIds: string[]): void {
   // Chunk id lists to stay well under SQLite's bound-parameter limit.
   for (let i = 0; i < txnIds.length; i += 500) {
     const chunk = txnIds.slice(i, i + 500);
@@ -61,6 +67,4 @@ export function clearDocumentOutput(db: DB, docId: string): void {
     db.update(taxEvidence).set({ transactionId: null }).where(inArray(taxEvidence.transactionId, chunk)).run();
     db.update(userOverrides).set({ transactionId: null }).where(inArray(userOverrides.transactionId, chunk)).run();
   }
-
-  db.delete(transactions).where(eq(transactions.documentId, docId)).run();
 }
