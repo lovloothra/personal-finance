@@ -16,6 +16,7 @@ import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
 import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard, counterparties as counterpartiesTable } from '@/db/schema';
 import { resolveOwnAccount, type OwnAccountRow } from './account-reconcile';
+import { relinkTransfersLedgerWide } from './relink-transfers';
 import { clearDocumentOutput } from './clear-output';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
@@ -421,19 +422,17 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       txnCount++;
     }
 
-    // Record the matched transfer pairs for provenance.
-    tx.delete(internalTransferLinks).run();
-    for (const link of transfer.links) {
-      tx.insert(internalTransferLinks)
-        .values({ id: `lnk_${link.debitId}_${link.creditId}`.slice(0, 80), kind: link.kind, debitTxnId: link.debitId, creditTxnId: link.creditId, confidence: 'high' })
-        .onConflictDoNothing()
-        .run();
-    }
   });
 
   for (const { raw, decision } of results) {
     if (!transfer.transferIds.has(raw.id)) recordLocalDecision(db, raw.id, decision);
   }
+
+  // 5b. Ledger-wide transfer relink: batch linking above only pairs legs that
+  // arrived in THIS run. A self-transfer split across runs (debit imported in
+  // run 1, credit in run 2) only pairs here. Also rebuilds
+  // internal_transfer_links from the full ledger-wide pair set.
+  relinkTransfersLedgerWide(db);
 
   // 6. Rebuild the classification-derived review queue from the transactions
   // table (idempotent — re-running ingest never duplicates review items).
