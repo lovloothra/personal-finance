@@ -281,11 +281,27 @@ export function persistProfile(db: DB, seed: ProfileSeed): Record<string, number
       }).run();
     }
 
-    tx.delete(profileOneTimeProjects).run();
+    // Projects carry stable user-provided ids and transactions.project_id
+    // FK-references them: delete-all-reinsert threw the moment a transaction
+    // was tagged (layer-9 project isolation). Upsert by id; drop only rows
+    // absent from the seed AND unreferenced — same policy as accounts above.
+    const existingProjects = tx.select().from(profileOneTimeProjects).all();
+    const seedProjectIds = new Set(seed.projects.map((p) => p.id));
+    for (const e of existingProjects.filter((e) => !seedProjectIds.has(e.id))) {
+      const referenced = tx
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(eq(transactions.projectId, e.id))
+        .limit(1)
+        .get();
+      if (!referenced) tx.delete(profileOneTimeProjects).where(eq(profileOneTimeProjects.id, e.id)).run();
+    }
     for (const p of seed.projects) {
+      const values = { name: p.name, budget: toPaise(p.budget), startDate: p.startDate ?? null, endDate: p.endDate ?? null, status: p.status ?? 'planned' };
       tx
         .insert(profileOneTimeProjects)
-        .values({ id: p.id, name: p.name, budget: toPaise(p.budget), startDate: p.startDate ?? null, endDate: p.endDate ?? null, status: p.status ?? 'planned' })
+        .values({ id: p.id, ...values })
+        .onConflictDoUpdate({ target: profileOneTimeProjects.id, set: values })
         .run();
     }
 
