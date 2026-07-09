@@ -109,6 +109,7 @@ entry `[~]`, and mark it `[x]` with the date when its acceptance criteria pass.
 | Mutating API call rejected in manual testing | Loopback-origin guard (`src/server/api.ts`); send a localhost `Origin` header |
 | New classifier rule never fires | Shadowed by a higher-priority layer — see debugging-misclassifications skill |
 | `getDb()` throws right after restoring a backup | Keychain passphrase doesn't match the file — see backup-and-recovery skill |
+| `FOREIGN KEY constraint failed` deleting transactions | Six tables FK-reference `transactions.id` with no ON DELETE — use `clearDocumentOutput` (`src/ingest/clear-output.ts`), never a bare delete |
 
 ## Non-negotiable invariants (summary — skills have the details)
 

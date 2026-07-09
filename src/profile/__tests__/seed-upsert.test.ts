@@ -15,7 +15,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 import { getDb, type DB } from '@/db/client';
-import { accountsBank, accountsCard, institutions, parsedDocuments, transactions } from '@/db/schema';
+import { accountsBank, accountsCard, institutions, parsedDocuments, profileOneTimeProjects, transactions } from '@/db/schema';
 import { persistProfile } from '../seed';
 import { ProfileSeedSchema } from '../types';
 
@@ -70,6 +70,35 @@ test('a row registered without last4 is claimed, not duplicated, and keeps a lea
   assert.equal(after.length, 1);
   assert.equal(after[0].id, icici.id);
   assert.equal(after[0].last4, '9012');
+});
+
+test('re-seeding never crashes or orphans project-tagged transactions', async () => {
+  const seedWithProject = (projects: unknown[]) =>
+    ProfileSeedSchema.parse({ personal: { fullName: 'Test User' }, banks: [], cards: [], projects });
+
+  persistProfile(db, seedWithProject([{ id: 'proj-reno', name: 'Renovation' }]));
+  db.insert(transactions).values({
+    id: 'txn_proj_1', txnDate: '2026-05-01', amount: -250000, currency: 'INR',
+    projectId: 'proj-reno',
+  }).run();
+
+  // Any later save (even of an unrelated chapter) re-persists projects; the old
+  // delete-all-reinsert threw FOREIGN KEY constraint failed right here.
+  persistProfile(db, seedWithProject([{ id: 'proj-reno', name: 'Renovation 2.0' }]));
+  const kept = db.select().from(profileOneTimeProjects).all();
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].id, 'proj-reno');
+  assert.equal(kept[0].name, 'Renovation 2.0');
+
+  // Dropped from the seed while still referenced → the row must survive.
+  persistProfile(db, seedWithProject([]));
+  assert.ok(db.select().from(profileOneTimeProjects).all().find((p) => p.id === 'proj-reno'),
+    'referenced project must not be deleted by a re-seed');
+
+  // Unreferenced → the next re-seed removes it.
+  db.delete(transactions).where(eq(transactions.id, 'txn_proj_1')).run();
+  persistProfile(db, seedWithProject([]));
+  assert.equal(db.select().from(profileOneTimeProjects).all().length, 0);
 });
 
 test('accounts dropped from the seed survive while transactions reference them', async () => {
