@@ -16,6 +16,7 @@ export interface RecentTxnDTO {
   reason: string | null;
   signal: string | null;
   reviewRequired: boolean;
+  taxSection?: string | null;
   source: { from: string | null; subject: string | null };
 }
 export interface OverviewDTO {
@@ -90,6 +91,7 @@ export function recentToTxn(r: RecentTxnDTO, i: number): Txn {
     ledgerFlow: r.flow as Txn['ledgerFlow'],
     transfer: r.flow === 'transfer',
     review: r.reviewRequired,
+    taxSection: r.taxSection ?? undefined,
     source: {
       type: 'email',
       from: r.source.from ?? '',

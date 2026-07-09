@@ -54,19 +54,39 @@ function RegimeCard({ which, r, oldWins }: { which: 'old' | 'new'; r: RegimeView
 }
 
 export function Tax() {
-  const { fy } = useFy();
+  const { fy, fys } = useFy();
   const { masked } = useMask();
   const { openProv } = useDrawer();
   const { data } = useDashboard<TaxDTO>('tax', fy);
   const live = data?.hasData && data.comparison ? data.comparison : null;
+  // Fixtures are for the pre-import demo ONLY. Once real FYs exist, an
+  // unsupported/empty FY gets an honest empty state — never fabricated ₹.
+  const demoMode = !live && fys.length === 0;
   const taxData = live ?? taxFixture;
   const oldWins = taxData.old.total < taxData.new.total;
   const delta = Math.abs(taxData.old.total - taxData.new.total);
   const evidenceTxns = live ? data!.evidence.map(recentToTxn) : txns.filter((x) => x.taxSection);
 
+  if (!live && !demoMode) {
+    return (
+      <div className="content-wrap fade-in">
+        <PageHead title="Tax planning" sub={`FY ${fy.replace('-', '–')} · old vs new regime`} />
+        <div className="card card-pad" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', margin: '0 0 8px' }}>No tax comparison for this FY yet</h3>
+          <p className="muted" style={{ fontSize: 13.5, margin: 0 }}>
+            Either no income was detected for FY {fy.replace('-', '–')} or its tax slabs aren&apos;t bundled.
+            Import statements for this year, or switch FY above.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Tax planning" sub={`${taxData.fy} · old vs new regime, from detected evidence`} />
+      <PageHead title="Tax planning" sub={`${taxData.fy} · old vs new regime, from detected evidence`}>
+        {demoMode && <span className="badge cau" title="Sample figures — import statements to see your own.">Demo data</span>}
+      </PageHead>
 
       <div className="note warn" style={{ marginBottom: 20 }}>
         <span className="ic">
@@ -149,6 +169,9 @@ export function Tax() {
                         <span className="badge mint" style={{ marginLeft: 6, padding: '1px 7px' }}>
                           maxed
                         </span>
+                      )}
+                      {(d as { note?: string }).note && (
+                        <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>{(d as { note?: string }).note}</div>
                       )}
                     </td>
                     <td className="r figure">
