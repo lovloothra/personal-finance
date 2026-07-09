@@ -12,7 +12,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import type { DB } from '@/db/client';
 import { transactions, gmailMessages, profilePersonal, subscriptionsDetected, gmailRuns, attachments, reviewItems } from '@/db/schema';
 import type { Flow } from '@/classifier/types';
-import { compareRegimes, type TaxComparison, type DetectedDeduction, type Section } from '@/tax';
+import { compareRegimes, computeHraExemption, type TaxComparison, type DetectedDeduction, type Section } from '@/tax';
 import { loadProfileSeed } from '@/profile/signals';
 import { fyKey as makeFyKey, type FyKey } from './fy';
 
@@ -45,6 +45,7 @@ export interface RecentTxn {
   classificationSource?: 'deterministic' | 'local_ml';
   acceptedPredictionId?: string | null;
   reviewRequired: boolean;
+  taxSection: string | null;
   source: { from: string | null; subject: string | null };
 }
 
@@ -163,6 +164,7 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
         classificationSource: transactions.classificationSource,
         acceptedPredictionId: transactions.acceptedPredictionId,
         reviewRequired: transactions.reviewRequired,
+        taxSection: transactions.taxSection,
       from: gmailMessages.fromAddr,
       subject: gmailMessages.subject,
     })
@@ -187,6 +189,7 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
         classificationSource: r.classificationSource,
         acceptedPredictionId: r.acceptedPredictionId,
         reviewRequired: Boolean(r.reviewRequired),
+        taxSection: r.taxSection ?? null,
       source: { from: r.from, subject: r.subject },
     }));
 
@@ -232,13 +235,14 @@ export interface IncomeRollup {
 function rowToRecent(r: {
   id: string; date: string; merchant: string | null; cat: string | null; sub: string | null;
   amt: number | null; flow: string | null; conf: string | null; layer: number | null;
-  reason: string | null; signal: string | null; classificationSource?: 'deterministic' | 'local_ml' | null; acceptedPredictionId?: string | null; reviewRequired: unknown; from?: string | null; subject?: string | null;
+  reason: string | null; signal: string | null; classificationSource?: 'deterministic' | 'local_ml' | null; acceptedPredictionId?: string | null; reviewRequired: unknown; taxSection?: string | null; from?: string | null; subject?: string | null;
 }): RecentTxn {
   return {
     id: r.id, date: r.date, merchant: r.merchant ?? 'Unknown', cat: r.cat ?? 'Uncategorised', sub: r.sub,
     amt: toR(r.amt), flow: r.flow ?? 'expense', conf: r.conf, layer: r.layer, reason: r.reason, signal: r.signal,
     classificationSource: r.classificationSource ?? undefined, acceptedPredictionId: r.acceptedPredictionId ?? null,
-    reviewRequired: Boolean(r.reviewRequired), source: { from: r.from ?? null, subject: r.subject ?? null },
+    reviewRequired: Boolean(r.reviewRequired), taxSection: r.taxSection ?? null,
+    source: { from: r.from ?? null, subject: r.subject ?? null },
   };
 }
 
@@ -257,6 +261,7 @@ const recentCols = {
   classificationSource: transactions.classificationSource,
   acceptedPredictionId: transactions.acceptedPredictionId,
   reviewRequired: transactions.reviewRequired,
+  taxSection: transactions.taxSection,
   from: gmailMessages.fromAddr,
   subject: gmailMessages.subject,
 } as const;
@@ -406,14 +411,34 @@ export function taxRollup(db: DB, fy: FyKey): TaxRollup {
     if (!sec) continue;
     detected.push({ section: sec, label: SECTION_LABEL[sec], rawAmount: toR(t.amt), evidence: t.n });
   }
-  // HRA from detected rent, if not already tagged.
+  // HRA from detected rent, if not already tagged. The claimable amount is the
+  // statutory EXEMPTION (min of HRA received / rent − 10% basic / city cap),
+  // never the full rent paid — that overstated the old regime by lakhs.
   if (!detected.some((d) => d.section === 'HRA')) {
     const rent = db
       .select({ amt: sql<number>`coalesce(sum(abs(${transactions.amount})),0)`, n: sql<number>`count(*)` })
       .from(transactions)
       .where(and(eq(transactions.fyKey, fy), eq(transactions.flow, 'expense'), sql`lower(${transactions.subcategory}) = 'rent'`))
       .get();
-    if (rent && rent.amt > 0) detected.push({ section: 'HRA', label: SECTION_LABEL.HRA, rawAmount: toR(rent.amt), evidence: rent.n });
+    if (rent && rent.amt > 0) {
+      let annualHraReceived: number | undefined;
+      let cityTier: 'metro' | 'non_metro' | undefined;
+      try {
+        const home = loadProfileSeed().home;
+        annualHraReceived = home?.hraInSalary;
+        cityTier = home?.cityTier;
+      } catch {
+        /* no seed — HRA stays not-computed */
+      }
+      const hra = computeHraExemption({ annualRentPaid: toR(rent.amt), annualHraReceived, cityTier });
+      detected.push({
+        section: 'HRA',
+        label: hra.computed ? SECTION_LABEL.HRA : 'HRA exemption',
+        rawAmount: hra.amount,
+        evidence: rent.n,
+        note: hra.note,
+      });
+    }
   }
 
   // The tax module ships slabs for these FYs; others fall back to no comparison.

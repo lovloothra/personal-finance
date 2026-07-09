@@ -100,3 +100,50 @@ test('compareRegimes: high earner with deductions favouring old regime', () => {
   assert.equal(c.recommended, 'old');
   assert.ok(c.saving > 0);
 });
+
+// --- HRA exemption (audit #6) -----------------------------------------------
+// The statutory exemption is min(HRA received, rent − 10% of basic, 40/50% of
+// basic by city tier) — NOT the full rent paid, which overstated the old-regime
+// deduction by lakhs and could flip the recommendation.
+import { computeHraExemption } from '../deductions';
+
+test('HRA: full statutory min() when basic salary is known', () => {
+  const r = computeHraExemption({
+    annualRentPaid: 660000, annualHraReceived: 396000,
+    annualBasicSalary: 1200000, cityTier: 'metro',
+  });
+  // min(396000, 660000 − 120000 = 540000, 50% × 1200000 = 600000) = 396000
+  assert.equal(r.amount, 396000);
+  assert.equal(r.computed, true);
+});
+
+test('HRA: rent-minus-10%-basic binds when rent is low', () => {
+  const r = computeHraExemption({
+    annualRentPaid: 240000, annualHraReceived: 396000,
+    annualBasicSalary: 1200000, cityTier: 'non_metro',
+  });
+  // min(396000, 240000 − 120000 = 120000, 40% × 1200000 = 480000) = 120000
+  assert.equal(r.amount, 120000);
+});
+
+test('HRA: falls back to min(rent, HRA received) when basic is unknown', () => {
+  const r = computeHraExemption({ annualRentPaid: 660000, annualHraReceived: 396000 });
+  assert.equal(r.amount, 396000);
+  assert.equal(r.computed, true);
+  assert.match(r.note ?? '', /estimate/i);
+});
+
+test('HRA: not computed without HRA-in-salary — never claims full rent', () => {
+  const r = computeHraExemption({ annualRentPaid: 660000 });
+  assert.equal(r.amount, 0);
+  assert.equal(r.computed, false);
+  assert.match(r.note ?? '', /not computed/i);
+});
+
+test('HRA: exemption never negative', () => {
+  const r = computeHraExemption({
+    annualRentPaid: 100000, annualHraReceived: 396000,
+    annualBasicSalary: 1200000, cityTier: 'metro',
+  });
+  assert.equal(r.amount, 0); // rent − 10% basic = −20000 → clamp
+});
