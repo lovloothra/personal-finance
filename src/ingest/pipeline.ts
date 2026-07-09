@@ -17,6 +17,7 @@ import type { DB } from '@/db/client';
 import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard, counterparties as counterpartiesTable } from '@/db/schema';
 import { resolveOwnAccount, type OwnAccountRow } from './account-reconcile';
 import { relinkTransfersLedgerWide } from './relink-transfers';
+import { clearDocumentOutput } from './clear-output';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
@@ -242,7 +243,9 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     }
 
     // Clear any prior output for this attachment before re-inserting.
-    db.delete(transactions).where(eq(transactions.documentId, docId)).run();
+    // clearDocumentOutput detaches the six FK children first — a bare
+    // transactions delete throws once feedback or ML predictions exist.
+    clearDocumentOutput(db, docId);
     db.delete(parsedDocuments).where(eq(parsedDocuments.id, docId)).run();
     db.insert(parsedDocuments)
       .values({

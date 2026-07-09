@@ -23,7 +23,10 @@
 
     { "id": "kw-cred-club", "desc": "UPI-CRED.CLUB-cc bill", "amount": -2500000, "expect": { "flow": "transfer", "category": "Transfer" } },
     { "id": "kw-cc-payment", "desc": "CREDIT CARD PAYMENT HDFC 7702", "amount": -3200000, "expect": { "flow": "transfer", "category": "Transfer" } },
-    { "id": "kw-autopay", "desc": "AUTOPAY SI-TAD HDFC CARD", "amount": -1500000, "expect": { "flow": "transfer", "category": "Transfer" } },
+    { "id": "autopay-card-review-at-classify", "desc": "AUTOPAY SI-TAD HDFC CARD", "amount": -1500000, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
+    { "id": "autopay-merchant-is-spending", "desc": "UPI-AUTOPAY/NETFLIX/mandate@icici", "amount": -64900, "expect": { "flow": "expense", "category": "Ott" } },
+    { "id": "last4-in-upi-ref-not-cc-transfer", "desc": "UPI/P2M/517702123456/SWIGGY BLR", "amount": -45000, "expect": { "flow": "expense", "category": "Food Delivery" } },
+    { "id": "masked-last4-is-cc-transfer", "desc": "PAYMENT TOWARDS CARD xx7702", "amount": -3200000, "expect": { "flow": "transfer", "category": "Transfer" } },
     { "id": "kw-atm", "desc": "ATM WDL-MUMBAI 402934", "amount": -1000000, "expect": { "flow": "expense", "category": "Cash" } },
     { "id": "kw-petrol", "desc": "HPCL PETROL PUMP GURGAON", "amount": -250000, "expect": { "flow": "expense", "category": "Transport" } },
     { "id": "kw-electricity", "desc": "BESCOM ELECTRICITY BILL JUN", "amount": -180000, "expect": { "flow": "expense", "category": "Utilities" } },

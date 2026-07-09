@@ -17,8 +17,15 @@
  * Pure & deterministic.
  */
 
-/** Explicit transfer rails (not generic UPI, which is mostly real spending). */
-const TRANSFER_RE = /\b(neft|imps|rtgs|inft|fund(?:s)?\s*(?:trf|transfer)|funds? trf|self|own a\/?c|own account|trf to|transfer to|cc payment|credit card payment|card payment|payment received|bill ?desk|billpay|auto ?pay)\b|cred\.club/i;
+/** Explicit transfer rails (not generic UPI, which is mostly real spending).
+ * "autopay" is deliberately NOT here: UPI AUTOPAY is the mandate rail for
+ * Netflix/Spotify/SIP/insurance — real spending. Autopay only signals a
+ * transfer with card-bill context (CARD_AUTOPAY_RE). */
+const TRANSFER_RE = /\b(neft|imps|rtgs|inft|fund(?:s)?\s*(?:trf|transfer)|funds? trf|self|own a\/?c|own account|trf to|transfer to|cc payment|credit card payment|card payment|payment received|bill ?desk|billpay)\b|cred\.club/i;
+
+/** Autopay WITH card context — a card-bill standing instruction. Bare
+ * "autopay" must never match (see TRANSFER_RE note). */
+const CARD_AUTOPAY_RE = /auto ?pay.{0,40}\bcard\b|\bcard\b.{0,40}auto ?pay/i;
 
 /** Suspected-transfer thresholds (one tunable place). A credit at/above the
  * minimum that is an exact multiple of the step, with no merchant and no
@@ -28,8 +35,15 @@ const ROUND_TRANSFER_STEP_PAISE = 10_000 * 100; // ₹10,000
 
 /** Signals specific to credit-card bill payments (safe to mark single-sided).
  * cred.club is CRED's card-bill VPA — a debit there is a card payment by
- * definition (CRED's utility/rent VPAs use different handles). */
-const CC_PAYMENT_RE = /\b(cc payment|credit card payment|card payment|card bill|auto ?pay|payment received|received towards)\b|cred\.club/i;
+ * definition (CRED's utility/rent VPAs use different handles). Card-bill
+ * context is REQUIRED: bare "auto ?pay" used to be in this list and silently
+ * turned every UPI-AUTOPAY merchant mandate into a vanished expense. */
+const CC_PAYMENT_RE = /\b(cc payment|credit card payment|card payment|card bill)\b|cred\.club/i;
+
+/** True when the description is a card-bill payment signal. */
+function isCcPayment(desc: string): boolean {
+  return CC_PAYMENT_RE.test(desc) || CARD_AUTOPAY_RE.test(desc);
+}
 
 export interface LinkTxn {
   id: string;
@@ -76,6 +90,7 @@ function hasExplicitSignal(t: LinkTxn, selfNames: string[]): boolean {
     t.counterpartyKind === 'own_account' ||
     t.counterpartyKind === 'known_own' ||
     TRANSFER_RE.test(t.rawDescription) ||
+    CARD_AUTOPAY_RE.test(t.rawDescription) ||
     selfNameHit(t.rawDescription, selfNames)
   );
 }
@@ -87,6 +102,7 @@ function isCandidate(t: LinkTxn, selfNames: string[]): boolean {
     t.counterpartyKind === 'known_own' ||
     !!t.ownAccountId ||
     TRANSFER_RE.test(t.rawDescription) ||
+    CARD_AUTOPAY_RE.test(t.rawDescription) ||
     selfNameHit(t.rawDescription, selfNames)
   );
 }
@@ -128,7 +144,7 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
       usedCredit.add(match.id);
       transferIds.add(d.id);
       transferIds.add(match.id);
-      const kind = CC_PAYMENT_RE.test(d.rawDescription) || CC_PAYMENT_RE.test(match.rawDescription) ? 'cc_payment' : 'account_transfer';
+      const kind = isCcPayment(d.rawDescription) || isCcPayment(match.rawDescription) ? 'cc_payment' : 'account_transfer';
       links.push({ debitId: d.id, creditId: match.id, kind });
     }
   }
@@ -138,7 +154,7 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
   //      - a credit-card bill payment (debit paying your own card)
   //      - a card "payment received" credit
   for (const d of debits) {
-    if (!transferIds.has(d.id) && CC_PAYMENT_RE.test(d.rawDescription)) transferIds.add(d.id);
+    if (!transferIds.has(d.id) && isCcPayment(d.rawDescription)) transferIds.add(d.id);
   }
   for (const c of credits) {
     if (!transferIds.has(c.id) && /\bpayment received\b/i.test(c.rawDescription)) transferIds.add(c.id);

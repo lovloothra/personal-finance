@@ -15,7 +15,10 @@ export const DEFAULT_KEYWORD_RULES: KeywordRule[] = [
   { keyword: 'credit card payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'high' },
   { keyword: 'cc payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'high' },
   { keyword: 'card payment', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'med' },
-  { keyword: 'autopay', category: 'Transfer', subcategory: 'Card autopay', flow: 'transfer', confidence: 'med' },
+  // No bare-'autopay' rule: UPI AUTOPAY is the mandate rail for
+  // Netflix/Spotify/SIP/insurance — real spending. Card-bill autopay is
+  // detected at ingest by CARD_AUTOPAY_RE in transfers.ts (card context
+  // required), which a single keyword cannot express.
   // CRED card-bill rail (cred.club VPAs). CRED's other VPAs (utilities etc.)
   // are real spending, so only the card-bill handle maps to Transfer.
   { keyword: 'cred.club', category: 'Transfer', subcategory: 'Credit card payment', flow: 'transfer', confidence: 'high' },
