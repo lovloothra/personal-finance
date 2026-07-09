@@ -26,14 +26,15 @@ Unregistered accounts stub + review item — never a silent NULL. 18
 zero-transaction docs (demat/TDS/T&C/summary mailers) stay honestly
 unassigned, resolvable via the assign flow. See DECISIONS.md #10.
 
-## [ ] G2 — Zero duplicate transactions, ever
+## [~] G2 — Zero duplicate transactions, ever
 
-**Objective:** The same real-world transaction can never appear twice, regardless of statement overlap.
-**Current state:** Dedup is **batch-local only** (`src/ingest/pipeline.ts` ~line 266: `date|amount|signature` within one run). A later ingest run processing a new attachment that overlaps an already-ingested period will insert duplicates.
-**Baseline:** `npm run eval:ledger` → `[duplicates]` line.
-**Work:** Extend the dedup key check against already-stored transactions (same key + `ownAccountId`); decide the edge policy for genuinely identical same-day txns (two ₹100 coffees → keep both when balance chain proves distinct, else review item — never silent-drop real spending); add a one-time cleanup script for existing dupes (idempotent, backfill pattern); regression test with two overlapping statement fixtures ingested in **separate** runs.
+**Objective:** The same real-world transaction can never appear twice, regardless of statement overlap — and real repeated payments are never silently dropped.
+**Pre-ship audit addition (#5):** the old batch-global key ALSO undercounted — `signature()` strips digits, so two genuine same-day identical payments inside ONE statement collapsed to one (`duplicatesDropped: 1` for real spending). Both directions are bugs.
+**Implemented (PR: fix/dedup-both-directions):** dedup extracted to pure `src/ingest/dedup.ts` — same-document rows are never dupes (undercount fixed); keys include `ownAccountId`; incoming rows are checked against keys already stored from earlier runs (double-count fixed); `scripts/dedupe-transactions.ts` is the idempotent cross-document cleanup (rehearse via `PF_DB_PATH` on a backup first).
+**Baseline:** `npm run eval:ledger` → `[duplicates]` line (0 groups on production at time of writing).
+**Remaining to close:** run the cleanup on production after merge; an end-to-end two-run overlapping-statement fixture test through `runIngest` (unit tests cover the dedup policy; the full-pipeline fixture harness doesn't exist yet).
 **Accept when:** `[duplicates]` shows 0 groups after cleanup, and the overlapping-statement regression test passes.
-**Start with:** running-db-tests-and-scripts skill; `src/ingest/pipeline.ts`.
+**Start with:** running-db-tests-and-scripts skill; `src/ingest/pipeline.ts`, `src/ingest/dedup.ts`.
 
 ## [ ] G3 — Every transaction categorised with the best available guess
 
