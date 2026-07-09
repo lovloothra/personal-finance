@@ -64,6 +64,16 @@ Feature plans/specs live in `docs/superpowers/plans` and `docs/superpowers/specs
 9. **Loopback-origin guard instead of auth.** Single-user app bound to
    127.0.0.1; mutations verify loopback origin as defence-in-depth. Adding
    auth is scope creep; removing the guard is negligence.
+10. **Account attribution lives on the DOCUMENT, with recorded provenance.**
+    A statement is FROM one account, so `ownAccountId` is decided per
+    parsed document (header match → institution-unique fallback → stub →
+    manual) and inherited by its transactions; every decision records
+    `own_account_source` (`src/ingest/account-reconcile.ts` is the policy).
+    The institution-unique fallback never fires for zero-transaction docs
+    (demat/TDS/T&C mailers), and account rows are upserted by natural key
+    (institutionId + kind + last4) on profile re-seeds — minting fresh ids
+    orphaned every attribution once (fixed 2026-07). Change only if:
+    provenance stays queryable and re-seeds keep ids stable.
 
 ## State of the union (2026-07)
 

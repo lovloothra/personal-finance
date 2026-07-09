@@ -205,7 +205,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
 
     // Resolve (or mint) the own account for this document.
     const docAccount = resolveOwnAccount(
-      { institutionId: att.providerId, accountLast4: statement.accountLast4, docType: statement.docType },
+      { institutionId: att.providerId, accountLast4: statement.accountLast4, docType: statement.docType, txnCount: statement.txns.length },
       ownAccounts,
     );
     // Surface documents whose account could not be identified so the user can
@@ -229,6 +229,15 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       if (docAccount.ownAccountKind === 'card') db.insert(accountsCard).values(stub).onConflictDoNothing().run();
       else db.insert(accountsBank).values(stub).onConflictDoNothing().run();
       ownAccounts.push({ ...stub, kind: docAccount.ownAccountKind! });
+      // An unregistered account is never adopted silently: the stub keeps the
+      // txns attributed, and this review item asks the user to confirm it.
+      addReview(
+        'account_unresolved',
+        docId,
+        `New ${docAccount.ownAccountKind} account ··${statement.accountLast4} detected`,
+        `${att.filename ?? 'A statement'} references an account ending ${statement.accountLast4} that isn't registered. It was added as a stub — confirm or reassign it.`,
+        'warn',
+      );
     }
 
     // Clear any prior output for this attachment before re-inserting.
@@ -241,12 +250,15 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
         messageId: att.messageId,
         parserId: `in/${providerId}`,
         institutionId: att.providerId,
-        docType: 'bank_statement',
+        // The parser reads the real type off the document header — issuers
+        // send card statements from the same addresses as bank statements.
+        docType: statement.docType,
         rawText: text.slice(0, 20000),
         status: statement.txns.length ? 'parsed' : 'partial',
         accountLast4: statement.accountLast4 ?? null,
         ownAccountId: docAccount.ownAccountId,
         ownAccountKind: docAccount.ownAccountKind,
+        ownAccountSource: docAccount.source,
       })
       .run();
     docCount++;

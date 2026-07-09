@@ -57,12 +57,61 @@ function extractCounterparty(desc: string): string | null {
   return null;
 }
 
+// A statement is a card statement when its opening lines say so. Kept tight
+// (phrase match in the first 8 lines) so a passing "credit card" mention in
+// terms text or a bank statement's body never flips the type.
+const CARD_STATEMENT_HEADER_RE = /credit card statement|statement for .{0,40}credit card/i;
+
+/** True when the text's opening lines identify it as a credit-card statement. */
+export function isCardStatementText(text: string): boolean {
+  return CARD_STATEMENT_HEADER_RE.test(text.split('\n').slice(0, 8).join(' '));
+}
+
+/**
+ * The header region: lines above the transaction table (first line that leads
+ * with a date AND carries a money token), capped at 80 lines. Account/card
+ * numbers always sit above the table in every observed layout; scoping the
+ * scan this way is what keeps txn narrations ("NEFT-xxxxxxxx1234-…") from ever
+ * being read as the statement's own account (the commit-74693e3 lesson).
+ */
+function headerRegion(text: string): string[] {
+  const lines = text.replace(/\r/g, '').split('\n');
+  const out: string[] = [];
+  for (const line of lines.slice(0, 80)) {
+    const lead = DATE_RE.exec(line.trim().slice(0, 12));
+    if (lead && validDateMatch(lead) && MONEY_TOKEN_RE.test(line)) break;
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * A standalone masked card/account number on its own line ("4375XXXXXXXX9012"
+ * — the ICICI card layout prints it with no label). The mask requirement is
+ * the safety anchor: bare all-digit runs (references, phone numbers, the
+ * columnar summary's account row) never qualify.
+ */
+function maskedNumberLine(line: string): string | undefined {
+  const t = line.trim();
+  if (!/^[\dxX* -]+$/.test(t)) return undefined;
+  const compact = t.replace(/[ -]/g, '');
+  const maskCount = (compact.match(/[xX*]/g) ?? []).length;
+  if (maskCount < 4 || compact.length < 12 || compact.length > 19) return undefined;
+  const m = /(\d{4})$/.exec(compact);
+  return m ? m[1] : undefined;
+}
+
 export function extractAccountLast4(text: string): string | undefined {
-  const header = text.split('\n').slice(0, 20).join('\n');
-  const m = ACCOUNT_HEADER_RE.exec(header);
-  if (!m) return undefined;
-  const digits = m[1].replace(/\D/g, '');
-  return digits.length >= 4 ? digits.slice(-4) : undefined;
+  for (const line of headerRegion(text)) {
+    const m = ACCOUNT_HEADER_RE.exec(line);
+    if (m) {
+      const digits = m[1].replace(/\D/g, '');
+      if (digits.length >= 4) return digits.slice(-4);
+    }
+    const masked = maskedNumberLine(line);
+    if (masked) return masked;
+  }
+  return undefined;
 }
 
 /** Parse an Indian-formatted amount string to paise. */
@@ -249,5 +298,14 @@ export function parseGenericBank(text: string, ctx: ParseContext): ParsedStateme
     txns.push({ date: r.date, amount: signed, currency: 'INR', rawDescription: description, balance, counterpartyRaw: extractCounterparty(r.raw) });
   }
 
-  return { providerId: ctx.providerId, docType: ctx.docType, accountLast4: extractAccountLast4(text), txns, unparsedLines };
+  return {
+    providerId: ctx.providerId,
+    // Statements arrive typed by their Gmail provider (bank docs default to
+    // bank_statement), but issuers send card statements from the same address —
+    // trust the document's own header over the assumed type.
+    docType: isCardStatementText(text) ? 'card_statement' : ctx.docType,
+    accountLast4: extractAccountLast4(text),
+    txns,
+    unparsedLines,
+  };
 }
