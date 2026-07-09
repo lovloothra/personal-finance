@@ -43,6 +43,13 @@
       "when": 1781740800000,
       "tag": "0005_glamorous_micromax",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1783530359673,
+      "tag": "0006_short_captain_universe",
+      "breakpoints": true
     }
   ]
 }

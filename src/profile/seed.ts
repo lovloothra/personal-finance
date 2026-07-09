@@ -4,7 +4,7 @@
  * list-style tables, upserts the singletons. Server-only (touches the DB).
  */
 import 'server-only';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { DB } from '@/db/client';
 import {
   profilePersonal,
@@ -22,6 +22,8 @@ import {
   loans,
   insurancePolicies,
   institutions,
+  parsedDocuments,
+  transactions,
 } from '@/db/schema';
 import { providerIds } from './signals';
 import type { ProfileSeed } from './types';
@@ -48,6 +50,29 @@ function validateInstitutionRefs(db: DB, seed: ProfileSeed): void {
 const toPaise = (r?: number) => (r == null ? null : Math.round(r * 100));
 let counter = 0;
 const rid = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${(counter++).toString(36)}`;
+
+/**
+ * Match a seed account against the existing rows by natural key so a re-seed
+ * KEEPS the row's id — transactions and parsed_documents reference these ids,
+ * and minting fresh ones on every save silently orphans all attribution
+ * (which is exactly what happened before this existed).
+ *
+ * Pass 1: institutionId + last4. Pass 2: institutionId alone, when either
+ * side's last4 is unknown and only one candidate remains (a row registered
+ * before its last4 was learned must not become a duplicate).
+ */
+function claimByNaturalKey<T extends { id: string; institutionId: string | null; last4: string | null }>(
+  existing: T[],
+  claimed: Set<string>,
+  institutionId: string | null,
+  last4: string | null,
+): T | undefined {
+  const pool = existing.filter((e) => !claimed.has(e.id) && e.institutionId === institutionId);
+  const exact = pool.find((e) => (e.last4 ?? null) === last4);
+  const found = exact ?? (pool.length === 1 && (pool[0].last4 == null || last4 == null) ? pool[0] : undefined);
+  if (found) claimed.add(found.id);
+  return found;
+}
 
 /** Write the seed into the DB. Returns a summary of row counts. */
 export function persistProfile(db: DB, seed: ProfileSeed): Record<string, number> {
@@ -131,33 +156,52 @@ export function persistProfile(db: DB, seed: ProfileSeed): Record<string, number
         .run();
     }
 
-    // List tables: replace wholesale for a clean re-seed.
-    tx.delete(accountsBank).run();
+    // Banks and cards are referenced by transactions.ownAccountId — upsert by
+    // natural key instead of replacing wholesale (see claimByNaturalKey).
+    const existingBanks = tx.select().from(accountsBank).all();
+    const claimedBanks = new Set<string>();
     for (const b of seed.banks) {
-      tx
-        .insert(accountsBank)
-        .values({
-          id: rid('bank'),
-          institutionId: b.institutionId,
-          nickname: b.nickname ?? null,
-          last4: b.last4 ?? null,
-          accountType: b.accountType ?? null,
-          isPrimary: b.isPrimary ?? false,
-        })
-        .run();
+      const found = claimByNaturalKey(existingBanks, claimedBanks, b.institutionId, b.last4 ?? null);
+      const values = {
+        institutionId: b.institutionId,
+        nickname: b.nickname ?? null,
+        // Never wipe a last4 the row already learned (e.g. from a statement).
+        last4: b.last4 ?? found?.last4 ?? null,
+        accountType: b.accountType ?? null,
+        isPrimary: b.isPrimary ?? false,
+      };
+      if (found) tx.update(accountsBank).set({ ...values, updatedAt: ts }).where(eq(accountsBank.id, found.id)).run();
+      else tx.insert(accountsBank).values({ id: rid('bank'), ...values }).run();
+    }
+    for (const e of existingBanks.filter((e) => !claimedBanks.has(e.id))) {
+      // Rows dropped from the seed are deleted only when nothing references
+      // them; deleting a referenced account would orphan its transactions.
+      const referenced =
+        tx.select({ id: transactions.id }).from(transactions).where(eq(transactions.ownAccountId, e.id)).limit(1).get() ??
+        tx.select({ id: parsedDocuments.id }).from(parsedDocuments).where(eq(parsedDocuments.ownAccountId, e.id)).limit(1).get();
+      if (!referenced) tx.delete(accountsBank).where(eq(accountsBank.id, e.id)).run();
     }
 
-    tx.delete(accountsCard).run();
+    const existingCards = tx.select().from(accountsCard).all();
+    const claimedCards = new Set<string>();
     for (const c of seed.cards) {
-      tx.insert(accountsCard).values({
-        id: rid('card'),
+      const found = claimByNaturalKey(existingCards, claimedCards, c.institutionId, c.last4 ?? null);
+      const values = {
         institutionId: c.institutionId,
         nickname: c.nickname ?? null,
-        last4: c.last4 ?? null,
+        last4: c.last4 ?? found?.last4 ?? null,
         network: c.network ?? null,
         creditLimit: toPaise(c.creditLimit),
         statementDay: c.statementDay ?? null,
-      }).run();
+      };
+      if (found) tx.update(accountsCard).set({ ...values, updatedAt: ts }).where(eq(accountsCard.id, found.id)).run();
+      else tx.insert(accountsCard).values({ id: rid('card'), ...values }).run();
+    }
+    for (const e of existingCards.filter((e) => !claimedCards.has(e.id))) {
+      const referenced =
+        tx.select({ id: transactions.id }).from(transactions).where(eq(transactions.ownAccountId, e.id)).limit(1).get() ??
+        tx.select({ id: parsedDocuments.id }).from(parsedDocuments).where(eq(parsedDocuments.ownAccountId, e.id)).limit(1).get();
+      if (!referenced) tx.delete(accountsCard).where(eq(accountsCard.id, e.id)).run();
     }
 
     tx.delete(accountsBroker).run();

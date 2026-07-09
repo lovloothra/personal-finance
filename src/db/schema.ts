@@ -319,6 +319,13 @@ export const parsedDocuments = sqliteTable('parsed_documents', {
   accountLast4: text('account_last4'),
   ownAccountId: text('own_account_id'),
   ownAccountKind: text('own_account_kind').$type<'bank' | 'card'>(),
+  // How ownAccountId was decided — honest provenance for every attribution.
+  // header_match: the statement header carried the account/card number.
+  // institution_unique: no usable header number; the institution has exactly
+  //   one registered account of the right kind, so the doc was attributed to it.
+  // stub: header number matched no registered account; a stub row was minted.
+  // user_assigned: the user picked the account in the review UI.
+  ownAccountSource: text('own_account_source').$type<'header_match' | 'institution_unique' | 'stub' | 'user_assigned'>(),
   createdAt: createdAt(),
 });
 

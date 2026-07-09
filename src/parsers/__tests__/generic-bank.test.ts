@@ -231,3 +231,96 @@ test('extracts numeric-handle VPA counterparty from the raw line', () => {
   const out = parseStatement(text, { providerId: 'in/hdfc-bank', docType: 'bank_statement' });
   assert.equal(out.txns[0].counterpartyRaw, '12345@ybl');
 });
+
+// --- G1: deep headers, card-statement detection, txn-line guards (74693e3) ---
+
+test('extracts account last4 from a label deep in the header (HDFC savings layout)', () => {
+  const filler = Array.from({ length: 24 }, (_, i) => `Header filler line ${i + 1}`);
+  const text = [
+    'HDFC BANK LTD',
+    ...filler,
+    'Customer ID : 12345678',
+    'Account Branch : 42',
+    'Account Number : 50100234569563',
+    'STATEMENT SUMMARY',
+    '01/03/2025 UPI-zomato 250.00 9,750.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, '9563');
+  assert.equal(out.docType, 'bank_statement');
+});
+
+test('extracts account last4 from the ICICI savings summary block past line 20', () => {
+  const filler = Array.from({ length: 30 }, (_, i) => `Summary line ${i + 1}`);
+  const text = [
+    'ICICI BANK STATEMENT',
+    ...filler,
+    'ACCOUNT TYPE ACCOUNT BALANCE (I) NOMINATION',
+    'Savings A/c XXXXXXXX2840 1,23,456.00 REGISTERED',
+    'Statement of Transactions in Savings Account XXXXXXXX2840 in INR for the period May 01, 2025 - May 31, 2025',
+    '01/05/2025 UPI/swiggy/food 250.00 1,23,206.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'icici-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, '2840');
+});
+
+test('never reads last4 from transaction rows or narration lines (74693e3 guard)', () => {
+  const text = [
+    'HDFC BANK LTD',
+    'Statement of account',
+    '01/03/2025 NEFT-MB-XXXXXXXX2840-TRANSFER 5,000.00 45,000.00',
+    'NEFT-MB-XXXXXXXX2840-JOHN DOE',
+    '02/03/2025 UPI-A/C XXXX9999 payment 250.00 44,750.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, undefined);
+});
+
+test('a bare digit run below an "Account No" column header is not the account (columnar summary)', () => {
+  const text = [
+    'Bank Account Balance',
+    'Account No Account Type Balance as on',
+    'May 31, 2025',
+    '915010012345678 1,23,456.00',
+    'Savings',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'icici-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, undefined);
+});
+
+test('detects a credit-card statement and reads the standalone masked card number', () => {
+  const text = [
+    'CREDIT CARD STATEMENT June 2025',
+    'Statement summary and rewards',
+    'Some marketing text',
+    '4375XXXXXXXX9012',
+    '01/05/2025 AMAZON RETAIL 1,234.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'icici-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, '9012');
+  assert.equal(out.docType, 'card_statement');
+});
+
+test('a standalone unmasked digit run is never treated as the account number', () => {
+  const text = [
+    'ICICI BANK STATEMENT',
+    '4375123412349012',
+    '01/05/2025 SWIGGY 250.00 1,000.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'icici-bank', docType: 'bank_statement' });
+  assert.equal(out.accountLast4, undefined);
+});
+
+test('a credit-card mention deep in the body does not flip the doc type', () => {
+  const filler = Array.from({ length: 10 }, (_, i) => `Terms line ${i + 1}`);
+  const text = [
+    'HDFC BANK STATEMENT',
+    ...filler,
+    'See the credit card statement terms at the branch.',
+    'Account No: XXXXXXXX7702',
+    '01/03/2025 UPI/zomato 250.00 9,750.00',
+  ].join('\n');
+  const out = parseStatement(text, { providerId: 'hdfc-bank', docType: 'bank_statement' });
+  assert.equal(out.docType, 'bank_statement');
+  assert.equal(out.accountLast4, '7702');
+});

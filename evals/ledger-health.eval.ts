@@ -10,7 +10,7 @@
  * Against a copy:    PF_DB_PATH=/tmp/x.db PF_DB_PASSPHRASE=... npm run eval:ledger
  */
 import { getDb } from '@/db/client';
-import { transactions } from '@/db/schema';
+import { accountsBank, accountsCard, transactions } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
 
 function pct(n: number, total: number): string {
@@ -47,8 +47,16 @@ async function main(): Promise<void> {
   }
 
   // --- Goal 1: account attribution ---------------------------------------
+  // An ownAccountId only counts when the account row still exists — re-seeds
+  // once orphaned every reference while this metric kept reporting them green.
+  const liveAccountIds = new Set([
+    ...db.select({ id: accountsBank.id }).from(accountsBank).all().map((a) => a.id),
+    ...db.select({ id: accountsCard.id }).from(accountsCard).all().map((a) => a.id),
+  ]);
   const noAccount = rows.filter((r) => !r.ownAccountId).length;
-  console.log(`\n[accounts]   with ownAccountId: ${total - noAccount}/${total} (${pct(total - noAccount, total)}); missing: ${noAccount}`);
+  const orphaned = rows.filter((r) => r.ownAccountId && !liveAccountIds.has(r.ownAccountId)).length;
+  const attributed = total - noAccount - orphaned;
+  console.log(`\n[accounts]   with live ownAccountId: ${attributed}/${total} (${pct(attributed, total)}); missing: ${noAccount}; orphaned (id not in accounts tables): ${orphaned}`);
 
   // --- Goal 2: duplicates (same key the ingest dedup uses, + account) -----
   const groups = new Map<string, number>();

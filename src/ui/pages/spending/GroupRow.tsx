@@ -4,26 +4,32 @@ import type { useSpending, UncatGroup } from '../../data/useSpending';
 import { Money } from '../../primitives/Money';
 import { CategoryChipPicker } from '../../primitives/CategoryChipPicker';
 import { InstLogo } from '../../primitives/InstLogo';
+import { AssignAccountPanel } from './AssignAccountPanel';
 import { categoriesForFlow, labelForCategory, normalizeCategory } from '@/classifier/taxonomy';
 import type { Flow } from '@/classifier/types';
 
 interface Detail { id: string; date: string; amount: number; rawDescription: string | null; from: string | null; subject: string | null; }
 
 /** Small chip showing which of the user's own accounts this group belongs to. */
-function AccountChip({ group }: { group: UncatGroup }) {
+function AccountChip({ group, assignOpen, onToggleAssign }: {
+  group: UncatGroup;
+  assignOpen: boolean;
+  onToggleAssign: () => void;
+}) {
   const { institutionId, accountLast4, accountNickname, ownAccountKind } = group;
 
   if (!group.ownAccountId) {
-    // Honest state, not a fake action: nothing is clickable here (yet — the
-    // document-level assign flow is G1). Explain the gap on hover instead.
+    // Clicking opens the document-level assign flow — the account belongs to
+    // the source statement, so the panel lists documents, not this txn group.
     return (
-      <span
+      <button
         className="badge neutral"
-        style={{ fontSize: 11, whiteSpace: 'nowrap' }}
-        title="The statement this came from didn't reveal an account number the app could match to one of your registered accounts."
+        style={{ fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer', borderColor: assignOpen ? 'var(--fg-3)' : undefined }}
+        title="The statement this came from didn't reveal an account number the app could match to one of your registered accounts. Click to assign it."
+        onClick={onToggleAssign}
       >
-        No account detected
-      </span>
+        No account detected — assign
+      </button>
     );
   }
 
@@ -103,6 +109,7 @@ export function GroupRow({ group, spending, focused }: {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail[] | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [assignAccountOpen, setAssignAccountOpen] = useState(false);
   const sug = group.localSuggestion;
 
   const toggleDetail = async () => {
@@ -161,9 +168,24 @@ export function GroupRow({ group, spending, focused }: {
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }} title={group.sample}>{group.sample}</span>
           <span className="badge neutral">{group.count}×</span>
           <span className="badge neutral"><Money amount={group.total} /></span>
-          {/* Account chip — shows institution logo + ··last4 or "Assign account" */}
-          <AccountChip group={group} />
+          {/* Account chip — institution logo + ··last4, or the assign entry point */}
+          <AccountChip
+            group={group}
+            assignOpen={assignAccountOpen}
+            onToggleAssign={() => setAssignAccountOpen((o) => !o)}
+          />
         </div>
+
+        {/* Document-level account assignment (see AssignAccountPanel) */}
+        {assignAccountOpen && !group.ownAccountId && (
+          <AssignAccountPanel
+            signature={group.signature}
+            onAssigned={() => {
+              setAssignAccountOpen(false);
+              void spending.loadTriage();
+            }}
+          />
+        )}
         <div className="desc" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span>{group.firstDate === group.lastDate ? group.firstDate : `${group.firstDate} → ${group.lastDate}`}</span>
           <button className="link" style={{ fontSize: 12.5 }} onClick={toggleDetail}>

@@ -8,14 +8,23 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (date).
 
 ---
 
-## [ ] G1 — Every transaction references a correct bank/card account
+## [x] G1 — Every transaction references a correct bank/card account (2026-07-09)
 
 **Objective:** 100% of transactions carry a verified `ownAccountId`/`ownAccountKind`.
-**Current state:** Resolver exists (`src/ingest/account-reconcile.ts`: match/stub/flag), a backfill ran once (`scripts/backfill-account-ids.ts`), unresolved docs are flagged for review. Coverage is not enforced going forward.
-**Baseline:** `npm run eval:ledger` → `[accounts]` line.
-**Work:** Audit remaining NULLs (unregistered accounts? header extraction misses?); register missing accounts; extend `extractAccountLast4` where headers defeat it; add a review-queue surface for unresolved-account docs; consider making attribution failure loud at ingest.
-**Accept when:** `[accounts]` shows 100%, and a new ingest of a statement from an unregistered account produces a visible review item, not a silent NULL.
-**Start with:** debugging-misclassifications + adding-a-parser skills; `src/ingest/account-reconcile.ts`, `src/parsers/in/generic-bank.ts`.
+**Outcome:** `[accounts]` 100.0% (2835/2835), with a new orphaned-id metric at 0.
+The true baseline was 0%, not 59.2% — the old metric counted ids orphaned by
+profile re-seeds (each save minted fresh account ids). Shipped: deep-header +
+standalone-masked-card extraction (scoped to the pre-table header region so
+txn narrations can never match — the 74693e3 lesson, negative-tested); card
+statements detected from document text and resolved against `-cards` issuer
+accounts; institution-unique fallback with recorded `own_account_source`
+provenance (never fires for zero-txn docs); document-level assign-account
+flow in triage (`AssignAccountPanel` + `/api/review/assign-account`, stamps
+the document plus its transactions as `user_assigned`); profile re-seeds now
+upsert accounts by natural key; repair backfill re-stamped both populations.
+Unregistered accounts stub + review item — never a silent NULL. 18
+zero-transaction docs (demat/TDS/T&C/summary mailers) stay honestly
+unassigned, resolvable via the assign flow. See DECISIONS.md #10.
 
 ## [ ] G2 — Zero duplicate transactions, ever
 
