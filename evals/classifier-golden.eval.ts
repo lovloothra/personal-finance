@@ -54,6 +54,7 @@ const ctx: ClassifyContext = {
     loans: [{ kind: 'home', emiAmount: 6500000 }],
     brokers: [{ institutionId: 'zerodha', name: 'Zerodha' }],
     insurers: [{ name: 'HDFC Ergo', kind: 'health', taxSection: '80D' }],
+    cards: [{ institutionId: 'hdfc-bank-cards', last4: '7702', label: 'HDFC Infinia' }],
   },
   providerRules: [],
   merchantAliases: aliases,

@@ -154,3 +154,31 @@ test('credit with a resolved merchant is not suspected', () => {
   ]);
   assert.equal(suspectedIds.has('c1'), false);
 });
+
+// UPI AUTOPAY is the rail for Netflix/Spotify/SIP/insurance mandates in India —
+// real spending, not card bills. Single-sided cc-payment marking must require
+// card-bill context; a bare "autopay" debit must stay an expense.
+
+test('UPI AUTOPAY merchant debit is NOT single-sided marked as a transfer', () => {
+  const txns = [
+    t('n1', '2025-06-01', -64900, 'UPI-AUTOPAY/NETFLIX/pay@icici/mandate', 'doc_bank'),
+    t('n2', '2025-06-02', -19900, 'UPI AUTOPAY SPOTIFY SI', 'doc_bank'),
+  ];
+  const { transferIds } = linkInternalTransfers(txns);
+  assert.equal(transferIds.size, 0, 'autopay without card context stays spending');
+});
+
+test('card autopay debit (card-bill context) is still single-sided marked', () => {
+  const txns = [t('n3', '2025-06-03', -4500000, 'AUTOPAY SI-TAD HDFC CARD 9829', 'doc_bank')];
+  const { transferIds } = linkInternalTransfers(txns);
+  assert.ok(transferIds.has('n3'), 'autopay + card context is a card bill by definition');
+});
+
+test('autopay alone is not a pairing signal for coincidental equal amounts', () => {
+  const txns = [
+    t('n4', '2025-06-10', -64900, 'UPI-AUTOPAY/NETFLIX/mandate', 'doc_bank'),
+    t('n5', '2025-06-11', 64900, 'NEFT CR REFUND TRANSFER', 'doc_icici'), // explicit signal on credit
+  ];
+  const { transferIds } = linkInternalTransfers(txns);
+  assert.ok(!transferIds.has('n4'), 'netflix mandate must not pair away into a transfer');
+});

@@ -38,10 +38,17 @@ export function classifyByProfile(
 
   // --- Credit-card payment (internal transfer) -----------------------------
   for (const card of p.cards ?? []) {
-    const cardTokens = [card.last4, card.label, 'credit card payment', 'cc payment', 'card payment'].filter(
+    const cardTokens = [card.label, 'credit card payment', 'cc payment', 'card payment'].filter(
       Boolean,
     ) as string[];
-    if (isDebit(txn) && containsAny(desc, cardTokens)) {
+    // last4 counts only in masked card contexts (xx7702, **** 7702, ··7702,
+    // "ending 7702") — long UPI/NEFT reference numbers contain every 4-digit
+    // sequence, and a bare substring match turned arbitrary spending into
+    // silent CC-payment transfers.
+    const maskedLast4 = card.last4
+      ? new RegExp(`(?:x{2,}|\\*{2,}|·{2,}|x-|ending[ -]?)\\s*${card.last4}\\b`, 'i')
+      : null;
+    if (isDebit(txn) && (containsAny(desc, cardTokens) || (maskedLast4?.test(desc) ?? false))) {
       return {
         flow: 'transfer',
         category: 'Transfer',
