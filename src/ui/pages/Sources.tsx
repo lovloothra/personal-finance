@@ -247,6 +247,11 @@ function ReimportPanel({ fy, onClose }: { fy: string; onClose: () => void }) {
           setPhase('done');
           log(`Error: ${e.message}`, 'warn');
           break;
+        default:
+          // Ingest phases (parse/classify/review) and any future ones — without
+          // this the log froze at "processing…" for the whole ingest stage.
+          if (e.message) log(e.message, 'dim');
+          break;
       }
     };
     es.onerror = () => es.close();

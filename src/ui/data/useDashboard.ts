@@ -12,7 +12,7 @@ export function useDashboard<T>(view: DashboardView, fy: string): { data: T | nu
     let active = true;
     setLoading(true);
     fetch(`/api/dashboard/${view}?fy=${encodeURIComponent(fy)}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: T) => active && setData(d))
       .catch(() => active && setData(null))
       .finally(() => active && setLoading(false));
