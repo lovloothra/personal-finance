@@ -110,6 +110,7 @@ entry `[~]`, and mark it `[x]` with the date when its acceptance criteria pass.
 | New classifier rule never fires | Shadowed by a higher-priority layer — see debugging-misclassifications skill |
 | `getDb()` throws right after restoring a backup | Keychain passphrase doesn't match the file — see backup-and-recovery skill |
 | `FOREIGN KEY constraint failed` deleting transactions | Six tables FK-reference `transactions.id` with no ON DELETE — use `clearDocumentOutput` (`src/ingest/clear-output.ts`), never a bare delete |
+| A file is missing on main though its PR shows MERGED | Stacked PR merged into an already-merged base (dead branch) — verify with `git merge-base --is-ancestor <sha> origin/main`; recover by cherry-pick (see AGENT_COORDINATION.md) |
 
 ## Non-negotiable invariants (summary — skills have the details)
 

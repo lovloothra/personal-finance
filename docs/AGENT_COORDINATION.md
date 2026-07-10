@@ -41,6 +41,12 @@ If two agents need to touch the same file or subsystem in parallel, pause and
 reconcile through a written spec or plan before editing. In normal parallel
 work, keep file ownership scoped and isolated.
 
+**Stacked PRs:** merge the base PR first and let GitHub retarget the stack —
+or delete base branches on merge. Merging a stacked PR into a base that
+already merged strands the work on a dead branch while GitHub still shows
+MERGED (this happened: PR #15 → recovered in #20). Before depending on any
+MERGED PR, verify: `git merge-base --is-ancestor <sha> origin/main`.
+
 ## Drift Guards
 
 Do not silently change these invariants:

@@ -96,6 +96,26 @@ other location defer explicitly.
 existing contract because it lived one hop from the entry point; the fix
 was centralizing, not another document.
 
+**13. An audit/plan/finding arrives from another session → date it, then verify against current main.**
+In a multi-agent repo, other sessions' artifacts age fast. Check what commit
+it was written against (test counts and line numbers betray staleness), then
+re-verify its load-bearing claims before executing any of it.
+*Case:* the 24-finding pre-ship audit (2026-07) cited "148/149 tests" — a
+tree several merged PRs old. Three of its findings were already fixed and one
+half-fixed; executing it blind would have re-done merged work and mislabeled
+current behavior. The verified re-plan dropped/downgraded those and kept the
+rest, all of which reproduced.
+
+**14. A PR shows MERGED → verify the commits actually reach main before depending on them.**
+A stacked PR merged into its base branch AFTER that base merged to main lands
+on a dead branch — GitHub still shows MERGED.
+`git merge-base --is-ancestor <sha> origin/main` is the ten-second check.
+For stacked PRs: merge bases first (GitHub retargets), or delete base
+branches on merge.
+*Case:* PR #15 (dedup) "merged" but none of it reached main; discovered only
+because the cleanup script was missing at run time, recovered by cherry-pick
+(PR #20).
+
 ## What does not transfer through prose — and what to do instead
 
 Be honest about the limits of this file:

@@ -61,9 +61,12 @@ Feature plans/specs live in `docs/superpowers/plans` and `docs/superpowers/specs
    Every user correction becomes a user override AND a local-ML training
    example (the flywheel). New UX should route corrections through this path,
    not around it.
-9. **Loopback-origin guard instead of auth.** Single-user app bound to
-   127.0.0.1; mutations verify loopback origin as defence-in-depth. Adding
-   auth is scope creep; removing the guard is negligence.
+9. **Loopback-only enforced twice, instead of auth.** Single-user app bound
+   to 127.0.0.1; mutations verify loopback Origin (`src/server/api.ts`) AND
+   every `/api` request must carry a loopback Host (`middleware.ts`, added
+   2026-07 — DNS rebinding makes a hostile page "same-origin", and the Host
+   header is what still betrays it; GETs were previously unguarded). Adding
+   auth is scope creep; removing either guard is negligence.
 10. **Account attribution lives on the DOCUMENT, with recorded provenance.**
     A statement is FROM one account, so `ownAccountId` is decided per
     parsed document (header match → institution-unique fallback → stub →
@@ -82,6 +85,10 @@ Shipped: full ingest pipeline (Gmail → PDF → parse → classify → store),
 suspected-transfer quarantine, canonical flow-keyed taxonomy, local ML v1
 (`minilm-softmax-v1`, base model committed in `models/classification/`),
 spending triage/report UI, FY-aware rollups, backup snapshot endpoint.
+A 24-finding pre-ship audit was fully dispatched 2026-07 (PRs #13–#20):
+crash fixes, money-correctness (AUTOPAY/last4/dedup/transfer-linking/HRA),
+DNS-rebinding Host guard, strict-by-default migrations; suite grew 190→215,
+production data retroactively corrected via measured reclassify.
 
 ### Known gaps, in priority order
 

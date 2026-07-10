@@ -48,6 +48,11 @@ When a semantic change invalidates existing rows, follow the established pattern
 4. Wrap writes in `db.transaction(...)`; print an `updated/total` summary.
 5. Rehearse against a throwaway DB first:
    `PF_DB_PATH=/tmp/pf-rehearsal.db tsx --conditions=react-server scripts/<name>.ts`
+6. **Deleting transaction rows?** Six tables FK-reference `transactions.id`
+   with no ON DELETE — call `detachTransactionChildren`
+   (`src/ingest/clear-output.ts`) on the ids first, or the delete throws
+   `FOREIGN KEY constraint failed` (`scripts/dedupe-transactions.ts` is the
+   exemplar).
 
 ## Common mistakes
 

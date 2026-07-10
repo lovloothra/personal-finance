@@ -21,7 +21,11 @@ New-parser checklist:
 ## Non-negotiable semantics
 
 - **Amounts are SIGNED integer paise**: negative = debit/outflow, positive = credit/inflow. A ₹1,234.56 debit is `-123456`.
-- Dates are ISO `YYYY-MM-DD`.
+- Dates are ISO `YYYY-MM-DD`, and must be REAL calendar dates — validate by
+  round-tripping through `Date.UTC` and comparing components. Range checks
+  alone let 31/02 through, and V8 **rolls impossible ISO dates over**
+  (`new Date('2025-02-31')` → Mar 3) instead of rejecting them, silently
+  filing the txn under the wrong month/FY. `fyForDate` throws as the backstop.
 - Lines you can't interpret go into `unparsedLines` — never silently drop them; the UI surfaces them for review.
 - `accountLast4` comes from the statement HEADER only. A doc-wide last-4 regex once matched transaction-line account numbers and mis-stamped documents (fixed in commit 74693e3) — scope the regex to the header region and keep a negative test proving txn lines don't match.
 - `counterpartyRaw` is the per-line VPA / beneficiary / "to X" string, `null` when absent — extract, don't guess.
