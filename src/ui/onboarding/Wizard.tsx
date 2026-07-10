@@ -759,6 +759,11 @@ function ImportRun({ onDone }: { onDone: () => void }) {
           es.close();
           log(`Error: ${e.message}`, 'warn');
           break;
+        default:
+          // Ingest phases (parse/classify/review) and any future ones — without
+          // this the log froze at "processing…" for the whole ingest stage.
+          if (e.message) log(e.message, 'dim');
+          break;
       }
     };
     es.onerror = () => es.close();

@@ -56,7 +56,6 @@ export interface OverviewRollup {
   income: number;
   expenses: number;
   invested: number;
-  taxesPaid: number;
   net: number;
   savingsRate: number;
   prevSavingsRate: number;
@@ -115,13 +114,6 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
   const prevIncome = toR(flowSum(db, prevFy, 'income'));
   const prevExpense = toR(Math.abs(flowSum(db, prevFy, 'expense')));
 
-  // Taxes paid: transactions tagged to a tax/TDS category.
-  const taxRow = db
-    .select({ total: sql<number>`coalesce(sum(abs(${transactions.amount})), 0)` })
-    .from(transactions)
-    .where(and(eq(transactions.fyKey, fy), sql`lower(${transactions.category}) in ('tax', 'taxes', 'tds')`))
-    .get();
-  const taxesPaid = toR(taxRow?.total ?? 0);
 
   const txnCount = (db.select({ n: sql<number>`count(*)` }).from(transactions).where(eq(transactions.fyKey, fy)).get()?.n ?? 0) as number;
 
@@ -135,10 +127,12 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
     .all()
     .map((r, i) => ({ name: r.name ?? 'Uncategorised', amount: toR(r.total), color: PALETTE[i % PALETTE.length] }));
 
+  // Spending merchants only — without the flow filter the employer's salary
+  // credits topped the list, mixed in with SIPs and refunds.
   const topMerchants: MerchantRollup[] = db
     .select({ name: sql<string>`coalesce(${transactions.merchant}, ${transactions.subcategory}, ${transactions.category})`, total: sql<number>`sum(abs(${transactions.amount}))` })
     .from(transactions)
-    .where(and(eq(transactions.fyKey, fy), eq(transactions.isInternalTransfer, false)))
+    .where(and(eq(transactions.fyKey, fy), eq(transactions.flow, 'expense'), eq(transactions.isInternalTransfer, false)))
     .groupBy(sql`coalesce(${transactions.merchant}, ${transactions.subcategory}, ${transactions.category})`)
     .orderBy(desc(sql`sum(abs(${transactions.amount}))`))
     .limit(5)
@@ -202,7 +196,6 @@ export function overviewRollup(db: DB, fy: FyKey): OverviewRollup {
     income,
     expenses,
     invested,
-    taxesPaid,
     net: income - expenses,
     savingsRate: savingsRate(income, expenses),
     prevSavingsRate: savingsRate(prevIncome, prevExpense),
@@ -763,15 +756,18 @@ export function reviewRollup(db: DB): ReviewRollup {
 // ---------------------------------------------------------------------------
 
 export function searchTransactions(db: DB, q: string, limit = 12): RecentTxn[] {
-  const needle = `%${q.toLowerCase().trim()}%`;
+  // Escape LIKE metacharacters so "100%" or "c_b" in a query match literally
+  // instead of acting as wildcards.
+  const escaped = q.toLowerCase().trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+  const needle = `%${escaped}%`;
   const numeric = Number(q.replace(/[₹,\s]/g, ''));
   const amountPaise = Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric * 100) : null;
 
   const textMatch = sql`(
-    lower(coalesce(${transactions.merchant}, '')) like ${needle}
-    or lower(coalesce(${transactions.rawDescription}, '')) like ${needle}
-    or lower(coalesce(${transactions.category}, '')) like ${needle}
-    or lower(coalesce(${transactions.subcategory}, '')) like ${needle}
+    lower(coalesce(${transactions.merchant}, '')) like ${needle} escape '\\'
+    or lower(coalesce(${transactions.rawDescription}, '')) like ${needle} escape '\\'
+    or lower(coalesce(${transactions.category}, '')) like ${needle} escape '\\'
+    or lower(coalesce(${transactions.subcategory}, '')) like ${needle} escape '\\'
   )`;
   const where = amountPaise != null ? sql`(${textMatch} or abs(${transactions.amount}) = ${amountPaise})` : textMatch;
 

@@ -42,12 +42,18 @@ const daysBetween = (a: string, b: string) =>
 
 type Cadence = 'monthly' | 'quarterly' | 'yearly';
 
-function addCadence(iso: string, cadence: Cadence): string {
+/** Advance a date by one cadence period, clamped to end-of-month —
+ * setUTCMonth overflow made Jan 31 + monthly = Mar 3, drifting every
+ * 31st-anchored subscription's next-charge ETA. Exported for tests. */
+export function addCadence(iso: string, cadence: Cadence): string {
   const d = new Date(iso + 'T00:00:00Z');
-  if (cadence === 'yearly') d.setUTCFullYear(d.getUTCFullYear() + 1);
-  else if (cadence === 'quarterly') d.setUTCMonth(d.getUTCMonth() + 3);
-  else d.setUTCMonth(d.getUTCMonth() + 1);
-  return d.toISOString().slice(0, 10);
+  const day = d.getUTCDate();
+  const months = cadence === 'yearly' ? 12 : cadence === 'quarterly' ? 3 : 1;
+  // Build the target month at day 1, then clamp the day to that month's length.
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(day, lastDay));
+  return target.toISOString().slice(0, 10);
 }
 
 function median(nums: number[]): number {

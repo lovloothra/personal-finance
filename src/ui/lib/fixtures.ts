@@ -20,7 +20,6 @@ export interface FySummary {
   income: number;
   expenses: number;
   invested: number;
-  taxesPaid: number;
   savingsRate: number;
   prevSavingsRate: number;
   coverage: number;
@@ -214,7 +213,6 @@ export const fys: Record<FyKey, FySummary> = {
     income: 4218000,
     expenses: 2106400,
     invested: 1284000,
-    taxesPaid: 612000,
     savingsRate: 50,
     prevSavingsRate: 44,
     coverage: 94,
@@ -227,7 +225,6 @@ export const fys: Record<FyKey, FySummary> = {
     income: 742000,
     expenses: 358200,
     invested: 214000,
-    taxesPaid: 104000,
     savingsRate: 52,
     prevSavingsRate: 50,
     coverage: 89,

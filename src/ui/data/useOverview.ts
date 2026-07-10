@@ -26,7 +26,6 @@ export interface OverviewDTO {
   income: number;
   expenses: number;
   invested: number;
-  taxesPaid: number;
   net: number;
   savingsRate: number;
   prevSavingsRate: number;
@@ -48,7 +47,7 @@ export function useOverview(fy: string): { data: OverviewDTO | null; loading: bo
     let active = true;
     setLoading(true);
     fetch(`/api/dashboard/overview?fy=${encodeURIComponent(fy)}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: OverviewDTO) => {
         if (active) setData(d);
       })

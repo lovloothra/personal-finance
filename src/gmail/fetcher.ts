@@ -75,6 +75,21 @@ export interface RunEstimate {
  * Cheap metadata pass: collect matching message ids and sum their sizeEstimate
  * to estimate total download size for the consent gate.
  */
+/** Run `fn` over items with at most `limit` in flight — one slow Gmail RTT per
+ * message serialised the whole estimate (minutes for a year of statements). */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export async function estimateRun(
   auth: OAuth2Client,
   queries: GmailQuery[],
@@ -88,12 +103,13 @@ export async function estimateRun(
   for (const q of queries) {
     const ids = await listMessageIds(gmail, q.query);
     messageIdsByQuery.push({ query: q, ids });
-    for (const id of ids) {
-      if (seen.has(id)) continue;
-      seen.add(id);
+    const fresh = ids.filter((id) => !seen.has(id));
+    for (const id of fresh) seen.add(id);
+    const sizes = await mapWithConcurrency(fresh, 8, async (id) => {
       const res = await gmail.users.messages.get({ userId: 'me', id, format: 'minimal' });
-      bytesEstimated += res.data.sizeEstimate ?? 0;
-    }
+      return res.data.sizeEstimate ?? 0;
+    });
+    for (const s of sizes) bytesEstimated += s;
     onProgress({ phase: 'estimate', message: `Estimated ${q.providerId}`, messageCount: seen.size, bytes: bytesEstimated });
   }
 
