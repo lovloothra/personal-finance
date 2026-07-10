@@ -18,12 +18,12 @@ import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems,
 import { resolveOwnAccount, type OwnAccountRow } from './account-reconcile';
 import { relinkTransfersLedgerWide } from './relink-transfers';
 import { clearDocumentOutput } from './clear-output';
+import { dedupKey, dedupeAcrossDocuments } from './dedup';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
 import { parseStatement } from '@/parsers/registry';
 import { buildRecurrenceIndex } from '@/classifier/recurrence';
-import { signature } from '@/classifier/normalize';
 import { classify } from '@/classifier/pipeline';
 import { linkInternalTransfers } from '@/classifier/transfers';
 import { resolveCounterparty, type CounterpartyEntry } from '@/classifier/counterparties';
@@ -275,18 +275,24 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   }
 
   // 5. Build recurrence over the whole batch, then classify + insert.
-  // Global cross-statement dedup: the same transaction often appears in
-  // overlapping statements (e.g. a monthly AND an annual statement covering the
-  // same period). Collapse identical (date + amount + description signature)
-  // rows so they're counted once.
-  const seenGlobal = new Set<string>();
-  const dedupedParsed = parsed.filter((p) => {
-    const sig = `${p.date}|${p.amount}|${signature(p.rawDescription)}`;
-    if (seenGlobal.has(sig)) return false;
-    seenGlobal.add(sig);
-    return true;
-  });
-  const duplicatesDropped = parsed.length - dedupedParsed.length;
+  // Cross-DOCUMENT dedup (see src/ingest/dedup.ts): overlapping statements —
+  // in this batch or already stored from earlier runs — are collapsed, while
+  // two genuine same-day identical payments inside one statement both survive.
+  // Stored keys only ever belong to other documents: this run's documents had
+  // their previous output cleared above.
+  const existingKeys = new Set(
+    db
+      .select({
+        date: transactions.txnDate,
+        amount: transactions.amount,
+        rawDescription: transactions.rawDescription,
+        ownAccountId: transactions.ownAccountId,
+      })
+      .from(transactions)
+      .all()
+      .map((r) => dedupKey({ ...r, rawDescription: r.rawDescription ?? '' })),
+  );
+  const { kept: dedupedParsed, dropped: duplicatesDropped } = dedupeAcrossDocuments(parsed, existingKeys);
 
   const rawTxns: RawTxn[] = dedupedParsed.map((p) => ({
     id: p.id,
