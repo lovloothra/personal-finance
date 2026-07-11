@@ -16,12 +16,12 @@ a { color: inherit; }
 .sidebar { background: #fff; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 14px; overflow-y: auto; }
 .sb-logo { padding: 6px 10px 14px; display: flex; align-items: center; justify-content: space-between; }
 .sb-nav { display: flex; flex-direction: column; gap: 1px; }
-.sb-item { display: flex; align-items: center; gap: 11px; padding: 8px 12px; border-radius: var(--radius-sm); border: 0; background: transparent; width: 100%; text-align: left; font-size: 14px; font-weight: 500; color: var(--fg-2); transition: all var(--dur); position: relative; }
+.sb-item { display: flex; align-items: center; gap: 11px; padding: 8px 12px; border-radius: var(--radius-sm); border: 0; background: transparent; width: 100%; text-align: left; font-size: 14px; font-weight: 500; color: var(--fg-2); transition: all var(--dur); position: relative; text-decoration: none; }
 .sb-item:hover { background: var(--bg-subtle); color: var(--fg-1); }
 .sb-item.active { background: var(--indigo-50); color: var(--indigo-700); font-weight: 600; }
 .sb-item .sb-count { margin-left: auto; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--neutral-100); color: var(--fg-2); padding: 1px 7px; border-radius: var(--radius-pill); }
 .sb-item.active .sb-count { background: #fff; color: var(--indigo-700); }
-.sb-item .sb-count.alert { background: var(--amber-50); color: var(--amber-600); }
+.sb-item .sb-count.alert { background: var(--amber-50); color: var(--amber-700); } /* amber-600 on amber-50 is 3.17:1 (fails AA); amber-700 is 4.71:1 */
 .sb-section { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); padding: 16px 12px 7px; }
 .sb-foot { margin-top: auto; padding-top: 14px; }
 .sb-card { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 13px; }
@@ -35,6 +35,9 @@ a { color: inherit; }
 .search { display: flex; align-items: center; gap: 9px; background: var(--bg-subtle); border: 1px solid transparent; border-radius: var(--radius-md); padding: 7px 13px; width: 300px; color: var(--fg-3); transition: all var(--dur); }
 .search:focus-within { background: #fff; border-color: var(--border-focus); box-shadow: var(--shadow-focus); }
 .search input { border: 0; background: transparent; outline: none; font-family: var(--font-text); font-size: 14px; color: var(--fg-1); width: 100%; }
+/* .search already shows a focus ring on the container via :focus-within (border + shadow-focus);
+   suppress the generic :focus-visible outline on the inner input so it doesn't double-ring. */
+.search input:focus-visible { outline: none; }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 
 /* FY toggle (segmented) */
@@ -78,6 +81,7 @@ a { color: inherit; }
 .card-hover:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.stat-grid { margin-bottom: 16px; } /* composes with .grid-3 / .grid-4 */
 .grid-2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
 .grid-2e { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
@@ -112,14 +116,14 @@ a { color: inherit; }
 .conf .dot { width: 6px; height: 6px; border-radius: 50%; }
 .conf-high { background: var(--mint-50); color: var(--mint-700); }
 .conf-high .dot { background: var(--mint-500); }
-.conf-med { background: var(--amber-50); color: var(--amber-600); }
+.conf-med { background: var(--amber-50); color: var(--amber-700); } /* amber-600 on amber-50 is 3.17:1 (fails AA); amber-700 is 4.71:1 */
 .conf-med .dot { background: var(--amber-500); }
 .conf-low { background: var(--red-50); color: var(--red-600); }
 .conf-low .dot { background: var(--red-500); }
 
 /* badges */
 .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: var(--radius-pill); white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
-.badge.cau { background: var(--amber-50); color: var(--amber-600); }
+.badge.cau { background: var(--amber-50); color: var(--amber-700); } /* amber-600 on amber-50 is 3.17:1 (fails AA); amber-700 is 4.71:1 */
 .badge.brand { background: var(--indigo-50); color: var(--indigo-700); }
 .badge.mint { background: var(--mint-50); color: var(--mint-700); }
 .badge.coral { background: var(--coral-50); color: var(--coral-600); }
@@ -187,7 +191,7 @@ a { color: inherit; }
 .note { display: flex; gap: 11px; align-items: flex-start; padding: 13px 15px; border-radius: var(--radius-md); font-size: 13px; line-height: 1.5; }
 .note.privacy { background: var(--mint-50); color: var(--mint-700); }
 .note.info { background: var(--indigo-50); color: var(--indigo-700); }
-.note.warn { background: var(--amber-50); color: var(--amber-600); }
+.note.warn { background: var(--amber-50); color: var(--amber-700); } /* amber-600 on amber-50 is 3.17:1 (fails AA); amber-700 is 4.71:1 */
 .note .ic { flex-shrink: 0; margin-top: 1px; }
 .note b { font-weight: 700; }
 
@@ -304,6 +308,9 @@ a { color: inherit; }
 .field .hint { font-size: 12px; color: var(--fg-3); font-weight: 400; margin-top: 4px; }
 .inp { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 10px 13px; font-size: 14.5px; font-family: var(--font-text); color: var(--fg-1); background: #fff; transition: all var(--dur); }
 .inp:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--shadow-focus); }
+/* .inp:focus above already shows a focus ring via border-color + shadow-focus;
+   explicit override (redundant with the higher specificity of .inp:focus, kept for clarity) avoids a double ring. */
+.inp:focus-visible { outline: none; }
 .inp::placeholder { color: var(--neutral-400); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -394,3 +401,29 @@ a { color: inherit; }
   .content { padding: 16px 12px 48px; }
   .foot-meta { flex-wrap: wrap; gap: 10px; }
 }
+
+/* ---------- Focus visibility ---------- */
+:where(button, a, input, select, textarea, [role="tab"], [role="button"]):focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Loading skeletons ---------- */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-sunken) 25%, var(--bg-subtle) 50%, var(--bg-sunken) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-xs);
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+.skeleton.row { height: 48px; }
+.skeleton.stat { height: 92px; }
+@keyframes skeleton-sweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* ---------- Keycap badge ---------- */
+.kbd { display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; line-height: 1; padding: 1px 4px; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--bg-subtle); color: var(--fg-2); }
