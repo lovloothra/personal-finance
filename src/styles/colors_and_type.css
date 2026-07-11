@@ -1,16 +1,17 @@
 /* ============================================================
    PERSONAL FINANCE — Design Tokens (colors + type)
    Local-first, India-first personal finance. Stripe-grade polish, B2C warmth.
-   Fonts loaded from Google Fonts (substitutes — see README).
+   Fonts are self-hosted via next/font/google (see app/layout.tsx) — bundled
+   at build time, no runtime request to Google's font CDN. Local-first.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
 :root {
-  /* -------- Font families -------- */
-  --font-display: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
-  --font-text:    'Hanken Grotesk', system-ui, -apple-system, sans-serif;
-  --font-mono:    'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* -------- Font families --------
+     --nf-display/--nf-text/--nf-mono are set by next/font as CSS custom
+     properties on <html> in app/layout.tsx. */
+  --font-display: var(--nf-display), system-ui, -apple-system, sans-serif;
+  --font-text:    var(--nf-text), system-ui, -apple-system, sans-serif;
+  --font-mono:    var(--nf-mono), ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* ============================================================
      COLOR — RAW PALETTE
@@ -52,6 +53,8 @@
   --amber-400: #F2A93B;
   --amber-500: #E8930C;
   --amber-600: #C2790A;
+  --amber-700: #9A6008;   /* WCAG AA text color: amber-600 on amber-50 is 3.17:1 (fails);
+                             amber-700 is 4.71:1 on amber-50 and 5.18:1 on white. Same hue as amber-600. */
 
   /* Red — spending / negative / danger */
   --red-50:  #FCEBEC;
@@ -69,6 +72,8 @@
   --neutral-300: #CDD2DF;
   --neutral-400: #A7AEC1;
   --neutral-500: #7E8597;
+  --neutral-550: #6A7186;   /* WCAG AA text color: neutral-500 on white is 3.69:1 (fails);
+                               neutral-550 is 4.86:1 on white and 4.54:1 on bg-subtle. Same hue as 500/600. */
   --neutral-600: #5C6376;
   --neutral-700: #424A5C;
   --neutral-800: #2A3142;
@@ -79,7 +84,7 @@
      ============================================================ */
   --fg-1: var(--neutral-900);   /* primary text */
   --fg-2: var(--neutral-600);   /* secondary text */
-  --fg-3: var(--neutral-500);   /* muted / captions */
+  --fg-3: var(--neutral-550);   /* muted / captions — neutral-500 fails WCAG AA (3.69:1 on white); neutral-550 clears 4.5:1 */
   --fg-on-dark: #FFFFFF;
   --fg-on-dark-2: rgba(255,255,255,0.72);
 
@@ -250,4 +255,69 @@
   font-variant-numeric: tabular-nums;
   font-size: 14px;
   color: var(--fg-2);
+}
+
+/* ============================================================
+   TYPE SCALE — half-px purge map
+   workbench.css hand-rolls a handful of half-px font sizes at dozens of
+   call sites (badges, table headers, sidebar rows, footer meta, form
+   labels, transaction amounts, etc). None of them line up with an
+   existing .t-* step, so a later phase can't just search/replace them
+   onto .t-caption (12px) or .t-small (14px) without changing the
+   rendered size. This table gives each one a canonical, named home —
+   same font-size as today, just centralized — so that later purge is a
+   pure rename, not a resize.
+
+     fontSize (px) -> canonical class      example call sites
+     11             -> .t-micro            .sb-count, .conf, .badge, .tbl th, .regime .tag, .ring i
+     11.5           -> .t-tiny             .stat .lbl, .quest-step em
+     12.5           -> .t-meta             .sb-card .row, .stat .delta, .doc-bar, .run .st, .foot-meta, .onb-note
+     13             -> .t-minor            .seg button, .chip, .note, .doc-meta, .reason-box .step, .review-item .desc
+     13.5           -> .t-detail           .page-head p, .btn-ghost, .kv, .tip .body, .quest-score b
+     14.5           -> .t-strong           .txn .amt, .review-item .ttl, .inp
+
+   (12px and 14px already exist as .t-caption/.t-overline and .t-small —
+   nothing new needed for those.)
+   ============================================================ */
+.t-micro {
+  font-family: var(--font-text);
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--fg-3);
+}
+.t-tiny {
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--fg-3);
+}
+.t-meta {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--fg-2);
+}
+.t-minor {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+.t-detail {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+.t-strong {
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--fg-1);
 }
