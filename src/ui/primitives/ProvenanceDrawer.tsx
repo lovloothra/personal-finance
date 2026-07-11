@@ -5,6 +5,7 @@ import { ConfidenceBadge } from './ConfidenceBadge';
 import { Dialog, useDialogClose } from './Dialog';
 import { Icon } from './Icon';
 import { Money } from './Money';
+import { labelForCategory } from '@/classifier/taxonomy';
 
 interface ProvenanceDrawerProps {
   txn: Txn;
@@ -30,7 +31,7 @@ function ProvenanceDrawerBody({ txn }: { txn: Txn }) {
           <div>
             <h3>{txn.merchant}</h3>
             <p>
-              {txn.date} · {txn.acct} · {txn.method}
+              {[txn.date, txn.acct, txn.method].filter(Boolean).join(' · ')}
             </p>
           </div>
           <button className="drawer-x" onClick={close}>
@@ -52,8 +53,8 @@ function ProvenanceDrawerBody({ txn }: { txn: Txn }) {
                 : txn.flow === 'in' ? 'Income' : 'Expense'}
             </span>
             <span className="badge neutral">
-              {txn.cat}
-              {txn.sub ? ' · ' + txn.sub : ''}
+              {labelForCategory(txn.cat)}
+              {txn.sub ? ' · ' + labelForCategory(txn.sub) : ''}
             </span>
             {txn.transfer && <span className="badge mint">Internal transfer · de-duped</span>}
             {txn.recurring && <span className="badge coral">Recurring</span>}
@@ -110,7 +111,7 @@ function ProvenanceDrawerBody({ txn }: { txn: Txn }) {
         <div className="card-head" style={{ padding: '6px 0 10px' }}>
             <h3 style={{ fontSize: 13.5 }}>Source evidence</h3>
           </div>
-          {src && src.type === 'email' && (
+          {src && src.type === 'email' && (src.from || src.subject) && (
             <div className="doc">
               <div className="doc-bar">
                 <svg className="gm" viewBox="0 0 24 24" fill="none">
@@ -124,7 +125,9 @@ function ProvenanceDrawerBody({ txn }: { txn: Txn }) {
                 <div className="from">{src.from}</div>
                 <div className="subj">{src.subject}</div>
               </div>
-              <div className="doc-body">{src.body}</div>
+              <div className="doc-body">
+                {src.body || <span className="muted">The original message isn&apos;t stored — evidence is re-read from your inbox at import time.</span>}
+              </div>
             </div>
           )}
           {src && src.type === 'pdf' && (

@@ -193,10 +193,13 @@ export function Settings() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 14.5 }}>Wipe everything</div>
-            <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-              Everything lives in this folder: delete <code>data/</code>, <code>attachments/</code>, <code>exports/</code> and{' '}
-              <code>secrets/</code>, then remove the &ldquo;personal-finance&rdquo; entry from your OS keychain. No in-app shortcut —
-              deleting your ledger should be deliberate.
+            <div className="note warn" style={{ marginTop: 8 }}>
+              <span className="ic"><Icon name="triangle-alert" size={16} /></span>
+              <span>
+                Everything lives in this folder: delete <code>data/</code>, <code>attachments/</code>, <code>exports/</code> and{' '}
+                <code>secrets/</code>, then remove the &ldquo;personal-finance&rdquo; entry from your OS keychain. No in-app shortcut —
+                deleting your ledger should be deliberate.
+              </span>
             </div>
           </div>
         </div>

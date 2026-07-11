@@ -36,7 +36,7 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
     <div className="txn click" onClick={() => open(t)}>
       <MerchantLogo name={t.merchant} color={t.color} size={38} />
       <div className="txn-mid">
-        <div className="mer">{labelForCategory(t.merchant)}</div>
+        <div className="mer">{t.merchant}</div>
         <div className="cat">
           <span>
             {labelForCategory(t.cat)}

@@ -51,3 +51,10 @@ export function labelForOption(value: string): string {
   const spaced = value.replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
+
+/** Redact every ₹-amount inside a prose string, for mask-aware rendering of
+ * server-built copy (tax tips embed literal amounts). Matches plain and
+ * compact forms: ₹2,53,500 · ₹1.07 Cr · ₹12.5 L. */
+export function redactInr(text: string): string {
+  return text.replace(/₹\s?[\d,]+(?:\.\d+)?(?:\s?(?:Cr|L))?/g, '₹•••,•••');
+}

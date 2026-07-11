@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inr, inrCompact, fmtDate, labelForOption, fyLabel } from '../format';
+import { inr, inrCompact, fmtDate, labelForOption, fyLabel, redactInr } from '../format';
 
 test('inrCompact abbreviates crore-scale amounts for stat cards', () => {
   assert.equal(inrCompact(15301460), '₹1.53 Cr');
@@ -55,4 +55,30 @@ test('fyLabel computes label and month range from the key alone', () => {
 test('fyLabel falls back to a bare label for unrecognized keys', () => {
   assert.deepEqual(fyLabel('all'), { label: 'FY all', sub: '' });
   assert.deepEqual(fyLabel(''), { label: 'FY ', sub: '' });
+});
+
+test('redactInr redacts plain amount forms', () => {
+  assert.equal(redactInr('saves you ₹2,53,500 this year'), 'saves you ₹•••,••• this year');
+  assert.equal(redactInr('₹12,34,567'), '₹•••,•••');
+});
+
+test('redactInr redacts compact forms with Cr', () => {
+  assert.equal(redactInr('₹1.07 Cr'), '₹•••,•••');
+  assert.equal(redactInr('save ₹1.07 Cr total'), 'save ₹•••,••• total');
+});
+
+test('redactInr redacts compact forms with L', () => {
+  assert.equal(redactInr('₹12.5 L left'), '₹•••,••• left');
+  assert.equal(redactInr('after ₹5.25 L in deductions'), 'after ₹•••,••• in deductions');
+});
+
+test('redactInr handles multiple amounts in one string', () => {
+  assert.equal(redactInr('You save ₹2,53,500 this year with ₹1.07 Cr total'), 'You save ₹•••,••• this year with ₹•••,••• total');
+  assert.equal(redactInr('₹10 L and ₹2,00,000 both masked'), '₹•••,••• and ₹•••,••• both masked');
+});
+
+test('redactInr leaves amount-free text unchanged', () => {
+  assert.equal(redactInr('This is just text'), 'This is just text');
+  assert.equal(redactInr('No amounts here'), 'No amounts here');
+  assert.equal(redactInr(''), '');
 });

@@ -1,7 +1,8 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
-import { fyLabel } from '../lib/format';
+import { useMask } from '../contexts/MaskCtx';
+import { fyLabel, redactInr } from '../lib/format';
 import { viewState } from '../lib/viewState';
 import type { Txn } from '../lib/types';
 import { Icon } from '../primitives/Icon';
@@ -108,6 +109,7 @@ function TaxContent({
   comparison: NonNullable<TaxDTO['comparison']>;
   openProv: (t: Txn) => void;
 }) {
+  const { masked } = useMask();
   const oldWins = comparison.recommended === 'old';
   const evidenceTxns = evidence.map(recentToTxn);
 
@@ -118,7 +120,8 @@ function TaxContent({
           <Icon name="triangle-alert" size={16} />
         </span>
         <span>
-          <b>Planning aid, not filing.</b> Figures are computed from evidence found in your inbox — verify with your CA before filing.
+          <b>Planning aid, not filing.</b>{' '}
+          Figures are computed from evidence found in your inbox — verify with your CA before filing.
           We don&apos;t file or transmit anything.
         </span>
       </div>
@@ -226,7 +229,7 @@ function TaxContent({
                 <Icon name="lightbulb" size={16} />
               </span>
               <div className="body">
-                <b>{tip.t}</b> {tip.d}
+                <b>{masked ? redactInr(tip.t) : tip.t}</b> {masked ? redactInr(tip.d) : tip.d}
               </div>
             </div>
           ))}

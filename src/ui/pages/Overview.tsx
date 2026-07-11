@@ -233,7 +233,7 @@ function OverviewContent({
             {merchants.map((m) => (
               <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
                 <MerchantLogo name={m.name} color={m.color} size={30} />
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{labelForCategory(m.name)}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.name}</span>
                 <span style={{ marginLeft: 'auto' }}>
                   <Money amount={m.amount} />
                 </span>

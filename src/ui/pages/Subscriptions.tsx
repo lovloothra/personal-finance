@@ -10,6 +10,7 @@ import { ErrorState } from '../primitives/ErrorState';
 import { Skeleton } from '../primitives/Skeleton';
 import { FootMeta, PageHead } from './shared';
 import { useDashboard, type SubscriptionsDTO } from '../data/useDashboard';
+import { labelForCategory } from '@/classifier/taxonomy';
 
 type Sub = SubscriptionsDTO['subscriptions'][number];
 type Status = Sub['status'];
@@ -22,10 +23,6 @@ const CADENCE_MULT: Record<string, number> = { monthly: 12, quarterly: 4, yearly
 const cadenceMult = (cadence: string) => CADENCE_MULT[cadence.toLowerCase()] ?? 12;
 const annualOf = (s: Sub) => s.annual ?? s.amt * cadenceMult(s.cadence);
 
-/** Tidy the raw display category into a human label. */
-const CAT_LABEL: Record<string, string> = { Ott: 'Streaming', Software: 'AI & Software', Music: 'Music', Telecom: 'Telecom', Subscriptions: 'Subscription' };
-const catLabel = (c: string) => CAT_LABEL[c] ?? c;
-
 function SubRow({ s, mode, onStatus }: { s: Sub; mode: 'confirmed' | 'likely'; onStatus: (id: string, status: Status) => void }) {
   return (
     <div className="txn" style={{ cursor: 'default' }}>
@@ -33,7 +30,7 @@ function SubRow({ s, mode, onStatus }: { s: Sub; mode: 'confirmed' | 'likely'; o
       <div className="txn-mid">
         <div className="mer">{s.name}</div>
         <div className="cat" style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-          <span className="badge neutral" style={{ padding: '1px 7px' }}>{catLabel(s.cat)}</span>
+          <span className="badge neutral" style={{ padding: '1px 7px' }}>{labelForCategory(s.cat)}</span>
           <span>{s.cadence}</span>
           {s.occurrences > 0 && <span className="muted">· seen {s.occurrences}×</span>}
         </div>
@@ -109,7 +106,7 @@ export function Subscriptions() {
     <div className="content-wrap fade-in">
       <PageHead
         title="Subscriptions"
-        sub={state === 'ready' ? `${confirmed.length} active · ${likely.length} to review` : undefined}
+        sub={state === 'ready' ? `All time · ${confirmed.length} active · ${likely.length} to review` : undefined}
       />
 
       {state === 'loading' && (
