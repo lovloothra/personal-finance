@@ -25,6 +25,8 @@ export interface UncatGroup {
     id: string; merchant: string; category: string; subcategory: string | null;
     confidence: string; confidenceScore: number; reason: string; evidenceCount: number;
   } | null;
+  /** Deterministic top-5 category shortlist computed server-side (rank-categories.ts). */
+  ranked?: string[];
 }
 export interface UncatDTO {
   hasData: boolean; totalTransactions: number; totalGroups: number;
@@ -41,6 +43,8 @@ export function useSpending(fy: string) {
    * report or triage fetch sets this — it must never look like "no data yet". */
   const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null); // category name to flash
+  // Session-only progress counter — never persisted, resets on reload.
+  const [clearedThisSession, setClearedThisSession] = useState(0);
   const queryRef = useRef('');
 
   // These two never throw — mutation call sites (settle, etc.) fire-and-forget
@@ -92,6 +96,7 @@ export function useSpending(fy: string) {
       totalGroups: u.totalGroups - 1,
       totalTransactions: u.totalTransactions - removed - alsoTaught,
     } : u);
+    setClearedThisSession((n) => n + removed + alsoTaught);
     setHighlight(category);
     setTimeout(() => setHighlight((h) => (h === category ? null : h)), 1400);
     void refreshReport();
@@ -125,5 +130,5 @@ export function useSpending(fy: string) {
     } : u);
   }, []);
 
-  return { report, triage, loading, error, retry, highlight, assign, acceptSuggestion, rejectSuggestion, search, refreshReport, loadTriage };
+  return { report, triage, loading, error, retry, highlight, clearedThisSession, assign, acceptSuggestion, rejectSuggestion, search, refreshReport, loadTriage };
 }

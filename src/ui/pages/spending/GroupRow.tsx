@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { useSpending, UncatGroup } from '../../data/useSpending';
 import { Money } from '../../primitives/Money';
 import { Button } from '../../primitives/Button';
@@ -8,6 +8,16 @@ import { InstLogo } from '../../primitives/InstLogo';
 import { AssignAccountPanel } from './AssignAccountPanel';
 import { categoriesForFlow, labelForCategory, normalizeCategory } from '@/classifier/taxonomy';
 import type { Flow } from '@/classifier/types';
+import { rankCategories } from '@/review/rank-categories';
+
+/** Actions the currently-focused row exposes to TriageView's keyboard reducer. */
+export interface FocusedRowActions {
+  pickRanked: (n: number) => void;
+  assign: () => void;
+  markTransfer: () => void;
+  canTransfer: boolean;
+  hasCategory: boolean;
+}
 
 interface Detail { id: string; date: string; amount: number; rawDescription: string | null; from: string | null; subject: string | null; }
 
@@ -92,8 +102,10 @@ function CounterpartyLine({ raw, flow }: { raw: string; flow: string }) {
   );
 }
 
-export function GroupRow({ group, spending, focused }: {
+export function GroupRow({ group, spending, focused, registerActions }: {
   group: UncatGroup; spending: ReturnType<typeof useSpending>; focused?: boolean;
+  /** TriageView's keyboard reducer calls into whichever row is focused. */
+  registerActions?: (a: FocusedRowActions | null) => void;
 }) {
   // Derive the group's flow so we can filter categories appropriately.
   // The group carries an explicit flow from the DB; fall back to sign-derived.
@@ -115,6 +127,20 @@ export function GroupRow({ group, spending, focused }: {
   const [assignAccountOpen, setAssignAccountOpen] = useState(false);
   const sug = group.localSuggestion;
 
+  // The server already computes a deterministic ranking (rank-categories.ts)
+  // and sends it as group.ranked; only compose it client-side when that's
+  // absent from the payload (older/demo data).
+  const fallbackRanked = useMemo(() => rankCategories(
+    {
+      suggestedCategory: sug?.category ?? null,
+      distribution: undefined,
+      topCategories: spending.triage?.topCategories ?? [],
+      groupFlow,
+    },
+    categoriesForFlow,
+  ), [sug, spending.triage?.topCategories, groupFlow]);
+  const ranked = group.ranked ?? fallbackRanked;
+
   const toggleDetail = async () => {
     if (detailOpen) { setDetailOpen(false); return; }
     setDetailOpen(true);
@@ -130,12 +156,12 @@ export function GroupRow({ group, spending, focused }: {
     }
   };
 
-  const assign = async () => {
+  const assign = useCallback(async () => {
     if (!category) return;
     setBusy(true); setError(null);
     try { await spending.assign(group.signature, merchant.trim(), category); }
     catch (e) { setError(e instanceof Error ? e.message : 'Assign failed'); setBusy(false); }
-  };
+  }, [category, merchant, group.signature, spending]);
 
   const accept = async () => {
     if (!sug) return;
@@ -149,13 +175,13 @@ export function GroupRow({ group, spending, focused }: {
    * which sets flow='transfer', isInternalTransfer=true, and clears
    * suspectedTransfer so the row is counted per its new flow.
    */
-  const markAsTransfer = async () => {
+  const markAsTransfer = useCallback(async () => {
     setBusy(true); setError(null);
     // No merchant: a transfer between own accounts has no merchant, and the
     // signature-derived guess must never be recorded as one.
     try { await spending.assign(group.signature, '', 'Transfer'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Mark as transfer failed'); setBusy(false); }
-  };
+  }, [group.signature, spending]);
 
   /**
    * "It's income" — calls /api/review/assign with category='Income',
@@ -167,6 +193,24 @@ export function GroupRow({ group, spending, focused }: {
     try { await spending.assign(group.signature, '', 'Income'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Mark as income failed'); setBusy(false); }
   };
+
+  // Expose this row's actions to TriageView's keyboard reducer while it's
+  // the focused row; deregister on blur/unmount so a stale row never
+  // swallows a keypress meant for whichever row is focused now.
+  useEffect(() => {
+    if (!focused || !registerActions) return;
+    registerActions({
+      pickRanked: (n) => {
+        const picked = ranked[n - 1];
+        if (picked) setCategory(picked);
+      },
+      assign: () => { void assign(); }, // assign() itself no-ops without a category
+      markTransfer: () => { if (groupFlow === 'expense') void markAsTransfer(); },
+      canTransfer: groupFlow === 'expense',
+      hasCategory: !!category,
+    });
+    return () => registerActions(null);
+  }, [focused, registerActions, ranked, category, groupFlow, assign, markAsTransfer]);
 
   return (
     <div className={`review-item ${focused ? 'focused' : ''}`} style={{ alignItems: 'flex-start' }} data-sig={group.signature}>
@@ -267,6 +311,7 @@ export function GroupRow({ group, spending, focused }: {
               onPick={setCategory}
               suggested={sug ? normalizeCategory(sug.category) : null}
               priority={spending.triage?.topCategories ?? []}
+              ranked={ranked}
             />
           </div>
           <button className="btn btn-primary btn-sm" disabled={busy || !category} onClick={assign}>

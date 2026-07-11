@@ -3,6 +3,9 @@ import { getDb } from '@/db/client';
 import { accountsBank, accountsCard, classificationPredictions, gmailMessages, localModelSuggestions, transactions } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
 import { json, badRequest } from '@/server/api';
+import { categoriesForFlow } from '@/classifier/taxonomy';
+import { rankCategories, type DistributionEntry } from '@/review/rank-categories';
+import type { Flow } from '@/classifier/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,6 +40,24 @@ interface Group {
     reason: string;
     evidenceCount: number;
   } | null;
+  /** Deterministic top-5 category shortlist for the picker (see rank-categories.ts). */
+  ranked: string[];
+}
+
+/**
+ * Extract a `{category, p}[]` distribution from a prediction's `provenance`
+ * blob, if it has one. `provenance` is stored as untyped JSON — this only
+ * renames `probability` -> `p`; per-entry shape/finite-number validation
+ * happens in `rankCategories` via `isDistributionEntry`.
+ */
+function extractDistribution(provenance: unknown): DistributionEntry[] | undefined {
+  if (!provenance || typeof provenance !== 'object') return undefined;
+  const dist = (provenance as Record<string, unknown>).distribution;
+  if (!Array.isArray(dist)) return undefined;
+  return dist.map((d) => {
+    const rec = d && typeof d === 'object' ? (d as Record<string, unknown>) : {};
+    return { category: rec.category as string, p: rec.probability as number };
+  });
 }
 
 function titleCase(s: string): string {
@@ -124,6 +145,7 @@ export async function GET(req: Request): Promise<Response> {
         confidenceScore: classificationPredictions.confidenceScore,
         reason: classificationPredictions.reason,
         evidenceIds: classificationPredictions.evidenceIds,
+        provenance: classificationPredictions.provenance,
       })
       .from(localModelSuggestions)
       .innerJoin(classificationPredictions, eq(localModelSuggestions.predictionId, classificationPredictions.id))
@@ -144,20 +166,27 @@ export async function GET(req: Request): Promise<Response> {
         },
       ]),
     );
+    // Kept separate from suggestionByTxn's values so the response shape for
+    // localSuggestion (the object above) never grows a provenance field.
+    const provenanceByTxn = new Map(suggestions.map((s) => [s.transactionId, s.provenance]));
 
     const groups = new Map<string, Group>();
+    // Which transaction's suggestion currently "wins" each group — tracked
+    // separately from Group.localSuggestion so the tie-break (ascending
+    // transactionId) has something to compare against without leaking a
+    // transactionId field into the response shape.
+    const winningSuggestionTxnId = new Map<string, string>();
     for (const r of rows) {
       const desc = r.rawDescription ?? '';
       const sig = signature(desc);
       if (!sig) continue;
       const localSuggestion = suggestionByTxn.get(r.id) ?? null;
-      const g = groups.get(sig);
+      let g = groups.get(sig);
       if (g) {
         g.count += 1;
         g.total += Math.abs(r.amount);
         if (r.txnDate < g.firstDate) g.firstDate = r.txnDate;
         if (r.txnDate > g.lastDate) g.lastDate = r.txnDate;
-        if (!g.localSuggestion && localSuggestion) g.localSuggestion = localSuggestion;
         // Propagate suspected-transfer flag if any txn in the group has it.
         if (r.suspectedTransfer) g.suspectedTransfer = true;
       } else {
@@ -175,7 +204,7 @@ export async function GET(req: Request): Promise<Response> {
             institutionId = acct.institutionId ?? null;
           }
         }
-        groups.set(sig, {
+        g = {
           signature: sig,
           sample: desc.trim().slice(0, 80),
           suggestedMerchant: titleCase(sig).slice(0, 40),
@@ -193,15 +222,27 @@ export async function GET(req: Request): Promise<Response> {
           counterpartyRaw: r.counterpartyRaw ?? null,
           counterpartyKind: r.counterpartyKind ?? null,
           suspectedTransfer: r.suspectedTransfer ?? false,
-          localSuggestion,
-        });
+          localSuggestion: null,
+          ranked: [],
+        };
+        groups.set(sig, g);
+      }
+      // Deterministic per-group suggestion: keep the candidate with the
+      // highest confidenceScore, tie-broken by ascending transactionId —
+      // not whichever the query happens to return first.
+      if (localSuggestion) {
+        const currentTxnId = winningSuggestionTxnId.get(sig);
+        const current = g.localSuggestion;
+        const wins = !current
+          || localSuggestion.confidenceScore > current.confidenceScore
+          || (localSuggestion.confidenceScore === current.confidenceScore
+            && currentTxnId !== undefined && r.id < currentTxnId);
+        if (wins) {
+          g.localSuggestion = localSuggestion;
+          winningSuggestionTxnId.set(sig, r.id);
+        }
       }
     }
-
-    // Amounts leave the API in whole rupees, matching every other dashboard DTO.
-    const sorted = [...groups.values()]
-      .sort((a, b) => b.total - a.total || b.count - a.count)
-      .map((g) => ({ ...g, total: Math.round(g.total / 100) }));
 
     // The user's most-assigned categories, so the picker can lead with a
     // ranked shortlist instead of the full taxonomy wall.
@@ -220,6 +261,30 @@ export async function GET(req: Request): Promise<Response> {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([k]) => k);
+
+    // Amounts leave the API in whole rupees, matching every other dashboard DTO.
+    const sorted = [...groups.values()]
+      .sort((a, b) => b.total - a.total || b.count - a.count)
+      .map((g) => {
+        // Same flow-derivation the client uses (GroupRow.tsx): explicit
+        // g.flow if it's a known Flow, else sign-derived from total.
+        const knownFlows: Flow[] = ['income', 'expense', 'transfer', 'investment'];
+        const groupFlow: Flow = knownFlows.includes(g.flow as Flow)
+          ? (g.flow as Flow)
+          : g.total > 0 ? 'income' : 'expense';
+        const winningTxnId = winningSuggestionTxnId.get(g.signature);
+        const distribution = winningTxnId ? extractDistribution(provenanceByTxn.get(winningTxnId)) : undefined;
+        const ranked = rankCategories(
+          {
+            suggestedCategory: g.localSuggestion?.category ?? null,
+            distribution,
+            topCategories,
+            groupFlow,
+          },
+          categoriesForFlow,
+        );
+        return { ...g, total: Math.round(g.total / 100), ranked };
+      });
 
     return json({
       hasData: rows.length > 0,

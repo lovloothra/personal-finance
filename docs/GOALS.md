@@ -95,7 +95,9 @@ unassigned, resolvable via the assign flow. See DECISIONS.md #10.
 **Accept when:** Precision metric in eval:ledger; documented recommendation (keep/raise/lower gates) with data; re-embed script exists and is idempotent.
 **Start with:** local-ml-guardrails skill; `src/intelligence/store.ts`.
 
-## [ ] G11 — Triage UX overhaul: from chip wall to ranked decisions
+## [~] G11 — Triage UX overhaul: from chip wall to ranked decisions
+
+**Baseline (2026-07-11, real DB, read-only):** 2,835 transactions total; **1,811 review-pending across 1,652 groups**. Already on main before this goal started: 6-item ranked shortlist (suggested → user-frequency `topCategories` → taxonomy), `labelForCategory` chip labels, merchant prefilled only from a real ML suggestion, transfer reachable on every debit group. Remaining delta being built: deterministic per-group prediction selection, `1–5`/`Enter`/`x` keyboard assignment with keycaps, count-based progress framing (`feat/triage-keyboard`), and `u` undo (`feat/assign-undo` — needs the journal endpoint). **Sign-off requires** the real before/after pending counts from an owner-driven triage session, not just scratch-DB evidence.
 
 **Objective:** Make categorising a transaction a 2-second, keyboard-first decision instead of scanning 24 chips.
 **Why:** 1,800 items sit in review (G3 baseline); the current per-card taxonomy dump makes triage feel endless, and the forced merchant prefill ("Mobile Banking Sh Idfb") poisons override + ML training data with junk merchants. Fixing this UI is also the engine for G3 and G9 — every faster correction is a training example.
