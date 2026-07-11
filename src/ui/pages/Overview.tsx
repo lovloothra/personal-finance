@@ -51,10 +51,10 @@ export function Overview() {
 
       {state === 'loading' && (
         <>
-          <div className="grid-4" style={{ marginBottom: 16 }}>
+          <div className="grid-4 stat-grid">
             <Skeleton variant="stat" count={4} />
           </div>
-          <div className="grid-2" style={{ marginBottom: 16 }}>
+          <div className="grid-2 stat-grid">
             <Skeleton variant="block" height={260} />
             <Skeleton variant="block" height={260} />
           </div>
@@ -102,7 +102,7 @@ function OverviewContent({
 
   return (
     <>
-      <div className="grid-4" style={{ marginBottom: 16 }}>
+      <div className="grid-4 stat-grid">
         <StatCard lbl="Income" icon="arrow-down-to-line" val={<Money compact amount={income} pos />} delta="vs prior FY" dir="up" />
         <StatCard lbl="Expenses" icon="arrow-up-from-line" val={<Money compact amount={expenses} />} sub="CC payments de-duped" />
         <StatCard
@@ -115,7 +115,7 @@ function OverviewContent({
         <StatCard lbl="Savings rate" icon="percent" val={`${savingsRate}%`} delta={`${savingsRate - prevSavingsRate >= 0 ? '+' : ''}${savingsRate - prevSavingsRate} pts`} dir={savingsRate - prevSavingsRate >= 0 ? 'up' : 'down'} />
       </div>
 
-      <div className="grid-2" style={{ marginBottom: 16 }}>
+      <div className="grid-2 stat-grid">
         <div className="card">
           <div className="card-head">
             <h3>Where it went</h3>
@@ -149,7 +149,7 @@ function OverviewContent({
         </div>
 
         <div className="stack">
-          <div className="card card-pad" style={{ background: net >= 0 ? 'var(--gradient-mint)' : 'var(--gradient-hero)', border: 0, color: '#fff' }}>
+          <div className="card card-pad" style={{ background: net >= 0 ? 'var(--gradient-mint)' : 'var(--gradient-hero)', border: 0, color: 'var(--fg-on-dark)' }}>
             <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {net >= 0 ? 'You kept' : 'You overspent by'}
             </div>
@@ -171,7 +171,7 @@ function OverviewContent({
                 {taxCmp ? `Tax: ${taxCmp.recommended} regime wins` : 'Tax: compare regimes'}
               </h3>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--fg-2)', margin: '0 0 6px', lineHeight: 1.5 }}>
+            <p className="t-minor" style={{ margin: '0 0 6px', lineHeight: 1.5 }}>
               {taxCmp ? (
                 <>
                   Based on detected evidence, the {taxCmp.recommended} regime saves you{' '}
@@ -217,7 +217,7 @@ function OverviewContent({
                 </span>
               )}
             </div>
-            <p style={{ fontSize: 13, color: 'var(--fg-2)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            <p className="t-minor" style={{ margin: '8px 0 0', lineHeight: 1.5 }}>
               {reviewParts
                 ? reviewParts.length > 0
                   ? `${reviewParts.join(', ')}. Clear them to make your numbers trustworthy.`

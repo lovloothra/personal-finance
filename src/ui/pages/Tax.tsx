@@ -148,7 +148,7 @@ function TaxContent({
             height: 44,
             borderRadius: 12,
             background: 'var(--mint-500)',
-            color: '#fff',
+            color: 'var(--fg-on-dark)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

@@ -132,7 +132,7 @@ export function Sources() {
 
       {state === 'loading' && (
         <>
-          <div className="grid-3" style={{ marginBottom: 16 }}>
+          <div className="grid-3 stat-grid">
             <Skeleton variant="stat" count={3} />
           </div>
           <Skeleton variant="block" height={220} />
@@ -152,7 +152,7 @@ export function Sources() {
 
       {state === 'ready' && data && (
         <>
-          <div className="grid-3" style={{ marginBottom: 16 }}>
+          <div className="grid-3 stat-grid">
             <StatCard lbl="Messages scanned" icon="mail" val={data.messagesScanned.toLocaleString('en-IN')} />
             <StatCard
               lbl="Source coverage"

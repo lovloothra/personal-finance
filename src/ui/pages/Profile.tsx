@@ -277,7 +277,7 @@ export function Profile() {
               <div style={{ fontWeight: 700, fontSize: 16, fontFamily: 'var(--font-display)' }}>
                 {overall >= 100 ? 'Profile complete' : `Profile is ${overall}% complete`}
               </div>
-              <div style={{ fontSize: 13, color: 'var(--fg-2)', marginTop: 2 }}>
+              <div className="t-minor" style={{ marginTop: 2 }}>
                 {overall >= 100 ? 'Everything we need is on file. You can refine details anytime.' : 'Filling the gaps below lifts classification accuracy and source coverage.'}
               </div>
             </div>
@@ -297,7 +297,7 @@ export function Profile() {
                     <i>{p.editable ? p.pct : <Icon name="sparkles" size={13} />}</i>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14.5 }}>{p.name}</div>
+                    <div className="t-strong">{p.name}</div>
                     <div className="muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {summarise(p)}
                     </div>
@@ -307,7 +307,7 @@ export function Profile() {
                     {p.editable ? 'Edit' : 'View'}
                   </span>
                 </div>
-                <div style={{ fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', gap: 7, alignItems: 'flex-start', background: 'var(--bg-subtle)', padding: '9px 11px', borderRadius: 10 }}>
+                <div className="t-meta" style={{ display: 'flex', gap: 7, alignItems: 'flex-start', background: 'var(--bg-subtle)', padding: '9px 11px', borderRadius: 10 }}>
                   <Icon name="help-circle" size={14} color="var(--fg-3)" style={{ flexShrink: 0, marginTop: 1 }} />
                   <span>{p.why}</span>
                 </div>

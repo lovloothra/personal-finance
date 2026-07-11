@@ -64,7 +64,7 @@ function AccountChip({ group, assignOpen, onToggleAssign }: {
       {/* Bank marks are detailed — they need a white well and real pixels to read. */}
       <span style={{
         width: 22, height: 22, borderRadius: '50%',
-        background: '#fff',
+        background: 'var(--bg-page)',
         border: '1px solid var(--border)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         flexShrink: 0, overflow: 'hidden',
@@ -284,7 +284,7 @@ export function GroupRow({ group, spending, focused, registerActions }: {
             display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
           }}>
             <span className="badge cau">Suspected transfer</span>
-            <span style={{ fontSize: 13, color: 'var(--fg-2)', flex: 1 }}>
+            <span className="t-minor" style={{ flex: 1 }}>
               Not counted as income — confirm what this is.
             </span>
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsTransfer}>
