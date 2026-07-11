@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { Txn } from '../lib/fixtures';
+import { fmtDate } from '../lib/format';
 
 /** Client mirror of the server OverviewRollup (server module is server-only). */
 export interface RecentTxnDTO {
@@ -59,13 +60,6 @@ export function useOverview(fy: string): { data: OverviewDTO | null; loading: bo
   }, [fy]);
 
   return { data, loading };
-}
-
-/** Format an ISO date as "12 Apr 2026" to match the workbench rows. */
-function fmtDate(iso: string): string {
-  const d = new Date(iso + 'T00:00:00');
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 /** Map a DB recent transaction into the workbench Txn shape (drawer-ready). */

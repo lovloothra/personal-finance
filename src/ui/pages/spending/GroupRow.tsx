@@ -40,7 +40,7 @@ function AccountChip({ group, assignOpen, onToggleAssign }: {
         display: 'inline-flex', alignItems: 'center', gap: 6,
         padding: '2px 9px 2px 3px',
         borderRadius: 20,
-        background: 'var(--bg-0, #fff)',
+        background: 'var(--bg-page)',
         border: '1px solid var(--border)',
         fontSize: 12,
         fontWeight: 500,
@@ -226,9 +226,9 @@ export function GroupRow({ group, spending, focused }: {
         {group.suspectedTransfer && (
           <div style={{
             marginTop: 10, padding: '10px 12px',
-            border: '1px solid var(--cau-400, #f59e0b)',
+            border: '1px solid var(--amber-400)',
             borderRadius: 8,
-            background: 'var(--cau-50, #fffbeb)',
+            background: 'var(--amber-50)',
             display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
           }}>
             <span className="badge cau">Suspected transfer</span>

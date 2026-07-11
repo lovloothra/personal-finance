@@ -89,8 +89,8 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
             top: 'calc(100% + 4px)',
             left: 0,
             right: 0,
-            background: 'var(--surface, #fff)',
-            border: '1px solid var(--line, #e6e6ef)',
+            background: 'var(--bg-page)',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             boxShadow: '0 12px 28px rgba(20,20,40,.14)',
             maxHeight: 240,
@@ -121,7 +121,7 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
                 cursor: 'pointer',
                 fontSize: 13.5,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2, #f4f4fb)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <InstLogo id={inst.id} name={inst.displayName} size={22} />

@@ -1,8 +1,6 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { useMask } from '../contexts/MaskCtx';
 import { fySummary, investments } from '../lib/fixtures';
-import { inr } from '../lib/format';
 import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
@@ -12,7 +10,6 @@ import { useDashboard, type InvestmentsDTO } from '../data/useDashboard';
 
 export function Investments() {
   const { fy } = useFy();
-  const { masked } = useMask();
   const { data } = useDashboard<InvestmentsDTO>('investments', fy);
   const live = data?.hasData ? data : null;
 
@@ -71,7 +68,7 @@ export function Investments() {
                       {i.value != null ? <Money amount={i.value} /> : <span className="muted">—</span>}
                     </td>
                     <td className="r">
-                      {g != null ? <span className="delta up">+{masked ? '₹•••,•••' : inr(g)}</span> : <span className="muted">—</span>}
+                      {g != null ? <span className="delta up">+<Money amount={g} pos /></span> : <span className="muted">—</span>}
                     </td>
                   </tr>
                 );

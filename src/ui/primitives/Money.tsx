@@ -1,7 +1,7 @@
 'use client';
 import { useState, type CSSProperties } from 'react';
 import { useMask } from '../contexts/MaskCtx';
-import { inr, inrCompact } from '../lib/format';
+import { inr, inr2, inrCompact } from '../lib/format';
 
 interface MoneyProps {
   amount: number;
@@ -11,14 +11,16 @@ interface MoneyProps {
   size?: number | string;
   /** Abbreviate to ₹X.XX Cr / ₹X.XX L (stat cards); exact value moves to the tooltip. */
   compact?: boolean;
+  /** Render with 2 decimal places (inr2) instead of the rounded integer form. Ignored if `compact` is set. */
+  precise?: boolean;
 }
 
-export function Money({ amount, sign = false, pos = false, className = '', size, compact = false }: MoneyProps) {
+export function Money({ amount, sign = false, pos = false, className = '', size, compact = false, precise = false }: MoneyProps) {
   const { masked } = useMask();
   const [revealed, setRevealed] = useState(false);
   const show = !masked || revealed;
   const cls = pos ? 'pos' : 'neg';
-  const text = compact ? inrCompact(amount) : inr(amount);
+  const text = compact ? inrCompact(amount) : precise ? inr2(amount) : inr(amount);
   const display = sign ? (pos ? '+' : '−') + text : text;
   const style: CSSProperties | undefined = size ? { fontSize: size } : undefined;
   const title = masked

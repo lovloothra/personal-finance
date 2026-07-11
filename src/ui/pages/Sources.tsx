@@ -87,7 +87,7 @@ export function Sources() {
       {lockedCount > 0 && (
         <div className="card card-pad" style={{ marginBottom: 16, borderColor: 'var(--amber-400)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--amber-50, #fff7ed)', color: 'var(--amber-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--amber-50)', color: 'var(--amber-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Icon name="lock-keyhole" size={18} />
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>

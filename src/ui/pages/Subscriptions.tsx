@@ -11,8 +11,13 @@ import { subscriptions as seed } from '../lib/fixtures';
 type Sub = SubscriptionsDTO['subscriptions'][number];
 type Status = Sub['status'];
 
-const CADENCE_MULT: Record<string, number> = { Monthly: 12, Quarterly: 4, Yearly: 1 };
-const annualOf = (s: Sub) => s.annual ?? s.amt * (CADENCE_MULT[s.cadence] ?? 12);
+// Keyed lowercase and looked up case-insensitively — the classifier's
+// recurrence detector (src/classifier/recurrence.ts) and the profile model
+// both emit lowercase cadence strings ('monthly'/'quarterly'/'yearly'), so a
+// capitalized-only lookup silently fell back to 12 for every DB-backed row.
+const CADENCE_MULT: Record<string, number> = { monthly: 12, quarterly: 4, yearly: 1 };
+const cadenceMult = (cadence: string) => CADENCE_MULT[cadence.toLowerCase()] ?? 12;
+const annualOf = (s: Sub) => s.annual ?? s.amt * cadenceMult(s.cadence);
 
 /** Tidy the raw display category into a human label. */
 const CAT_LABEL: Record<string, string> = { Ott: 'Streaming', Software: 'AI & Software', Music: 'Music', Telecom: 'Telecom', Subscriptions: 'Subscription' };
@@ -25,7 +30,7 @@ function seedSubs(): Sub[] {
     name: s.name,
     cat: s.cat,
     amt: s.amt,
-    annual: s.amt * (CADENCE_MULT[s.cadence] ?? 12),
+    annual: s.amt * cadenceMult(s.cadence),
     cadence: s.cadence,
     next: s.next,
     nextIso: null,

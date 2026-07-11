@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { Icon } from '../primitives/Icon';
 import { FootMeta, PageHead } from './shared';
 import { InstitutionPicker } from '../onboarding/InstitutionPicker';
+import { labelForOption } from '../lib/format';
 import type { ReviewDTO } from '../data/useDashboard';
 
 type FieldType = 'text' | 'date' | 'number' | 'select' | 'institution';
@@ -175,7 +176,7 @@ function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView
                         <select className="inp" value={vals[f.key] ?? ''} onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}>
                           <option value="">Select…</option>
                           {(f.options ?? []).map((o) => (
-                            <option key={o} value={o}>{o}</option>
+                            <option key={o} value={o}>{labelForOption(o)}</option>
                           ))}
                         </select>
                       ) : (

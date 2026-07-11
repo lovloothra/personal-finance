@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/ui/primitives/Icon';
 import { InstitutionPicker } from './InstitutionPicker';
+import { labelForOption } from '@/ui/lib/format';
 import type { ProfileSeed } from '@/profile/types';
 import type { ReactNode } from 'react';
 
@@ -297,7 +298,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
       <label>{label}</label>
       <select className="inp" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">Select...</option>
-        {options.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+        {options.map((o) => <option key={o} value={o}>{labelForOption(o)}</option>)}
       </select>
     </div>
   );

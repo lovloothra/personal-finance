@@ -7,14 +7,12 @@ import { ReportView } from './ReportView';
 import { TriageView } from './TriageView';
 import { TransactionsView } from './TransactionsView';
 import { fySummary } from '../../lib/fixtures';
-import { useMask } from '../../contexts/MaskCtx';
-import { inr } from '../../lib/format';
+import { Money } from '../../primitives/Money';
 
 type Seg = 'report' | 'triage' | 'transactions';
 
 export function SpendingPage() {
   const { fy } = useFy();
-  const { masked } = useMask();
   const spending = useSpending(fy);
   const [seg, setSeg] = useState<Seg>('report');
   const total = spending.report?.total ?? fySummary(fy).expenses;
@@ -24,7 +22,7 @@ export function SpendingPage() {
     <div className="content-wrap fade-in">
       <PageHead
         title="Spending"
-        sub={`${fySummary(fy).label} · ${masked ? '₹•••,•••' : inr(total)}`}
+        sub={<>{fySummary(fy).label} · <Money amount={total} /></>}
       />
       <div className="tabs">
         <button className={seg === 'report' ? 'on' : ''} onClick={() => setSeg('report')}>By category</button>

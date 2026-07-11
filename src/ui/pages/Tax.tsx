@@ -1,9 +1,7 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { useMask } from '../contexts/MaskCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { tax as taxFixture, txns } from '../lib/fixtures';
-import { inr } from '../lib/format';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { FootMeta, PageHead, TxnRow } from './shared';
@@ -20,8 +18,6 @@ interface RegimeView {
 
 function RegimeCard({ which, r, oldWins }: { which: 'old' | 'new'; r: RegimeView; oldWins: boolean }) {
   const win = (which === 'old') === oldWins;
-  const { masked } = useMask();
-  const m = (n: number) => (masked ? '₹•••,•••' : inr(n));
   return (
     <div className={`regime ${win ? 'win' : ''}`}>
       {win && <span className="tag">Lower tax</span>}
@@ -35,19 +31,19 @@ function RegimeCard({ which, r, oldWins }: { which: 'old' | 'new'; r: RegimeView
       </div>
       <div className="line">
         <span className="k">Taxable income</span>
-        <span className="v">{m(r.taxable)}</span>
+        <span className="v"><Money amount={r.taxable} /></span>
       </div>
       <div className="line">
         <span className="k">Tax before cess</span>
-        <span className="v">{m(r.tax)}</span>
+        <span className="v"><Money amount={r.tax} /></span>
       </div>
       <div className="line">
         <span className="k">Surcharge</span>
-        <span className="v">{m(r.surcharge)}</span>
+        <span className="v"><Money amount={r.surcharge} /></span>
       </div>
       <div className="line">
         <span className="k">Health &amp; edu cess (4%)</span>
-        <span className="v">{m(r.cess)}</span>
+        <span className="v"><Money amount={r.cess} /></span>
       </div>
     </div>
   );
@@ -55,7 +51,6 @@ function RegimeCard({ which, r, oldWins }: { which: 'old' | 'new'; r: RegimeView
 
 export function Tax() {
   const { fy, fys } = useFy();
-  const { masked } = useMask();
   const { openProv } = useDrawer();
   const { data } = useDashboard<TaxDTO>('tax', fy);
   const live = data?.hasData && data.comparison ? data.comparison : null;
@@ -131,7 +126,7 @@ export function Tax() {
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 15, fontFamily: 'var(--font-display)' }}>
-            The {oldWins ? 'old' : 'new'} regime saves you {masked ? '₹•••,•••' : inr(delta)}
+            The {oldWins ? 'old' : 'new'} regime saves you <Money amount={delta} />
           </div>
           <div style={{ fontSize: 13, color: 'var(--mint-700)', marginTop: 2 }}>
             Given your detected HRA, home-loan interest and 80C/80D deductions this year.

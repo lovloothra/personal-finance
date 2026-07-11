@@ -1,10 +1,9 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { classifierLayers, type Txn } from '../lib/fixtures';
-import { useMask } from '../contexts/MaskCtx';
-import { inr2 } from '../lib/format';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { Icon } from './Icon';
+import { Money } from './Money';
 
 interface ProvenanceDrawerProps {
   txn: Txn;
@@ -13,7 +12,6 @@ interface ProvenanceDrawerProps {
 
 export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
   const [show, setShow] = useState(false);
-  const { masked } = useMask();
 
   const close = useCallback(() => {
     setShow(false);
@@ -55,7 +53,7 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
             <div className="doc-amt">
               {txn.flow === 'in' ? '+' : '−'}
-              {masked ? '₹•••,•••' : inr2(txn.amt)}
+              <Money amount={txn.amt} precise />
             </div>
             <ConfidenceBadge level={txn.conf} />
           </div>

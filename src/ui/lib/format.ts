@@ -24,3 +24,18 @@ export const inrCompact = (n: number): string => {
   if (abs >= 1_00_000) return scaled(abs / 1_00_000, 'L');
   return inr(abs);
 };
+
+/** Format an ISO date ("2026-04-12") as "12 Apr 2026". Non-date input is
+ * returned unchanged (e.g. an already-formatted string, or garbage). */
+export function fmtDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/** De-underscore and sentence-case an enum-ish option value for display,
+ * e.g. "non_metro" -> "Non metro". Used for <select> option labels. */
+export function labelForOption(value: string): string {
+  const spaced = value.replace(/_/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}

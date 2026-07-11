@@ -3,36 +3,36 @@ import { Icon } from './Icon';
 
 /** Category → lucide icon + brand tint. Falls back to a coloured initial. */
 const MAP: Record<string, { icon: string; color: string }> = {
-  'food delivery': { icon: 'utensils', color: '#FF8A6B' },
-  'quick commerce': { icon: 'bike', color: '#15A877' },
-  groceries: { icon: 'shopping-basket', color: '#15A877' },
-  dining: { icon: 'utensils-crossed', color: '#FF8A6B' },
-  travel: { icon: 'plane', color: '#3B82F6' },
-  transport: { icon: 'car', color: '#3B82F6' },
-  shopping: { icon: 'shopping-bag', color: '#A855F7' },
-  utilities: { icon: 'zap', color: '#F59E0B' },
-  housing: { icon: 'house', color: '#6354E6' },
-  loan: { icon: 'landmark', color: '#FF8A6B' },
-  insurance: { icon: 'shield-check', color: '#15A877' },
-  investment: { icon: 'trending-up', color: '#15A877' },
-  health: { icon: 'heart-pulse', color: '#EF4444' },
-  fitness: { icon: 'dumbbell', color: '#15A877' },
-  education: { icon: 'graduation-cap', color: '#3B82F6' },
-  entertainment: { icon: 'clapperboard', color: '#A855F7' },
-  ott: { icon: 'tv', color: '#A855F7' },
-  subscriptions: { icon: 'repeat', color: '#6354E6' },
-  software: { icon: 'code', color: '#6354E6' },
-  salary: { icon: 'wallet', color: '#15A877' },
-  income: { icon: 'arrow-down-to-line', color: '#15A877' },
-  refund: { icon: 'rotate-ccw', color: '#15A877' },
-  transfer: { icon: 'arrow-left-right', color: '#94A3B8' },
-  'credit card payment': { icon: 'credit-card', color: '#94A3B8' },
-  cash: { icon: 'banknote', color: '#15A877' },
-  household: { icon: 'house-plug', color: '#6354E6' },
-  'fees & charges': { icon: 'receipt', color: '#EF4444' },
-  'gifts & donations': { icon: 'gift', color: '#FF8A6B' },
-  'personal care': { icon: 'sparkles', color: '#A855F7' },
-  uncategorised: { icon: 'circle-help', color: '#94A3B8' },
+  'food delivery': { icon: 'utensils', color: 'var(--coral-400)' },
+  'quick commerce': { icon: 'bike', color: 'var(--mint-500)' },
+  groceries: { icon: 'shopping-basket', color: 'var(--mint-500)' },
+  dining: { icon: 'utensils-crossed', color: 'var(--coral-400)' },
+  travel: { icon: 'plane', color: 'var(--glyph-blue)' },
+  transport: { icon: 'car', color: 'var(--glyph-blue)' },
+  shopping: { icon: 'shopping-bag', color: 'var(--glyph-purple)' },
+  utilities: { icon: 'zap', color: 'var(--glyph-amber)' },
+  housing: { icon: 'house', color: 'var(--indigo-500)' },
+  loan: { icon: 'landmark', color: 'var(--coral-400)' },
+  insurance: { icon: 'shield-check', color: 'var(--mint-500)' },
+  investment: { icon: 'trending-up', color: 'var(--mint-500)' },
+  health: { icon: 'heart-pulse', color: 'var(--glyph-red)' },
+  fitness: { icon: 'dumbbell', color: 'var(--mint-500)' },
+  education: { icon: 'graduation-cap', color: 'var(--glyph-blue)' },
+  entertainment: { icon: 'clapperboard', color: 'var(--glyph-purple)' },
+  ott: { icon: 'tv', color: 'var(--glyph-purple)' },
+  subscriptions: { icon: 'repeat', color: 'var(--indigo-500)' },
+  software: { icon: 'code', color: 'var(--indigo-500)' },
+  salary: { icon: 'wallet', color: 'var(--mint-500)' },
+  income: { icon: 'arrow-down-to-line', color: 'var(--mint-500)' },
+  refund: { icon: 'rotate-ccw', color: 'var(--mint-500)' },
+  transfer: { icon: 'arrow-left-right', color: 'var(--glyph-slate)' },
+  'credit card payment': { icon: 'credit-card', color: 'var(--glyph-slate)' },
+  cash: { icon: 'banknote', color: 'var(--mint-500)' },
+  household: { icon: 'house-plug', color: 'var(--indigo-500)' },
+  'fees & charges': { icon: 'receipt', color: 'var(--glyph-red)' },
+  'gifts & donations': { icon: 'gift', color: 'var(--coral-400)' },
+  'personal care': { icon: 'sparkles', color: 'var(--glyph-purple)' },
+  uncategorised: { icon: 'circle-help', color: 'var(--glyph-slate)' },
 };
 
 export function CategoryGlyph({ name, size = 34 }: { name: string; size?: number }) {
@@ -43,7 +43,13 @@ export function CategoryGlyph({ name, size = 34 }: { name: string; size?: number
       aria-hidden
       style={{
         width: size, height: size, borderRadius: Math.max(8, size / 3.5),
-        background: color + '1f', color, display: 'inline-flex',
+        // color-mix, not `color + '1f'` — the tokens above are var() refs now,
+        // not raw hex, so string-concatenating a hex alpha suffix onto them
+        // would produce invalid CSS (this was already silently broken for the
+        // `--indigo-600` fallback below, which was always a var() reference).
+        // 12.16% matches the previous "#RRGGBB1f" hex-alpha tint exactly.
+        background: `color-mix(in srgb, ${color} 12.16%, transparent)`,
+        color, display: 'inline-flex',
         alignItems: 'center', justifyContent: 'center', flexShrink: 0,
       }}
     >

@@ -63,6 +63,17 @@
   --red-500: #E5484D;
   --red-600: #CB2F34;
 
+  /* Category glyph accents — one-off tints used only by CategoryGlyph.tsx's
+     icon map (food/travel/shopping/etc). These don't belong to a semantic
+     ramp above; kept as their own small group so the component has no raw
+     hex left in it. Values are unchanged from the hardcoded hex they
+     replace — do not "fix" them to match a nearby ramp step. */
+  --glyph-blue:   #3B82F6;
+  --glyph-purple: #A855F7;
+  --glyph-amber:  #F59E0B;
+  --glyph-red:    #EF4444;
+  --glyph-slate:  #94A3B8;
+
   /* Neutral — warm-tinted slate */
   --neutral-0:   #FFFFFF;
   --neutral-25:  #FBFBFD;
