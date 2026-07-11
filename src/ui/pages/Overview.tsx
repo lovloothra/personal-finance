@@ -1,20 +1,17 @@
 'use client';
+import Link from 'next/link';
 import { useFy } from '../contexts/FyCtx';
 import { categories, fySummary, household, txns, type Txn } from '../lib/fixtures';
 import { MerchantLogo } from '../primitives/MerchantLogo';
+import { Button } from '../primitives/Button';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
 import { FootMeta, PageHead, TxnRow } from './shared';
-import type { WorkbenchPage } from '../shell/Sidebar';
 import { useOverview, recentToTxn } from '../data/useOverview';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
 import { useDashboard, type TaxDTO } from '../data/useDashboard';
 import { labelForCategory } from '@/classifier/taxonomy';
-
-interface OverviewProps {
-  setPage: (p: WorkbenchPage) => void;
-}
 
 interface CatView {
   name: string;
@@ -36,7 +33,7 @@ const FIXTURE_MERCHANTS: MerchantView[] = [
   { name: 'Amazon', amt: 98400, color: '#3B82F6', glyph: 'A' },
 ];
 
-export function Overview({ setPage }: OverviewProps) {
+export function Overview() {
   const { fy } = useFy();
   const { data } = useOverview(fy);
   const { review } = useShellMeta();
@@ -74,10 +71,9 @@ export function Overview({ setPage }: OverviewProps) {
   return (
     <div className="content-wrap fade-in">
       <PageHead title={`Hello, ${(data?.name ?? household.name).split(' ')[0]}`} sub={`${f.label} · ${f.sub}`}>
-        <button className="btn btn-secondary" onClick={() => setPage('sources')}>
-          <Icon name="refresh-cw" size={15} />
+        <Button variant="secondary" icon="refresh-cw" href="/sources">
           Re-run import
-        </button>
+        </Button>
       </PageHead>
 
       <div className="grid-4" style={{ marginBottom: 16 }}>
@@ -97,10 +93,10 @@ export function Overview({ setPage }: OverviewProps) {
         <div className="card">
           <div className="card-head">
             <h3>Where it went</h3>
-            <button className="link" onClick={() => setPage('expenses')}>
+            <Link className="link" href="/spending">
               All expenses
               <Icon name="arrow-right" size={13} />
-            </button>
+            </Link>
           </div>
           <div className="card-list">
             {topCats.map((c) => (
@@ -139,7 +135,7 @@ export function Overview({ setPage }: OverviewProps) {
                 : 'More went out than came in — uncategorised imports often hide salary credits. Clear the review queue to firm this up.'}
             </div>
           </div>
-          <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('tax')}>
+          <Link href="/tax" className="card card-pad card-hover" style={{ display: 'block', textDecoration: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--indigo-50)', color: 'var(--indigo-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="receipt-indian-rupee" size={18} />
@@ -169,7 +165,7 @@ export function Overview({ setPage }: OverviewProps) {
             <span className="link" style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 13 }}>
               Compare regimes →
             </span>
-          </div>
+          </Link>
         </div>
       </div>
 
@@ -177,10 +173,10 @@ export function Overview({ setPage }: OverviewProps) {
         <div className="card">
           <div className="card-head">
             <h3>Recent activity</h3>
-            <button className="link" onClick={() => setPage('expenses')}>
+            <Link className="link" href="/spending">
               See all
               <Icon name="arrow-right" size={13} />
-            </button>
+            </Link>
           </div>
           <div className="card-list">
             {recent.map((t) => (
@@ -189,7 +185,7 @@ export function Overview({ setPage }: OverviewProps) {
           </div>
         </div>
         <div className="stack">
-          <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('expenses')}>
+          <Link href="/spending" className="card card-pad card-hover" style={{ display: 'block', textDecoration: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: 0 }}>Needs your eye</h3>
               <span className={`badge ${review && review.total === 0 ? 'mint' : 'cau'}`}>
@@ -206,7 +202,7 @@ export function Overview({ setPage }: OverviewProps) {
             <span className="link" style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 13, marginTop: 8, display: 'inline-block' }}>
               Go to Spending →
             </span>
-          </div>
+          </Link>
           <div className="card card-pad">
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '0 0 12px' }}>Top merchants</h3>
             {merchants.map((m) => (
