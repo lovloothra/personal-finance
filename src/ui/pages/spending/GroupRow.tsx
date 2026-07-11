@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { useSpending, UncatGroup } from '../../data/useSpending';
 import { Money } from '../../primitives/Money';
+import { Button } from '../../primitives/Button';
 import { CategoryChipPicker } from '../../primitives/CategoryChipPicker';
 import { InstLogo } from '../../primitives/InstLogo';
 import { AssignAccountPanel } from './AssignAccountPanel';
@@ -22,14 +23,15 @@ function AccountChip({ group, assignOpen, onToggleAssign }: {
     // Clicking opens the document-level assign flow — the account belongs to
     // the source statement, so the panel lists documents, not this txn group.
     return (
-      <button
-        className="badge neutral"
-        style={{ fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer', borderColor: assignOpen ? 'var(--fg-3)' : undefined }}
+      <Button
+        variant="ghost"
+        size="sm"
         title="The statement this came from didn't reveal an account number the app could match to one of your registered accounts. Click to assign it."
+        aria-expanded={assignOpen}
         onClick={onToggleAssign}
       >
         No account detected — assign
-      </button>
+      </Button>
     );
   }
 

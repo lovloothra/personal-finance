@@ -1,7 +1,7 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
 import { classifierLayers, type Txn } from '../lib/fixtures';
 import { ConfidenceBadge } from './ConfidenceBadge';
+import { Dialog, useDialogClose } from './Dialog';
 import { Icon } from './Icon';
 import { Money } from './Money';
 
@@ -11,33 +11,20 @@ interface ProvenanceDrawerProps {
 }
 
 export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
-  const [show, setShow] = useState(false);
+  return (
+    <Dialog open onClose={onClose} label={txn.merchant}>
+      <ProvenanceDrawerBody txn={txn} />
+    </Dialog>
+  );
+}
 
-  const close = useCallback(() => {
-    setShow(false);
-    setTimeout(onClose, 220);
-  }, [onClose]);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShow(true), 10);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [close]);
-
+function ProvenanceDrawerBody({ txn }: { txn: Txn }) {
+  const close = useDialogClose();
   const hitLayer = txn.layer;
   const src = txn.source;
 
   return (
     <>
-      <div className={`scrim ${show ? 'show' : ''}`} onClick={close} />
-      <aside className={`drawer ${show ? 'show' : ''}`}>
         <div className="drawer-head">
           <div>
             <h3>{txn.merchant}</h3>
@@ -157,7 +144,6 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
             <span>This evidence lives on your device only. We re-read it from your inbox at import time — it&apos;s never uploaded.</span>
           </div>
         </div>
-      </aside>
     </>
   );
 }

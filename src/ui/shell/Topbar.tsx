@@ -7,6 +7,7 @@ import { useShellMeta } from '../contexts/ShellMetaCtx';
 import { fys, fySummary, household, type FyKey } from '../lib/fixtures';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
+import { SegmentedControl } from '../primitives/SegmentedControl';
 import { recentToTxn, type RecentTxnDTO } from '../data/useOverview';
 
 export function Topbar() {
@@ -114,13 +115,12 @@ export function Topbar() {
         )}
       </div>
       <div className="topbar-right">
-        <div className="seg" role="tablist" aria-label="Financial year">
-          {keys.map((k) => (
-            <button key={k} className={fy === k ? 'on' : ''} onClick={() => setFy(k)}>
-              {fySummary(k).label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Financial year"
+          value={fy}
+          onChange={(v) => setFy(v as FyKey)}
+          options={keys.map((k) => ({ value: k, label: fySummary(k).label }))}
+        />
         <button
           className={`icon-btn ${masked ? 'on' : ''}`}
           title={masked ? 'Reveal all amounts' : 'Hide all amounts'}

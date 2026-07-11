@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { Dialog, useDialogClose } from '../primitives/Dialog';
 import { Icon } from '../primitives/Icon';
 import { FootMeta, PageHead } from './shared';
 import { InstitutionPicker } from '../onboarding/InstitutionPicker';
@@ -82,29 +83,21 @@ function shortLabel(f: FieldView, heading: string | null): string {
 // --- Edit drawer -----------------------------------------------------------
 
 function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView; onClose: () => void; onSaved: () => void }) {
-  const [show, setShow] = useState(false);
+  return (
+    <Dialog open onClose={onClose} label={section.name}>
+      <ProfileEditDrawerBody section={section} onSaved={onSaved} />
+    </Dialog>
+  );
+}
+
+function ProfileEditDrawerBody({ section, onSaved }: { section: SectionView; onSaved: () => void }) {
+  const close = useDialogClose();
   const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(section.fields.map((f) => [f.key, f.value])));
   const [ids, setIds] = useState<Record<string, string>>(() =>
     Object.fromEntries(section.fields.filter((f) => f.type === 'institution').map((f) => [f.key, f.currentId ?? ''])),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShow(true), 10);
-    return () => clearTimeout(t);
-  }, []);
-
-  const close = useCallback(() => {
-    setShow(false);
-    setTimeout(onClose, 220);
-  }, [onClose]);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === 'Escape' && close();
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [close]);
 
   const save = async () => {
     setSaving(true);
@@ -137,8 +130,6 @@ function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView
 
   return (
     <>
-      <div className={`scrim ${show ? 'show' : ''}`} onClick={close} />
-      <aside className={`drawer ${show ? 'show' : ''}`}>
         <div className="drawer-head">
           <div>
             <h3>{section.name}</h3>
@@ -212,7 +203,6 @@ function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView
             </button>
           )}
         </div>
-      </aside>
     </>
   );
 }

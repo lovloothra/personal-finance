@@ -8,6 +8,7 @@ import { TriageView } from './TriageView';
 import { TransactionsView } from './TransactionsView';
 import { fySummary } from '../../lib/fixtures';
 import { Money } from '../../primitives/Money';
+import { Tabs } from '../../primitives/Tabs';
 
 type Seg = 'report' | 'triage' | 'transactions';
 
@@ -24,13 +25,16 @@ export function SpendingPage() {
         title="Spending"
         sub={<>{fySummary(fy).label} · <Money amount={total} /></>}
       />
-      <div className="tabs">
-        <button className={seg === 'report' ? 'on' : ''} onClick={() => setSeg('report')}>By category</button>
-        <button className={seg === 'triage' ? 'on' : ''} onClick={() => setSeg('triage')}>
-          Triage{triageCount > 0 ? ` (${triageCount})` : ''}
-        </button>
-        <button className={seg === 'transactions' ? 'on' : ''} onClick={() => setSeg('transactions')}>Transactions</button>
-      </div>
+      <Tabs
+        aria-label="Spending view"
+        active={seg}
+        onChange={(id) => setSeg(id as Seg)}
+        tabs={[
+          { id: 'report', label: 'By category' },
+          { id: 'triage', label: `Triage${triageCount > 0 ? ` (${triageCount})` : ''}` },
+          { id: 'transactions', label: 'Transactions' },
+        ]}
+      />
       {seg === 'report' && <ReportView spending={spending} />}
       {seg === 'triage' && <TriageView spending={spending} />}
       {seg === 'transactions' && <TransactionsView fy={fy} />}
