@@ -46,11 +46,12 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/institutions?category=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { institutions: Institution[] };
         setResults(data.institutions);
         setOpen(true);
       } catch {
-        /* aborted */
+        /* aborted, or the request failed — leave the previous results in place */
       }
     }, 180);
     return () => {

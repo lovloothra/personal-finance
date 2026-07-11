@@ -1,27 +1,43 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export type DashboardView = 'income' | 'expenses' | 'tax' | 'investments' | 'liabilities' | 'subscriptions' | 'sources' | 'review';
 
+export interface DashboardResult<T> {
+  data: T | null;
+  loading: boolean;
+  /** Human-readable fetch failure; null on success. Failure must never look like "no data yet". */
+  error: string | null;
+  retry: () => void;
+}
+
 /** Generic fetch hook for a DB-backed dashboard view, keyed by FY. */
-export function useDashboard<T>(view: DashboardView, fy: string): { data: T | null; loading: boolean } {
+export function useDashboard<T>(view: DashboardView, fy: string): DashboardResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setError(null);
     fetch(`/api/dashboard/${view}?fy=${encodeURIComponent(fy)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: T) => active && setData(d))
-      .catch(() => active && setData(null))
+      .catch((e: unknown) => {
+        if (!active) return;
+        setData(null);
+        setError(e instanceof Error ? e.message : 'Request failed');
+      })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [view, fy]);
+  }, [view, fy, nonce]);
 
-  return { data, loading };
+  const retry = useCallback(() => setNonce((n) => n + 1), []);
+  return { data, loading, error, retry };
 }
 
 // --- DTOs (client mirrors of the server-only rollup shapes) ---------------

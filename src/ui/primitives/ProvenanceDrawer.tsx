@@ -1,5 +1,6 @@
 'use client';
-import { classifierLayers, type Txn } from '../lib/fixtures';
+import { classifierLayers } from '../lib/classifierLayers';
+import type { Txn } from '../lib/types';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { Dialog, useDialogClose } from './Dialog';
 import { Icon } from './Icon';

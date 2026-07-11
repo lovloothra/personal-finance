@@ -1,9 +1,8 @@
 'use client';
 import type { ReactNode } from 'react';
-import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { fySummary, type Txn } from '../lib/fixtures';
+import type { Txn } from '../lib/types';
 import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
@@ -79,35 +78,31 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
   );
 }
 
+/**
+ * Live import facts only — no fictional fallback. Renders nothing until the
+ * shell has confirmed there's real Gmail-import data to report.
+ */
 export function FootMeta() {
-  const { fy } = useFy();
   const { sources } = useShellMeta();
-  const f = fySummary(fy);
-  const coverage = sources ? sources.coverage : f.coverage;
-  const runDate = sources ? sources.lastRunDate : f.runDate;
-  const messages = sources ? sources.messagesScanned : f.messages;
+  if (!sources) return null;
+  const bits = [
+    sources.lastRunDate ? `Last import ${sources.lastRunDate}` : null,
+    `${sources.messagesScanned.toLocaleString('en-IN')} messages scanned`,
+    sources.coverage != null ? `coverage ${sources.coverage}%` : null,
+  ].filter((b): b is string => b != null);
+
   return (
     <div className="foot-meta">
       <span className="it">
         <Icon name="hard-drive" size={14} color="var(--mint-600)" />
         Stored on this device
       </span>
-      {coverage != null && (
+      {bits.length > 0 && (
         <span className="it">
-          <Icon name="mail-check" size={14} />
-          {coverage}% source coverage
+          <Icon name="database" size={14} />
+          {bits.join(' · ')}
         </span>
       )}
-      {runDate && (
-        <span className="it">
-          <Icon name="clock" size={14} />
-          Last import {runDate}
-        </span>
-      )}
-      <span className="it">
-        <Icon name="database" size={14} />
-        {messages.toLocaleString('en-IN')} messages scanned
-      </span>
     </div>
   );
 }

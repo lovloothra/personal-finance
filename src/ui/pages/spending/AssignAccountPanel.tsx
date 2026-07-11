@@ -67,9 +67,12 @@ function DocAssignRow({ doc, accounts, onAssigned }: {
   useEffect(() => {
     if (!registering || institutions) return;
     fetch('/api/institutions?limit=50')
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { institutions: InstOption[] }) => setInstitutions(d.institutions))
-      .catch(() => setInstitutions([]));
+      .catch(() => {
+        setInstitutions([]);
+        setError('Failed to load institutions — try again.');
+      });
   }, [registering, institutions]);
 
   const assign = async () => {
@@ -157,7 +160,7 @@ export function AssignAccountPanel({ signature, onAssigned }: {
   useEffect(() => {
     let active = true;
     fetch(`/api/review/assign-account?signature=${encodeURIComponent(signature)}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { docs: DocInfo[]; accounts: AccountOption[]; error?: string }) => {
         if (!active) return;
         if (d.error) throw new Error(d.error);

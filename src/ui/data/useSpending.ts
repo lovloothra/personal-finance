@@ -37,26 +37,49 @@ export function useSpending(fy: string) {
   const [report, setReport] = useState<ExpensesDTO | null>(null);
   const [triage, setTriage] = useState<UncatDTO | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Human-readable fetch failure; null on success. A failure in either the
+   * report or triage fetch sets this — it must never look like "no data yet". */
+  const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null); // category name to flash
   const queryRef = useRef('');
 
+  // These two never throw — mutation call sites (settle, etc.) fire-and-forget
+  // refreshReport() without a .catch, so a rejection here would surface as an
+  // unhandled promise rejection. Failures are tracked via `error` instead.
   const refreshReport = useCallback(async () => {
-    const r = await fetch(`/api/dashboard/expenses?fy=${encodeURIComponent(fy)}`);
-    setReport((await r.json()) as ExpensesDTO);
+    try {
+      const r = await fetch(`/api/dashboard/expenses?fy=${encodeURIComponent(fy)}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setReport((await r.json()) as ExpensesDTO);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Request failed');
+    }
   }, [fy]);
 
   const loadTriage = useCallback(async (q = queryRef.current) => {
     queryRef.current = q;
     const url = q ? `/api/review/uncategorised?q=${encodeURIComponent(q)}` : '/api/review/uncategorised';
-    const r = await fetch(url);
-    setTriage((await r.json()) as UncatDTO);
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setTriage((await r.json()) as UncatDTO);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Request failed');
+    }
   }, []);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setError(null);
     Promise.all([refreshReport(), loadTriage('')]).finally(() => active && setLoading(false));
     return () => { active = false; };
+  }, [refreshReport, loadTriage]);
+
+  const retry = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    void Promise.all([refreshReport(), loadTriage(queryRef.current)]).finally(() => setLoading(false));
   }, [refreshReport, loadTriage]);
 
   const search = useCallback((q: string) => loadTriage(q), [loadTriage]);
@@ -102,5 +125,5 @@ export function useSpending(fy: string) {
     } : u);
   }, []);
 
-  return { report, triage, loading, highlight, assign, acceptSuggestion, rejectSuggestion, search, refreshReport, loadTriage };
+  return { report, triage, loading, error, retry, highlight, assign, acceptSuggestion, rejectSuggestion, search, refreshReport, loadTriage };
 }

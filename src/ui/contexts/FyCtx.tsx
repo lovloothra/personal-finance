@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { FyKey } from '../lib/fixtures';
+import type { FyKey } from '../lib/types';
 
 /**
  * FY selection deliberately lives in context, not the URL: the workbench

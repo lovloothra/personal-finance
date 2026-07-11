@@ -4,7 +4,7 @@ import { useMask } from '../contexts/MaskCtx';
 import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { fys, fySummary, household, type FyKey } from '../lib/fixtures';
+import { fyLabel } from '../lib/format';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { SegmentedControl } from '../primitives/SegmentedControl';
@@ -12,15 +12,16 @@ import { recentToTxn, type RecentTxnDTO } from '../data/useOverview';
 
 export function Topbar() {
   const { masked, setMasked } = useMask();
-  const { fy, setFy, fys: liveFys } = useFy();
+  const { fy, setFy, fys } = useFy();
   const { openProv } = useDrawer();
   const { profileName } = useShellMeta();
-  const keys = (liveFys.length ? liveFys : (Object.keys(fys) as FyKey[]));
-  const name = profileName ?? household.name;
-  const initials = name.split(/\s+/).map((w) => w.charAt(0)).join('').slice(0, 2).toUpperCase();
+  const initials = profileName
+    ? profileName.split(/\s+/).map((w) => w.charAt(0)).join('').slice(0, 2).toUpperCase()
+    : null;
 
   const [q, setQ] = useState('');
   const [results, setResults] = useState<RecentTxnDTO[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
@@ -29,17 +30,22 @@ export function Topbar() {
     const query = q.trim();
     if (query.length < 2) {
       setResults(null);
+      setSearchError(null);
       setOpen(false);
       return;
     }
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { results: RecentTxnDTO[] };
         setResults(data.results);
+        setSearchError(null);
         setOpen(true);
       } catch {
         setResults(null);
+        setSearchError('Search failed — try again.');
+        setOpen(true);
       }
     }, 250);
     return () => clearTimeout(t);
@@ -62,10 +68,10 @@ export function Topbar() {
           placeholder="Search merchants, categories, ₹ amounts…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          onFocus={() => results && setOpen(true)}
+          onFocus={() => (results || searchError) && setOpen(true)}
           onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
         />
-        {open && results && (
+        {open && (searchError || results) && (
           <div
             className="card"
             style={{
@@ -79,12 +85,16 @@ export function Topbar() {
               boxShadow: 'var(--shadow-lg, 0 12px 32px rgba(16, 24, 40, 0.16))',
             }}
           >
-            {results.length === 0 ? (
+            {searchError ? (
+              <div className="muted" style={{ padding: 14, fontSize: 13 }}>
+                {searchError}
+              </div>
+            ) : results && results.length === 0 ? (
               <div className="muted" style={{ padding: 14, fontSize: 13 }}>
                 No transactions match &ldquo;{q.trim()}&rdquo;.
               </div>
             ) : (
-              results.map((r, i) => (
+              results!.map((r, i) => (
                 <div
                   key={r.id}
                   className="txn click"
@@ -115,12 +125,14 @@ export function Topbar() {
         )}
       </div>
       <div className="topbar-right">
-        <SegmentedControl
-          aria-label="Financial year"
-          value={fy}
-          onChange={(v) => setFy(v as FyKey)}
-          options={keys.map((k) => ({ value: k, label: fySummary(k).label }))}
-        />
+        {fys.length > 0 && (
+          <SegmentedControl
+            aria-label="Financial year"
+            value={fy}
+            onChange={(v) => setFy(v)}
+            options={fys.map((k) => ({ value: k, label: fyLabel(k).label }))}
+          />
+        )}
         <button
           className={`icon-btn ${masked ? 'on' : ''}`}
           title={masked ? 'Reveal all amounts' : 'Hide all amounts'}
@@ -132,8 +144,8 @@ export function Topbar() {
           <Icon name="shield-check" size={14} />
           Local only
         </div>
-        <div className="avatar" title={name}>
-          {initials}
+        <div className="avatar" title={profileName ?? undefined}>
+          {initials ?? <Icon name="user-round" size={16} />}
         </div>
       </div>
     </header>

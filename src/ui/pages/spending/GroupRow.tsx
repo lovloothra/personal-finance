@@ -110,6 +110,7 @@ export function GroupRow({ group, spending, focused }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail[] | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [assignAccountOpen, setAssignAccountOpen] = useState(false);
   const sug = group.localSuggestion;
@@ -120,8 +121,12 @@ export function GroupRow({ group, spending, focused }: {
     if (!detail) {
       try {
         const r = await fetch(`/api/review/uncategorised?signature=${encodeURIComponent(group.signature)}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         setDetail(((await r.json()) as { txns: Detail[] }).txns);
-      } catch { setDetail([]); }
+      } catch {
+        setDetail([]);
+        setDetailError("Couldn't load transactions.");
+      }
     }
   };
 
@@ -208,7 +213,8 @@ export function GroupRow({ group, spending, focused }: {
         {detailOpen && (
           <div style={{ margin: '10px 0 2px', borderLeft: '2px solid var(--border)', paddingLeft: 12, display: 'grid', gap: 8 }}>
             {detail === null && <div className="muted" style={{ fontSize: 12.5 }}>Loading…</div>}
-            {detail?.map((t) => (
+            {detailError && <div style={{ fontSize: 12.5, color: 'var(--red-600)' }}>{detailError}</div>}
+            {!detailError && detail?.map((t) => (
               <div key={t.id} style={{ fontSize: 12.5, minWidth: 0 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
                   <span className="muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{t.date}</span>

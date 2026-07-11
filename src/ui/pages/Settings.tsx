@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '../primitives/Icon';
+import { ErrorState } from '../primitives/ErrorState';
 import { PageHead } from './shared';
 
 interface SetupStatusDTO {
@@ -53,19 +54,30 @@ function Block({
 
 export function Settings() {
   const [status, setStatus] = useState<SetupStatusDTO | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusNonce, setStatusNonce] = useState(0);
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     fetch('/api/setup/status')
-      .then((r) => r.json())
-      .then((d: SetupStatusDTO) => active && setStatus(d))
-      .catch(() => active && setStatus(null));
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: SetupStatusDTO) => {
+        if (!active) return;
+        setStatus(d);
+        setStatusError(null);
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        setStatus(null);
+        setStatusError(e instanceof Error ? e.message : 'Failed to load connection status');
+      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [statusNonce]);
+  const retryStatus = () => setStatusNonce((n) => n + 1);
 
   const exportBackup = async () => {
     setBackupBusy(true);
@@ -113,43 +125,49 @@ export function Settings() {
         <div className="sb-section" style={{ padding: '12px 0 2px' }}>
           Connection
         </div>
-        <Block
-          icon="mail-check"
-          title="Gmail — read-only"
-          desc={
-            status === null
-              ? 'Checking your connection…'
-              : status.hasGmailAuth
-                ? `Connected${status.gmailEmail ? ` as ${status.gmailEmail}` : ''} via your own Desktop OAuth client.`
-                : 'Not connected yet. Run onboarding to authorize read-only Gmail access.'
-          }
-        >
-          {status?.hasGmailAuth ? (
-            <span className="badge mint">
-              <Icon name="check" size={12} />
-              Connected
-            </span>
-          ) : (
-            <a className="btn btn-secondary" href="/onboarding">
-              Connect
-            </a>
-          )}
-        </Block>
-        <Block
-          icon="cog"
-          title="OAuth client"
-          desc={
-            status === null
-              ? 'Checking…'
-              : status.hasOAuthClient
-                ? 'Using your own Google Cloud Desktop client from secrets/google-oauth-client.json.'
-                : 'No OAuth client found. Add one through onboarding to enable Gmail import.'
-          }
-        >
-          <a className="btn btn-secondary" href="/onboarding">
-            {status?.hasOAuthClient ? 'Reconfigure' : 'Configure'}
-          </a>
-        </Block>
+        {statusError ? (
+          <ErrorState message={statusError} onRetry={retryStatus} />
+        ) : (
+          <>
+            <Block
+              icon="mail-check"
+              title="Gmail — read-only"
+              desc={
+                status === null
+                  ? 'Checking your connection…'
+                  : status.hasGmailAuth
+                    ? `Connected${status.gmailEmail ? ` as ${status.gmailEmail}` : ''} via your own Desktop OAuth client.`
+                    : 'Not connected yet. Run onboarding to authorize read-only Gmail access.'
+              }
+            >
+              {status?.hasGmailAuth ? (
+                <span className="badge mint">
+                  <Icon name="check" size={12} />
+                  Connected
+                </span>
+              ) : (
+                <a className="btn btn-secondary" href="/onboarding">
+                  Connect
+                </a>
+              )}
+            </Block>
+            <Block
+              icon="cog"
+              title="OAuth client"
+              desc={
+                status === null
+                  ? 'Checking…'
+                  : status.hasOAuthClient
+                    ? 'Using your own Google Cloud Desktop client from secrets/google-oauth-client.json.'
+                    : 'No OAuth client found. Add one through onboarding to enable Gmail import.'
+              }
+            >
+              <a className="btn btn-secondary" href="/onboarding">
+                {status?.hasOAuthClient ? 'Reconfigure' : 'Configure'}
+              </a>
+            </Block>
+          </>
+        )}
 
         <div className="sb-section" style={{ padding: '12px 0 2px', color: 'var(--red-500)' }}>
           Danger zone

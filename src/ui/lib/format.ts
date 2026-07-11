@@ -25,6 +25,18 @@ export const inrCompact = (n: number): string => {
   return inr(abs);
 };
 
+/**
+ * Human labels for an India FY key ("2025-26") computed from the key alone —
+ * no fabricated numbers. label: "FY 2025–26"; sub: "Apr 2025 – Mar 2026".
+ * Unrecognized keys fall back to a bare label with an empty sub.
+ */
+export function fyLabel(key: string): { label: string; sub: string } {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) return { label: `FY ${key}`, sub: '' };
+  const start = Number(m[1]);
+  return { label: `FY ${m[1]}–${m[2]}`, sub: `Apr ${start} – Mar ${start + 1}` };
+}
+
 /** Format an ISO date ("2026-04-12") as "12 Apr 2026". Non-date input is
  * returned unchanged (e.g. an already-formatted string, or garbage). */
 export function fmtDate(iso: string): string {

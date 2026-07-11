@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inr, inrCompact, fmtDate, labelForOption } from '../format';
+import { inr, inrCompact, fmtDate, labelForOption, fyLabel } from '../format';
 
 test('inrCompact abbreviates crore-scale amounts for stat cards', () => {
   assert.equal(inrCompact(15301460), '₹1.53 Cr');
@@ -45,4 +45,14 @@ test('labelForOption de-underscores and sentence-cases an option value', () => {
 test('labelForOption leaves values with no letters to capitalize as-is', () => {
   assert.equal(labelForOption('80CCD1B'), '80CCD1B');
   assert.equal(labelForOption(''), '');
+});
+
+test('fyLabel computes label and month range from the key alone', () => {
+  assert.deepEqual(fyLabel('2025-26'), { label: 'FY 2025–26', sub: 'Apr 2025 – Mar 2026' });
+  assert.deepEqual(fyLabel('2026-27'), { label: 'FY 2026–27', sub: 'Apr 2026 – Mar 2027' });
+});
+
+test('fyLabel falls back to a bare label for unrecognized keys', () => {
+  assert.deepEqual(fyLabel('all'), { label: 'FY all', sub: '' });
+  assert.deepEqual(fyLabel(''), { label: 'FY ', sub: '' });
 });

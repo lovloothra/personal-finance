@@ -38,7 +38,16 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
       </div>
       <div className="card-list" style={{ maxHeight: 620, overflowY: 'auto' }}>
         {loading && <div className="muted" style={{ padding: 16 }}>Loading…</div>}
-        {!loading && groups.length === 0 && <div className="muted" style={{ padding: 16 }}>{q ? 'No matches.' : 'Everything is categorised. 🎉'}</div>}
+        {!loading && groups.length === 0 && (
+          <div className="muted" style={{ padding: 16 }}>
+            {/* triage.hasData means "pending rows exist", so it can't tell a
+                cleared queue from a never-imported ledger — report.hasData can. */}
+            {q ? 'No matches.' : spending.report?.hasData ? 'Everything is categorised. 🎉' : 'Nothing to review yet — run an import first.'}
+          </div>
+        )}
+        {!loading && spending.error && groups.length > 0 && (
+          <div className="muted" style={{ padding: '8px 16px' }}>Couldn&apos;t refresh — showing the last loaded list.</div>
+        )}
         {groups.map((g, i) => (
           <GroupRow key={g.signature} group={g} spending={spending} focused={i === focus} />
         ))}

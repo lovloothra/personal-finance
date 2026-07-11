@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '../primitives/Icon';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { review as reviewSeed, subscriptions as subsSeed } from '../lib/fixtures';
 
 interface NavItem {
   href: string;
@@ -13,17 +12,13 @@ interface NavItem {
   alert?: boolean;
 }
 
-// Demo-mode fallbacks, shown until the first real import produces live counts.
-const SEED_REVIEW_COUNT = reviewSeed.reduce((n, i) => n + (i.count ?? 1), 0);
-const SEED_SUBS_COUNT = subsSeed.filter((s) => s.status !== 'dismissed').length;
-const SEED_COVERAGE = 94;
-
 export function Sidebar() {
   const pathname = usePathname();
-  const { review, subsCount, sources } = useShellMeta();
-  const reviewCount = review ? review.total : SEED_REVIEW_COUNT;
-  const subs = subsCount ?? SEED_SUBS_COUNT;
-  const coverage = sources ? sources.coverage : SEED_COVERAGE;
+  const { status, review, subsCount, sources } = useShellMeta();
+  const ready = status === 'ready';
+  const reviewCount = ready ? review?.total ?? 0 : 0;
+  const subs = ready ? subsCount ?? 0 : 0;
+  const coverage = ready ? sources?.coverage ?? null : null;
 
   const MAIN: NavItem[] = [
     { href: '/', label: 'Overview', icon: 'layout-dashboard' },

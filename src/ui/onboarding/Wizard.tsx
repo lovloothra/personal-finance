@@ -356,7 +356,7 @@ export function Wizard() {
 
   useEffect(() => {
     fetch('/api/profile/onboarding')
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => {
         setDraft(seedToDraft(data.seed));
         setLabels(data.labels ?? {});
@@ -606,7 +606,7 @@ function GmailQuest({ draft, onBack, onFinish, initialError }: { draft: Draft; o
 
   useEffect(() => {
     fetch('/api/oauth/client')
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d) => setHasClient(Boolean(d.hasClient)))
       .catch(() => setHasClient(false));
   }, []);

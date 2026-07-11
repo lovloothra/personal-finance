@@ -1,12 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { viewState } from '../lib/viewState';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { MerchantLogo } from '../primitives/MerchantLogo';
 import { StatCard } from '../primitives/StatCard';
+import { EmptyState } from '../primitives/EmptyState';
+import { ErrorState } from '../primitives/ErrorState';
+import { Skeleton } from '../primitives/Skeleton';
 import { FootMeta, PageHead } from './shared';
 import { useDashboard, type SubscriptionsDTO } from '../data/useDashboard';
-import { subscriptions as seed } from '../lib/fixtures';
 
 type Sub = SubscriptionsDTO['subscriptions'][number];
 type Status = Sub['status'];
@@ -22,25 +25,6 @@ const annualOf = (s: Sub) => s.annual ?? s.amt * cadenceMult(s.cadence);
 /** Tidy the raw display category into a human label. */
 const CAT_LABEL: Record<string, string> = { Ott: 'Streaming', Software: 'AI & Software', Music: 'Music', Telecom: 'Telecom', Subscriptions: 'Subscription' };
 const catLabel = (c: string) => CAT_LABEL[c] ?? c;
-
-/** Map the demo fixtures into the live DTO shape so pre-import looks identical. */
-function seedSubs(): Sub[] {
-  return seed.map((s) => ({
-    id: s.id,
-    name: s.name,
-    cat: s.cat,
-    amt: s.amt,
-    annual: s.amt * cadenceMult(s.cadence),
-    cadence: s.cadence,
-    next: s.next,
-    nextIso: null,
-    last: s.last,
-    occurrences: 0,
-    status: s.status,
-    glyph: s.glyph,
-    color: s.color,
-  }));
-}
 
 function SubRow({ s, mode, onStatus }: { s: Sub; mode: 'confirmed' | 'likely'; onStatus: (id: string, status: Status) => void }) {
   return (
@@ -79,29 +63,38 @@ function SubRow({ s, mode, onStatus }: { s: Sub; mode: 'confirmed' | 'likely'; o
 }
 
 export function Subscriptions() {
-  const { data } = useDashboard<SubscriptionsDTO>('subscriptions', 'all');
-  const [subs, setSubs] = useState<Sub[]>(seedSubs);
-  const [initialized, setInitialized] = useState(false);
+  const { data, loading, error, retry } = useDashboard<SubscriptionsDTO>('subscriptions', 'all');
+  const state = viewState(loading, error, data?.hasData);
+  const [subs, setSubs] = useState<Sub[] | null>(null);
+  const [patchError, setPatchError] = useState<string | null>(null);
 
+  // Re-sync the editable local copy whenever a fresh fetch (mount or retry)
+  // lands — but never clobber in-flight optimistic edits from setStatus.
   useEffect(() => {
-    if (data && !initialized) {
-      if (data.hasData) setSubs(data.subscriptions);
-      setInitialized(true);
-    }
-  }, [data, initialized]);
+    if (data?.hasData) setSubs(data.subscriptions);
+  }, [data]);
 
-  const setStatus = (id: string, status: Status) => {
-    setSubs((arr) => arr.map((x) => (x.id === id ? { ...x, status } : x)));
-    // Persist (no-op against demo fixtures, which aren't in the DB).
-    void fetch('/api/dashboard/subscriptions', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    }).catch(() => {});
+  const list = subs ?? (data?.hasData ? data.subscriptions : []);
+
+  const setStatus = async (id: string, status: Status) => {
+    const prev = list;
+    setSubs(prev.map((x) => (x.id === id ? { ...x, status } : x)));
+    setPatchError(null);
+    try {
+      const res = await fetch('/api/dashboard/subscriptions', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      setSubs(prev);
+      setPatchError("Couldn't save that change — try again.");
+    }
   };
 
-  const confirmed = subs.filter((s) => s.status === 'confirmed').sort((a, b) => annualOf(b) - annualOf(a));
-  const likely = subs.filter((s) => s.status === 'likely').sort((a, b) => annualOf(b) - annualOf(a));
+  const confirmed = list.filter((s) => s.status === 'confirmed').sort((a, b) => annualOf(b) - annualOf(a));
+  const likely = list.filter((s) => s.status === 'likely').sort((a, b) => annualOf(b) - annualOf(a));
 
   const annualTotal = confirmed.reduce((a, s) => a + annualOf(s), 0);
   const monthlyEquivalent = Math.round(annualTotal / 12);
@@ -116,56 +109,89 @@ export function Subscriptions() {
     <div className="content-wrap fade-in">
       <PageHead
         title="Subscriptions"
-        sub={`${confirmed.length} active · ${likely.length} to review`}
+        sub={state === 'ready' ? `${confirmed.length} active · ${likely.length} to review` : undefined}
       />
-      <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Per month" icon="repeat" val={<Money compact amount={monthlyEquivalent} />} sub="Monthly-equivalent of all plans" />
-        <StatCard lbl="Per year" icon="calendar" val={<Money compact amount={annualTotal} />} sub={`Across ${confirmed.length} active subscriptions`} />
-        <StatCard lbl="Needs review" icon="help-circle" val={String(likely.length)} accent="var(--amber-600)" sub="Likely — confirm or dismiss" />
-      </div>
 
-      {likely.length > 0 && (
-        <div className="card" style={{ marginBottom: 16, borderColor: 'var(--amber-400)' }}>
-          <div className="card-head">
-            <h3>Likely subscriptions</h3>
-            <span className="badge cau">{likely.length} to review</span>
+      {state === 'loading' && (
+        <>
+          <div className="grid-3" style={{ marginBottom: 16 }}>
+            <Skeleton variant="stat" count={3} />
           </div>
-          <div className="card-list">
-            {likely.map((s) => (
-              <SubRow key={s.id} s={s} mode="likely" onStatus={setStatus} />
-            ))}
-          </div>
-        </div>
+          <Skeleton variant="block" height={240} />
+        </>
       )}
 
-      <div className="card">
-        <div className="card-head">
-          <h3>Active subscriptions</h3>
-          <span className="muted" style={{ fontSize: 12.5 }}>Sorted by yearly cost</span>
-        </div>
-        {confirmed.length === 0 ? (
-          <div className="empty">
-            <div className="ic"><Icon name="repeat" size={24} color="var(--fg-3)" /></div>
-            <h3 style={{ fontFamily: 'var(--font-display)', margin: '0 0 4px' }}>No active subscriptions yet</h3>
-            <p style={{ margin: 0 }}>Confirm the likely ones above, or import more statements to surface recurring charges.</p>
-          </div>
-        ) : (
-          <div className="card-list">
-            {confirmed.map((s) => (
-              <SubRow key={s.id} s={s} mode="confirmed" onStatus={setStatus} />
-            ))}
-          </div>
-        )}
-      </div>
+      {state === 'error' && <ErrorState message={error ?? undefined} onRetry={retry} />}
 
-      {upcoming && (
-        <div className="note info" style={{ marginTop: 16 }}>
-          <span className="ic"><Icon name="calendar-clock" size={16} /></span>
-          <span>
-            Next renewal — <b>{upcoming.name}</b> (<Money amount={upcoming.amt} />) around {upcoming.next}. Reminders stay on this device; we never email or charge you.
-          </span>
-        </div>
+      {state === 'empty' && (
+        <EmptyState
+          icon="repeat"
+          title="No recurring charges detected yet."
+          body="Subscriptions and other recurring bills show up here after your inbox is imported."
+          action={{ label: 'Run an import', href: '/sources' }}
+        />
       )}
+
+      {state === 'ready' && (
+        <>
+          <div className="grid-3" style={{ marginBottom: 16 }}>
+            <StatCard lbl="Per month" icon="repeat" val={<Money compact amount={monthlyEquivalent} />} sub="Monthly-equivalent of all plans" />
+            <StatCard lbl="Per year" icon="calendar" val={<Money compact amount={annualTotal} />} sub={`Across ${confirmed.length} active subscriptions`} />
+            <StatCard lbl="Needs review" icon="help-circle" val={String(likely.length)} accent="var(--amber-600)" sub="Likely — confirm or dismiss" />
+          </div>
+
+          {patchError && (
+            <div className="note warn" style={{ marginBottom: 16 }}>
+              <span className="ic"><Icon name="triangle-alert" size={16} /></span>
+              <span>{patchError}</span>
+            </div>
+          )}
+
+          {likely.length > 0 && (
+            <div className="card" style={{ marginBottom: 16, borderColor: 'var(--amber-400)' }}>
+              <div className="card-head">
+                <h3>Likely subscriptions</h3>
+                <span className="badge cau">{likely.length} to review</span>
+              </div>
+              <div className="card-list">
+                {likely.map((s) => (
+                  <SubRow key={s.id} s={s} mode="likely" onStatus={setStatus} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="card">
+            <div className="card-head">
+              <h3>Active subscriptions</h3>
+              <span className="muted" style={{ fontSize: 12.5 }}>Sorted by yearly cost</span>
+            </div>
+            {confirmed.length === 0 ? (
+              <EmptyState
+                icon="repeat"
+                title="No active subscriptions yet"
+                body="Confirm the likely ones above, or import more statements to surface recurring charges."
+              />
+            ) : (
+              <div className="card-list">
+                {confirmed.map((s) => (
+                  <SubRow key={s.id} s={s} mode="confirmed" onStatus={setStatus} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {upcoming && (
+            <div className="note info" style={{ marginTop: 16 }}>
+              <span className="ic"><Icon name="calendar-clock" size={16} /></span>
+              <span>
+                Next renewal — <b>{upcoming.name}</b> (<Money amount={upcoming.amt} />) around {upcoming.next}. Reminders stay on this device; we never email or charge you.
+              </span>
+            </div>
+          )}
+        </>
+      )}
+
       <FootMeta />
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import type { Txn } from '../lib/fixtures';
+import { useCallback, useEffect, useState } from 'react';
+import type { Txn } from '../lib/types';
 import { fmtDate } from '../lib/format';
 
 /** Client mirror of the server OverviewRollup (server module is server-only). */
@@ -37,29 +37,45 @@ export interface OverviewDTO {
   recent: RecentTxnDTO[];
 }
 
+export interface OverviewResult {
+  data: OverviewDTO | null;
+  loading: boolean;
+  /** Human-readable fetch failure; null on success. Failure must never look like "no data yet". */
+  error: string | null;
+  retry: () => void;
+}
+
 const PALETTE = ['#6354E6', '#FF8A6B', '#15A877', '#3B82F6', '#F59E0B', '#A855F7'];
 
 /** Fetch the DB-backed overview for an FY. `hasData` is false on a fresh DB. */
-export function useOverview(fy: string): { data: OverviewDTO | null; loading: boolean } {
+export function useOverview(fy: string): OverviewResult {
   const [data, setData] = useState<OverviewDTO | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setError(null);
     fetch(`/api/dashboard/overview?fy=${encodeURIComponent(fy)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: OverviewDTO) => {
         if (active) setData(d);
       })
-      .catch(() => active && setData(null))
+      .catch((e: unknown) => {
+        if (!active) return;
+        setData(null);
+        setError(e instanceof Error ? e.message : 'Request failed');
+      })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [fy]);
+  }, [fy, nonce]);
 
-  return { data, loading };
+  const retry = useCallback(() => setNonce((n) => n + 1), []);
+  return { data, loading, error, retry };
 }
 
 /** Map a DB recent transaction into the workbench Txn shape (drawer-ready). */

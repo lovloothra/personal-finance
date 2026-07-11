@@ -1,19 +1,23 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFy } from '../contexts/FyCtx';
-import { fySummary, runs } from '../lib/fixtures';
+import { fyLabel } from '../lib/format';
+import { viewState } from '../lib/viewState';
 import { Icon } from '../primitives/Icon';
 import { StatCard } from '../primitives/StatCard';
+import { EmptyState } from '../primitives/EmptyState';
+import { ErrorState } from '../primitives/ErrorState';
+import { Skeleton } from '../primitives/Skeleton';
 import { FootMeta, PageHead } from './shared';
 import { useDashboard, type ReviewDTO, type SourcesDTO } from '../data/useDashboard';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
 
 export function Sources() {
   const { fy } = useFy();
-  const f = fySummary(fy);
-  const { data } = useDashboard<SourcesDTO>('sources', fy);
+  const f = fyLabel(fy);
+  const { data, loading, error, retry } = useDashboard<SourcesDTO>('sources', fy);
+  const state = viewState(loading, error, data?.hasData);
   const [importOpen, setImportOpen] = useState(false);
-  const live = data?.hasData ? data : null;
 
   // Unlock state
   const [reviewItems, setReviewItems] = useState<ReviewDTO['items']>([]);
@@ -67,14 +71,9 @@ export function Sources() {
     }
   };
 
-  const runList = live ? live.runs : runs;
-  const messages = live ? live.messagesScanned : f.messages;
-  const coverage = live ? live.coverage : f.coverage;
-  const lastRun = live ? live.lastRunDate ?? '—' : f.runDate;
-
   return (
     <div className="content-wrap fade-in">
-      <PageHead title="Sources" sub="Every Gmail query we ran, and what came back">
+      <PageHead title="Sources" sub={`${f.label} · every Gmail query we ran, and what came back`}>
         <button className="btn btn-primary" onClick={() => setImportOpen(true)}>
           <Icon name="refresh-cw" size={15} />
           Run new import
@@ -130,61 +129,86 @@ export function Sources() {
         </div>
       )}
 
-      <div className="grid-3" style={{ marginBottom: 16 }}>
-        <StatCard lbl="Messages scanned" icon="mail" val={messages.toLocaleString('en-IN')} />
-        <StatCard
-          lbl="Source coverage"
-          icon="target"
-          val={coverage != null ? `${coverage}%` : '—'}
-          accent="var(--mint-600)"
-          sub="of your money explained"
-        />
-        <StatCard lbl="Last run" icon="clock" val={live ? 'latest' : '2 mins'} sub={lastRun} />
-      </div>
+      {state === 'loading' && (
+        <>
+          <div className="grid-3" style={{ marginBottom: 16 }}>
+            <Skeleton variant="stat" count={3} />
+          </div>
+          <Skeleton variant="block" height={220} />
+        </>
+      )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head">
-          <h3>Import runs</h3>
-          <span className="muted" style={{ fontSize: 12.5 }}>
-            read-only · localhost
-          </span>
-        </div>
-        <div className="card-list">
-          {runList.map((r, i) => (
-            <div key={i} className="run">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="q">{r.q}</div>
-                <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                  {r.date}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600 }} className="tnum">
-                  {r.msgs.toLocaleString('en-IN')} msgs
-                </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {r.bytes}
-                </div>
-              </div>
-              <span
-                className="st"
-                style={{
-                  color: r.status === 'ok' ? 'var(--mint-600)' : 'var(--amber-600)',
-                  flexShrink: 0,
-                  width: 90,
-                  justifyContent: 'flex-end',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <Icon name={r.status === 'ok' ? 'check-circle' : 'alert-triangle'} size={15} />
-                {r.status === 'ok' ? 'Complete' : 'Partial'}
+      {state === 'error' && <ErrorState message={error ?? undefined} onRetry={retry} />}
+
+      {state === 'empty' && (
+        <EmptyState
+          icon="mail-search"
+          title="No imports yet"
+          body="Run your first Gmail import to pull statements and receipts into your ledger."
+          action={{ label: 'Run new import', onClick: () => setImportOpen(true) }}
+        />
+      )}
+
+      {state === 'ready' && data && (
+        <>
+          <div className="grid-3" style={{ marginBottom: 16 }}>
+            <StatCard lbl="Messages scanned" icon="mail" val={data.messagesScanned.toLocaleString('en-IN')} />
+            <StatCard
+              lbl="Source coverage"
+              icon="target"
+              val={data.coverage != null ? `${data.coverage}%` : '—'}
+              accent="var(--mint-600)"
+              sub="of your money explained"
+            />
+            <StatCard lbl="Last run" icon="clock" val="latest" sub={data.lastRunDate ?? '—'} />
+          </div>
+
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-head">
+              <h3>Import runs</h3>
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                read-only · localhost
               </span>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="card-list">
+              {data.runs.length === 0 && <div className="muted" style={{ padding: 16 }}>No imports yet.</div>}
+              {data.runs.map((r, i) => (
+                <div key={i} className="run">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="q">{r.q}</div>
+                    <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                      {r.date}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }} className="tnum">
+                      {r.msgs.toLocaleString('en-IN')} msgs
+                    </div>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {r.bytes}
+                    </div>
+                  </div>
+                  <span
+                    className="st"
+                    style={{
+                      color: r.status === 'ok' ? 'var(--mint-600)' : 'var(--amber-600)',
+                      flexShrink: 0,
+                      width: 90,
+                      justifyContent: 'flex-end',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Icon name={r.status === 'ok' ? 'check-circle' : 'alert-triangle'} size={15} />
+                    {r.status === 'ok' ? 'Complete' : 'Partial'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="note privacy">
         <span className="ic">

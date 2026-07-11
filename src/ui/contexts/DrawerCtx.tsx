@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import type { Txn } from '../lib/fixtures';
+import type { Txn } from '../lib/types';
 import { ProvenanceDrawer } from '../primitives/ProvenanceDrawer';
 
 interface DrawerCtxValue {
