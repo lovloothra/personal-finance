@@ -92,12 +92,25 @@ export function loadLocalModelExamples(db: DB): LocalModelExample[] {
     }));
 }
 
-export async function recordFeedbackExamples(
-  db: DB,
+/** The object drizzle passes to a `db.transaction((tx) => ...)` callback —
+ * same query-builder surface as DB, scoped to the open transaction. */
+export type DbTx = Parameters<Parameters<DB['transaction']>[0]>[0];
+
+export interface PreparedFeedbackWrite {
+  records: FeedbackRecordInput[];
+  examples: LocalModelExample[];
+}
+
+/**
+ * Embedding half of recordFeedbackExamples, split out so callers that need
+ * the writes inside a LARGER transaction (the atomic assign route) can do
+ * all async work — model load, embedText — BEFORE opening it. better-sqlite3
+ * transactions are synchronous; awaiting inside one is not an option.
+ */
+export async function prepareFeedbackExamples(
   records: FeedbackRecordInput[],
   options: EmbeddingWriteOptions = {},
-): Promise<number> {
-  if (records.length === 0) return 0;
+): Promise<PreparedFeedbackWrite> {
   const now = options.now ?? Date.now;
   const runtime = await embeddingWriter(options);
   const examples: LocalModelExample[] = [];
@@ -116,8 +129,43 @@ export async function recordFeedbackExamples(
       }),
     );
   }
+  return { records, examples };
+}
+
+/**
+ * Write half of recordFeedbackExamples: upserts the feedback + example rows
+ * and marks the classifier head stale. `tx` may be an open transaction or a
+ * plain DB handle. Synchronous by design — see prepareFeedbackExamples.
+ */
+export function writeFeedbackExamples(
+  tx: DbTx | DB,
+  prepared: PreparedFeedbackWrite,
+  nowFn: () => number = Date.now,
+): number {
+  const { records, examples } = prepared;
+  if (records.length === 0) return 0;
+  writeFeedbackExamplesBody(tx, records, examples, nowFn);
+  return records.length;
+}
+
+export async function recordFeedbackExamples(
+  db: DB,
+  records: FeedbackRecordInput[],
+  options: EmbeddingWriteOptions = {},
+): Promise<number> {
+  if (records.length === 0) return 0;
+  const now = options.now ?? Date.now;
+  const { examples } = await prepareFeedbackExamples(records, options);
 
   db.transaction((tx) => {
+    writeFeedbackExamplesBody(tx, records, examples, now);
+  });
+
+  return records.length;
+}
+
+function writeFeedbackExamplesBody(tx: DbTx | DB, records: FeedbackRecordInput[], examples: LocalModelExample[], now: () => number): void {
+  {
     for (let index = 0; index < records.length; index++) {
       const record = records[index];
       const example = examples[index];
@@ -203,9 +251,7 @@ export async function recordFeedbackExamples(
       .set({ stale: true, updatedAt: now() })
       .where(eq(localClassifierHeads.id, LOCAL_MODEL_VERSION))
       .run();
-  });
-
-  return records.length;
+  }
 }
 
 export async function loadLocalClassifierState(

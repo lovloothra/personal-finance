@@ -16,6 +16,7 @@ export type TriageKeyAction =
   | { type: 'pick'; n: number }
   | { type: 'assign' }
   | { type: 'transfer' }
+  | { type: 'undo' }
   | null;
 
 export function triageKeyAction(key: string, ctx: TriageKeyCtx): TriageKeyAction {
@@ -41,6 +42,8 @@ export function triageKeyAction(key: string, ctx: TriageKeyCtx): TriageKeyAction
       return { type: 'assign' };
     case 'x':
       return { type: 'transfer' };
+    case 'u':
+      return { type: 'undo' };
     default:
       return null;
   }

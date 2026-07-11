@@ -45,7 +45,20 @@ export function useSpending(fy: string) {
   const [highlight, setHighlight] = useState<string | null>(null); // category name to flash
   // Session-only progress counter — never persisted, resets on reload.
   const [clearedThisSession, setClearedThisSession] = useState(0);
+  // Most recent undoable assign's op id. Hydrated from the server journal on
+  // mount (survives reload — the journal is the source of truth, not client
+  // state) and refreshed from each assign response.
+  const [lastOpId, setLastOpId] = useState<string | null>(null);
   const queryRef = useRef('');
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/review/assign/undo')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { opId: string | null } | null) => { if (active && d) setLastOpId(d.opId); })
+      .catch(() => {}); // no journal reachable → undo affordance simply stays hidden
+    return () => { active = false; };
+  }, []);
 
   // These two never throw — mutation call sites (settle, etc.) fire-and-forget
   // refreshReport() without a .catch, so a rejection here would surface as an
@@ -110,9 +123,25 @@ export function useSpending(fy: string) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? 'Assign failed');
     settle(sig, category, data.updated as number, (data.aliasApplied as number) ?? 0);
+    setLastOpId((data.opId as string | undefined) ?? null);
     if (data.aliasApplied > 0) void loadTriage(); // learned rule reshuffles others
     return data as { updated: number; aliasToken: string | null; aliasApplied: number };
   }, [settle, loadTriage]);
+
+  /** Undo the most recent assignment (server-journaled exact restore), then
+   * reload both views — a restore changes multiple groups at once. */
+  const undoLast = useCallback(async () => {
+    if (!lastOpId) return;
+    const res = await fetch('/api/review/assign/undo', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ opId: lastOpId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? 'Undo failed');
+    setLastOpId(null);
+    setClearedThisSession((n) => Math.max(0, n - ((data.restored as number) ?? 0)));
+    await Promise.all([refreshReport(), loadTriage()]);
+  }, [lastOpId, refreshReport, loadTriage]);
 
   const acceptSuggestion = useCallback(async (id: string, sig: string, category: string) => {
     const res = await fetch(`/api/review/suggestions/${encodeURIComponent(id)}/accept`, { method: 'POST' });
@@ -130,5 +159,5 @@ export function useSpending(fy: string) {
     } : u);
   }, []);
 
-  return { report, triage, loading, error, retry, highlight, clearedThisSession, assign, acceptSuggestion, rejectSuggestion, search, refreshReport, loadTriage };
+  return { report, triage, loading, error, retry, highlight, clearedThisSession, lastOpId, undoLast, assign, acceptSuggestion, rejectSuggestion, search, refreshReport, loadTriage };
 }

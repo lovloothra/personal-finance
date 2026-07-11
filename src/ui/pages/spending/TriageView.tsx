@@ -58,11 +58,15 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
         case 'transfer':
           actionsRef.current?.markTransfer();
           break;
+        case 'undo':
+          // No-op when nothing is undoable; failures land in the hook's error.
+          void spending.undoLast().catch(() => {});
+          break;
       }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [groups.length, focus]);
+  }, [groups.length, focus, spending]);
 
   // Keep the focused row on-screen as j/k move focus (or the list reflows
   // after an assign clears a row out from under the cursor).
@@ -83,6 +87,7 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
             <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
               {triage.totalGroups} group{triage.totalGroups === 1 ? '' : 's'} · {triage.totalTransactions} transaction{triage.totalTransactions === 1 ? '' : 's'} to review
               {clearedThisSession > 0 ? ` · ${clearedThisSession} cleared this session` : ''}
+              {spending.lastOpId && <> · <span className="kbd">u</span> undoes the last assign</>}
             </div>
           )}
         </div>

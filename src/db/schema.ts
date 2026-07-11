@@ -592,3 +592,22 @@ export const reviewItems = sqliteTable(
   },
   (t) => [index('review_items_status_idx').on(t.status)],
 );
+
+export const reviewUndoJournal = sqliteTable(
+  'review_undo_journal',
+  {
+    id: text('id').primaryKey(), // undo_<uuid>, returned to the client as the assign opId
+    /**
+     * Full before-state snapshot of everything the assignment mutated
+     * (typed shape: UndoSnapshot in src/review/undo-journal.ts). Assign
+     * UPSERTS the override/alias/feedback/example rows, so deletion is not a
+     * valid inverse — restore needs created-vs-updated per row plus the prior
+     * values. Review items are NOT snapshotted: they're a rebuildable
+     * projection of transactions.review_required.
+     */
+    payload: text('payload', { mode: 'json' }).$type<unknown>().notNull(),
+    consumedAt: integer('consumed_at'), // epoch ms once undone; null = still undoable
+    createdAt: createdAt(),
+  },
+  (t) => [index('review_undo_journal_consumed_idx').on(t.consumedAt)],
+);

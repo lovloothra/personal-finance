@@ -46,6 +46,10 @@ test('digits outside 1-5 (e.g. 0, 6) are not handled', () => {
   assert.equal(triageKeyAction('6', ctx()), null);
 });
 
+test('u returns undo', () => {
+  assert.deepEqual(triageKeyAction('u', ctx()), { type: 'undo' });
+});
+
 test('unrecognized keys return null', () => {
   for (const key of ['ArrowDown', 'a', 'Escape', ' ', 'Tab', 'Shift']) {
     assert.equal(triageKeyAction(key, ctx()), null);
@@ -54,7 +58,7 @@ test('unrecognized keys return null', () => {
 
 test('inInput=true: every key returns null, including ones normally handled', () => {
   const inputCtx = ctx({ inInput: true });
-  for (const key of ['j', 'k', '/', 'Enter', 'x', '1', '2', '3', '4', '5', 'Escape', 'a']) {
+  for (const key of ['j', 'k', '/', 'Enter', 'x', 'u', '1', '2', '3', '4', '5', 'Escape', 'a']) {
     assert.equal(triageKeyAction(key, inputCtx), null, `expected null for "${key}" while inInput`);
   }
 });
