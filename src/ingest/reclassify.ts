@@ -109,7 +109,7 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
       const final = isTransfer ? deterministic : c;
       const flow = isTransfer ? 'transfer' : final.flow;
-      const category = isTransfer ? 'Transfer' : final.category;
+      const category = isTransfer && final.category !== 'cc_payment' ? 'Transfer' : final.category;
       const merchant = final.merchant ?? final.subcategory ?? null;
       const acceptedPredictionId =
         !isTransfer && decision.source === 'local_ml' && decision.localPrediction

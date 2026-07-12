@@ -16,6 +16,7 @@
  *
  * Pure & deterministic.
  */
+import { isCredBillDeskCcPayment } from './cc-payment-signals';
 
 /** Explicit transfer rails (not generic UPI, which is mostly real spending).
  * "autopay" is deliberately NOT here: UPI AUTOPAY is the mandate rail for
@@ -42,7 +43,7 @@ const CC_PAYMENT_RE = /\b(cc payment|credit card payment|card payment|card bill)
 
 /** True when the description is a card-bill payment signal. */
 function isCcPayment(desc: string): boolean {
-  return CC_PAYMENT_RE.test(desc) || CARD_AUTOPAY_RE.test(desc);
+  return CC_PAYMENT_RE.test(desc) || CARD_AUTOPAY_RE.test(desc) || isCredBillDeskCcPayment(desc);
 }
 
 export interface LinkTxn {

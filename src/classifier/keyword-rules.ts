@@ -8,6 +8,7 @@
 import type { Classification, ClassifyContext, KeywordRule, RawTxn, Flow } from './types';
 import { LAYER } from './types';
 import { clean, containsWord } from './normalize';
+import { isCredBillDeskCcPayment } from './cc-payment-signals';
 
 export const DEFAULT_KEYWORD_RULES: KeywordRule[] = [
   // Internal transfers — excluded from income/expense rollups to avoid
@@ -64,6 +65,23 @@ export function classifyByKeyword(
   ctx: ClassifyContext,
 ): Classification | null {
   const desc = clean(txn.rawDescription);
+
+  // Structural CRED-via-BillDesk card-bill rail. Requiring the full shape is
+  // what makes this safe to mark as a transfer without user confirmation;
+  // bare BillDesk/CRED descriptors remain ordinary review candidates.
+  if (txn.amount < 0 && isCredBillDeskCcPayment(txn.rawDescription)) {
+    return {
+      flow: 'transfer',
+      category: 'cc_payment',
+      subcategory: 'Credit card payment',
+      confidence: 'high',
+      reason: 'Credit-card payment: debit matched the CRED-via-BillDesk BIL/ONL card-bill rail.',
+      signal: 'keyword.cred_billdesk_cc_payment',
+      layer: LAYER.KEYWORD,
+      reviewRequired: false,
+      isInternalTransfer: true,
+    };
+  }
 
   for (const rule of ctx.keywordRules) {
     if (rule.keyword && keywordMatches(desc, rule.keyword)) {
