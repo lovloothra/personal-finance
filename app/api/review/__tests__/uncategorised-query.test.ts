@@ -5,12 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.PF_DB_PATH = join(mkdtempSync(join(tmpdir(), 'pf-uncat-')), 'test.db');
+process.env.PF_DB_PASSPHRASE = 'test-passphrase';
 
 let GET: (req: Request) => Promise<Response>;
 
 before(async () => {
   const { getDb } = await import('@/db/client');
-  const { transactions } = await import('@/db/schema');
+  const { duplicateCandidates, transactions } = await import('@/db/schema');
   ({ GET } = await import('@/../app/api/review/uncategorised/route'));
   const db = await getDb();
   const base = {
@@ -28,6 +29,11 @@ before(async () => {
     { id: 's2', txnDate: '2024-06-03', amount: -9000, rawDescription: 'UPI/NEWSPAPER/sub', ...base },
     { id: 's3', txnDate: '2024-06-04', amount: -9000, rawDescription: 'UPI/NEWSPAPER/sub', ...base },
   ]).run();
+  db.insert(duplicateCandidates).values({
+    id: 'dup_rent',
+    keeperTransactionId: 'r1',
+    candidateTransactionId: 'r2',
+  }).run();
 });
 
 test('groups are sorted by total value descending', async () => {
@@ -41,4 +47,13 @@ test('q filters by rawDescription substring (case-insensitive)', async () => {
   const data = await res.json();
   assert.equal(data.groups.length, 1);
   assert.equal(data.totalTransactions, 2);
+});
+
+test('response includes open suspected duplicate pairs with both transaction descriptions', async () => {
+  const res = await GET(new Request('http://x/api/review/uncategorised'));
+  const data = await res.json();
+  assert.equal(data.totalSuspectedDuplicates, 1);
+  assert.equal(data.suspectedDuplicates[0].keeper.transactionId, 'r1');
+  assert.equal(data.suspectedDuplicates[0].candidate.transactionId, 'r2');
+  assert.match(data.suspectedDuplicates[0].keeper.rawDescription, /RASHMI/);
 });

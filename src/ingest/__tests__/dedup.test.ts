@@ -9,14 +9,14 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dedupeAcrossDocuments, dedupKey } from '../dedup';
+import { dedupeAcrossDocuments, dedupKey, detectSuspectedDuplicates } from '../dedup';
 
 const row = (docId: string, desc: string, opts: { date?: string; amount?: number; acct?: string | null } = {}) => ({
   docId,
   date: opts.date ?? '2025-06-10',
   amount: opts.amount ?? -15000,
   rawDescription: desc,
-  ownAccountId: opts.acct ?? 'acct-1',
+  ownAccountId: Object.hasOwn(opts, 'acct') ? opts.acct : 'acct-1',
 });
 
 test('two identical same-day payments in the SAME statement both survive', () => {
@@ -60,4 +60,64 @@ test('identical payments from DIFFERENT accounts are not duplicates', () => {
   const { kept, dropped } = dedupeAcrossDocuments(rows, new Set());
   assert.equal(kept.length, 2);
   assert.equal(dropped, 0);
+});
+
+const realShort = 'BIL/ONL/001104143602/BILL DESK/CRED_BICIEC3112/MKS-10000007874';
+const realLong = `${realShort} BANK/113537545429`;
+
+test('real BillDesk pair is retained and flagged when BANK suffix drifts', () => {
+  const rows = [
+    { id: 'keeper', ...row('doc_monthly', realShort, { date: '2025-11-02', amount: -58478600 }) },
+    { id: 'candidate', ...row('doc_consolidated', realLong, { date: '2025-11-02', amount: -58478600 }) },
+  ];
+  const exact = dedupeAcrossDocuments(rows, new Set());
+  assert.equal(exact.kept.length, 2, 'weak match must never be silently dropped');
+  const pairs = detectSuspectedDuplicates([], exact.kept);
+  assert.equal(pairs.length, 1);
+  assert.equal(pairs[0].keeper.id, 'keeper');
+  assert.equal(pairs[0].candidate.id, 'candidate');
+});
+
+test('input order deterministically decides the keeper', () => {
+  const rows = [
+    { id: 'long-first', ...row('doc_consolidated', realLong, { date: '2025-11-02', amount: -58478600 }) },
+    { id: 'short-second', ...row('doc_monthly', realShort, { date: '2025-11-02', amount: -58478600 }) },
+  ];
+  const [pair] = detectSuspectedDuplicates([], rows);
+  assert.equal(pair.keeper.id, 'long-first');
+  assert.equal(pair.candidate.id, 'short-second');
+});
+
+test('cross-run match prefers the existing row as keeper', () => {
+  const existing = [{ id: 'stored', createdAt: 50, ...row('doc_monthly', realShort, { date: '2025-11-02', amount: -58478600 }) }];
+  const incoming = [{ id: 'new', ...row('doc_consolidated', realLong, { date: '2025-11-02', amount: -58478600 }) }];
+  const [pair] = detectSuspectedDuplicates(existing, incoming);
+  assert.equal(pair.keeper.id, 'stored');
+  assert.equal(pair.candidate.id, 'new');
+});
+
+test('same document, different account, null account, and non-prefix drift are excluded', () => {
+  const base = { id: 'base', ...row('doc_a', realShort, { date: '2025-11-02', amount: -58478600 }) };
+  const cases = [
+    { id: 'same-doc', ...row('doc_a', realLong, { date: '2025-11-02', amount: -58478600 }) },
+    { id: 'other-account', ...row('doc_b', realLong, { date: '2025-11-02', amount: -58478600, acct: 'acct-2' }) },
+    { id: 'null-account', ...row('doc_b', realLong, { date: '2025-11-02', amount: -58478600, acct: null }) },
+    { id: 'non-prefix', ...row('doc_b', `BANK ${realShort}`, { date: '2025-11-02', amount: -58478600 }) },
+  ];
+  for (const candidate of cases) {
+    assert.equal(detectSuspectedDuplicates([base], [candidate]).length, 0, candidate.id);
+  }
+});
+
+test('three overlapping documents keep the first and flag each later row', () => {
+  const rows = [
+    { id: 'first', ...row('doc_1', realShort, { date: '2025-11-02', amount: -58478600 }) },
+    { id: 'second', ...row('doc_2', realLong, { date: '2025-11-02', amount: -58478600 }) },
+    { id: 'third', ...row('doc_3', `${realShort} BANK/999`, { date: '2025-11-02', amount: -58478600 }) },
+  ];
+  const pairs = detectSuspectedDuplicates([], rows);
+  assert.deepEqual(pairs.map((p) => [p.keeper.id, p.candidate.id]), [
+    ['first', 'second'],
+    ['first', 'third'],
+  ]);
 });

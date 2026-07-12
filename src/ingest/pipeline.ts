@@ -14,11 +14,11 @@ import 'server-only';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard, counterparties as counterpartiesTable } from '@/db/schema';
+import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard, counterparties as counterpartiesTable, duplicateCandidates } from '@/db/schema';
 import { resolveOwnAccount, type OwnAccountRow } from './account-reconcile';
 import { relinkTransfersLedgerWide } from './relink-transfers';
 import { clearDocumentOutput } from './clear-output';
-import { dedupKey, dedupeAcrossDocuments } from './dedup';
+import { dedupKey, dedupeAcrossDocuments, detectSuspectedDuplicates, type SuspectedDedupRow } from './dedup';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
@@ -50,6 +50,7 @@ export interface IngestResult {
   reviewItems: number;
   byFy: Record<string, number>;
   duplicatesDropped: number;
+  duplicatesSuspected: number;
 }
 
 let seq = 0;
@@ -280,19 +281,32 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   // two genuine same-day identical payments inside one statement both survive.
   // Stored keys only ever belong to other documents: this run's documents had
   // their previous output cleared above.
-  const existingKeys = new Set(
-    db
-      .select({
-        date: transactions.txnDate,
-        amount: transactions.amount,
-        rawDescription: transactions.rawDescription,
-        ownAccountId: transactions.ownAccountId,
-      })
-      .from(transactions)
-      .all()
-      .map((r) => dedupKey({ ...r, rawDescription: r.rawDescription ?? '' })),
-  );
+  const existingRows: SuspectedDedupRow[] = db
+    .select({
+      id: transactions.id,
+      docId: transactions.documentId,
+      date: transactions.txnDate,
+      amount: transactions.amount,
+      rawDescription: transactions.rawDescription,
+      ownAccountId: transactions.ownAccountId,
+      createdAt: transactions.createdAt,
+    })
+    .from(transactions)
+    .all()
+    .map((r) => ({ ...r, docId: r.docId ?? '', rawDescription: r.rawDescription ?? '' }));
+  const existingKeys = new Set(existingRows.map((r) => dedupKey(r)));
   const { kept: dedupedParsed, dropped: duplicatesDropped } = dedupeAcrossDocuments(parsed, existingKeys);
+  const suspectedDuplicates = detectSuspectedDuplicates(
+    existingRows,
+    dedupedParsed.map((r) => ({
+      id: r.id,
+      docId: r.docId,
+      date: r.date,
+      amount: r.amount,
+      rawDescription: r.rawDescription,
+      ownAccountId: r.ownAccountId,
+    })),
+  );
 
   const rawTxns: RawTxn[] = dedupedParsed.map((p) => ({
     id: p.id,
@@ -428,6 +442,21 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       txnCount++;
     }
 
+    for (const pair of suspectedDuplicates) {
+      tx.insert(duplicateCandidates)
+        .values({
+          id: pair.id,
+          keeperTransactionId: pair.keeper.id,
+          candidateTransactionId: pair.candidate.id,
+          basis: pair.basis,
+          status: 'open',
+        })
+        // Existing open/kept/removed rows are durable decisions. In
+        // particular, a reparse must never reopen a pair the user kept.
+        .onConflictDoNothing()
+        .run();
+    }
+
   });
 
   for (const { raw, decision } of results) {
@@ -448,6 +477,6 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   // subscription merchants + recurring unknowns), grouped by canonical merchant.
   detectSubscriptions(db);
 
-  onProgress({ phase: 'done', message: `Ingest complete (${duplicatesDropped} duplicates removed)`, documents: docCount, transactions: txnCount });
-  return { documents: docCount, transactions: txnCount, reviewItems: reviewCount, byFy, duplicatesDropped };
+  onProgress({ phase: 'done', message: `Ingest complete (${duplicatesDropped} exact duplicates removed, ${suspectedDuplicates.length} suspected)`, documents: docCount, transactions: txnCount });
+  return { documents: docCount, transactions: txnCount, reviewItems: reviewCount, byFy, duplicatesDropped, duplicatesSuspected: suspectedDuplicates.length };
 }

@@ -4,6 +4,61 @@ import type { useSpending } from '../../data/useSpending';
 import { Icon } from '../../primitives/Icon';
 import { GroupRow, type FocusedRowActions } from './GroupRow';
 import { triageKeyAction } from './triageKeys';
+import { Money } from '../../primitives/Money';
+import type { SuspectedDuplicate } from '../../data/useSpending';
+
+function DuplicateReviewRow({ pair, spending }: {
+  pair: SuspectedDuplicate;
+  spending: ReturnType<typeof useSpending>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const resolve = async (action: 'remove' | 'keep') => {
+    setBusy(true);
+    setError(null);
+    try {
+      await spending.resolveDuplicate(pair.id, action);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Duplicate review failed');
+      setBusy(false);
+    }
+  };
+  const source = (side: SuspectedDuplicate['keeper']) => side.subject || side.from || side.documentId || 'Statement';
+
+  return (
+    <div className="review-item" data-duplicate-id={pair.id} style={{ display: 'block' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span className="badge cau">Possible duplicate</span>
+        <strong><Money amount={Math.abs(pair.amount)} /></strong>
+        <span className="muted" style={{ fontSize: 12.5 }}>{pair.candidate.date}</span>
+      </div>
+      <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+        Same date, amount, and account across two statements; one narration adds trailing tokens.
+      </div>
+      {[['Keep', pair.keeper], ['Candidate', pair.candidate]].map(([label, side]) => {
+        const txn = side as SuspectedDuplicate['keeper'];
+        return (
+          <div key={txn.transactionId} style={{ marginTop: 8, minWidth: 0 }}>
+            <span className="badge neutral">{label as string}</span>{' '}
+            <span className="muted" style={{ fontSize: 12 }}>{source(txn)}</span>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, overflowWrap: 'anywhere', marginTop: 3 }}>
+              {txn.rawDescription}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void resolve('remove')}>
+          Remove duplicate
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void resolve('keep')}>
+          Keep both
+        </button>
+      </div>
+      {error && <div style={{ color: 'var(--red-600)', fontSize: 12.5, marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
 
 export function TriageView({ spending }: { spending: ReturnType<typeof useSpending> }) {
   const { triage, loading, search, clearedThisSession } = spending;
@@ -23,6 +78,7 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
   // would otherwise mint a new array (and re-trigger the scroll effect below)
   // on every render.
   const groups = useMemo(() => triage?.groups ?? [], [triage]);
+  const duplicates = useMemo(() => triage?.suspectedDuplicates ?? [], [triage]);
 
   useEffect(() => {
     const t = setTimeout(() => search(q), 200);
@@ -85,7 +141,8 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
           <h3>Triage</h3>
           {triage && (
             <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
-              {triage.totalGroups} group{triage.totalGroups === 1 ? '' : 's'} · {triage.totalTransactions} transaction{triage.totalTransactions === 1 ? '' : 's'} to review
+              {triage.totalGroups} group{triage.totalGroups === 1 ? '' : 's'} · {triage.totalTransactions} transaction{triage.totalTransactions === 1 ? '' : 's'} to classify
+              {triage.totalSuspectedDuplicates > 0 ? ` · ${triage.totalSuspectedDuplicates} possible duplicate${triage.totalSuspectedDuplicates === 1 ? '' : 's'}` : ''}
               {clearedThisSession > 0 ? ` · ${clearedThisSession} cleared this session` : ''}
               {spending.lastOpId && <> · <span className="kbd">u</span> undoes the last assign</>}
             </div>
@@ -98,7 +155,7 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
       </div>
       <div ref={listRef} className="card-list" style={{ maxHeight: 620, overflowY: 'auto' }}>
         {loading && <div className="muted" style={{ padding: 16 }}>Loading…</div>}
-        {!loading && groups.length === 0 && (
+        {!loading && groups.length === 0 && duplicates.length === 0 && (
           <div className="muted" style={{ padding: 16 }}>
             {/* triage.hasData means "pending rows exist", so it can't tell a
                 cleared queue from a never-imported ledger — report.hasData can. */}
@@ -108,6 +165,9 @@ export function TriageView({ spending }: { spending: ReturnType<typeof useSpendi
         {!loading && spending.error && groups.length > 0 && (
           <div className="muted" style={{ padding: '8px 16px' }}>Couldn&apos;t refresh — showing the last loaded list.</div>
         )}
+        {duplicates.map((pair) => (
+          <DuplicateReviewRow key={pair.id} pair={pair} spending={spending} />
+        ))}
         {groups.map((g, i) => (
           <GroupRow
             key={g.signature}
