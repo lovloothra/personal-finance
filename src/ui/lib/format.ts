@@ -24,3 +24,47 @@ export const inrCompact = (n: number): string => {
   if (abs >= 1_00_000) return scaled(abs / 1_00_000, 'L');
   return inr(abs);
 };
+
+/**
+ * Human labels for an India FY key ("2025-26") computed from the key alone —
+ * no fabricated numbers. label: "FY 2025–26"; sub: "Apr 2025 – Mar 2026".
+ * Unrecognized keys fall back to a bare label with an empty sub.
+ */
+export function fyLabel(key: string): { label: string; sub: string } {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) return { label: `FY ${key}`, sub: '' };
+  const start = Number(m[1]);
+  return { label: `FY ${m[1]}–${m[2]}`, sub: `Apr ${start} – Mar ${start + 1}` };
+}
+
+/** Format an ISO date ("2026-04-12") as "12 Apr 2026". Non-date input is
+ * returned unchanged (e.g. an already-formatted string, or garbage). */
+export function fmtDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/** De-underscore and sentence-case an enum-ish option value for display,
+ * e.g. "non_metro" -> "Non metro". Used for <select> option labels. */
+export function labelForOption(value: string): string {
+  const spaced = value.replace(/_/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * Display form for a merchant name that may actually be a taxonomy-key
+ * fallback (rollups fall back merchant → category key when a txn has no
+ * merchant). Real merchant names pass through untouched — title-casing them
+ * mangles brands ("IDFC" → "Idfc"); only key-shaped values get labeled.
+ */
+export function displayMerchant(name: string, label: (key: string) => string): string {
+  return /^[a-z0-9_]+$/.test(name) ? label(name) : name;
+}
+
+/** Redact every ₹-amount inside a prose string, for mask-aware rendering of
+ * server-built copy (tax tips embed literal amounts). Matches plain and
+ * compact forms: ₹2,53,500 · ₹1.07 Cr · ₹12.5 L. */
+export function redactInr(text: string): string {
+  return text.replace(/₹\s?[\d,]+(?:\.\d+)?(?:\s?(?:Cr|L))?/g, '₹•••,•••');
+}

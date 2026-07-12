@@ -1,20 +1,21 @@
 'use client';
+import Link from 'next/link';
 import { useFy } from '../contexts/FyCtx';
-import { categories, fySummary, household, txns, type Txn } from '../lib/fixtures';
+import { displayMerchant, fyLabel } from '../lib/format';
+import { viewState } from '../lib/viewState';
 import { MerchantLogo } from '../primitives/MerchantLogo';
+import { Button } from '../primitives/Button';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
+import { EmptyState } from '../primitives/EmptyState';
+import { ErrorState } from '../primitives/ErrorState';
+import { Skeleton } from '../primitives/Skeleton';
 import { FootMeta, PageHead, TxnRow } from './shared';
-import type { WorkbenchPage } from '../shell/Sidebar';
-import { useOverview, recentToTxn } from '../data/useOverview';
-import { useShellMeta } from '../contexts/ShellMetaCtx';
+import { useOverview, recentToTxn, type OverviewDTO } from '../data/useOverview';
+import { useShellMeta, type ReviewMeta, type ShellStatus } from '../contexts/ShellMetaCtx';
 import { useDashboard, type TaxDTO } from '../data/useDashboard';
 import { labelForCategory } from '@/classifier/taxonomy';
-
-interface OverviewProps {
-  setPage: (p: WorkbenchPage) => void;
-}
 
 interface CatView {
   name: string;
@@ -22,30 +23,16 @@ interface CatView {
   color: string;
   recurring: boolean;
 }
-interface MerchantView {
-  name: string;
-  amt: number;
-  color: string;
-  glyph: string;
-}
 
-const FIXTURE_MERCHANTS: MerchantView[] = [
-  { name: 'Prestige Property', amt: 660000, color: '#FF8A6B', glyph: 'P' },
-  { name: 'Nexora payroll', amt: 4218000, color: '#6354E6', glyph: 'N' },
-  { name: 'Zepto', amt: 168200, color: '#15A877', glyph: 'Z' },
-  { name: 'Amazon', amt: 98400, color: '#3B82F6', glyph: 'A' },
-];
-
-export function Overview({ setPage }: OverviewProps) {
+export function Overview() {
   const { fy } = useFy();
-  const { data } = useOverview(fy);
-  const { review } = useShellMeta();
+  const { data, loading, error, retry } = useOverview(fy);
+  const { review, profileName, status: shellStatus } = useShellMeta();
   const { data: taxData } = useDashboard<TaxDTO>('tax', fy);
-  const live = data?.hasData ? data : null;
-  const f = fySummary(fy);
-  const taxCmp = live && taxData?.hasData ? taxData.comparison : null;
+  const state = viewState(loading, error, data?.hasData);
+  const f = fyLabel(fy);
+  const taxCmp = data?.hasData && taxData?.hasData ? taxData.comparison : null;
 
-  // "Needs your eye" summary — live counts once imported, demo copy before.
   const reviewParts = review
     ? [
         review.locked > 0 ? `${review.locked} locked PDF${review.locked === 1 ? '' : 's'}` : null,
@@ -54,33 +41,68 @@ export function Overview({ setPage }: OverviewProps) {
       ].filter((p): p is string => p != null)
     : null;
 
-  // Real DB rollups when an import has produced data, otherwise the demo fixtures.
-  const income = live ? live.income : f.income;
-  const expenses = live ? live.expenses : f.expenses;
-  const net = live ? live.net : f.income - f.expenses;
-  const savingsRate = live ? live.savingsRate : f.savingsRate;
-  const prevSavingsRate = live ? live.prevSavingsRate : f.prevSavingsRate;
-
-  const topCats: CatView[] = live
-    ? live.topCategories.map((c) => ({ name: c.name, amt: c.amount, color: c.color, recurring: true }))
-    : [...categories].sort((a, b) => b.amt - a.amt).slice(0, 5).map((c) => ({ name: c.name, amt: c.amt, color: c.color, recurring: c.recurring }));
-  const maxCat = topCats.length ? topCats[0].amt : 1;
-
-  const recent: Txn[] = live ? live.recent.map(recentToTxn) : txns.slice(0, 6);
-  const merchants: MerchantView[] = live
-    ? live.topMerchants.map((m) => ({ name: m.name, amt: m.amount, color: m.color, glyph: m.glyph }))
-    : FIXTURE_MERCHANTS;
-
   return (
     <div className="content-wrap fade-in">
-      <PageHead title={`Hello, ${(data?.name ?? household.name).split(' ')[0]}`} sub={`${f.label} · ${f.sub}`}>
-        <button className="btn btn-secondary" onClick={() => setPage('sources')}>
-          <Icon name="refresh-cw" size={15} />
+      <PageHead title={`Hello, ${(data?.name ?? profileName ?? 'there').split(' ')[0]}`} sub={f.label}>
+        <Button variant="secondary" icon="refresh-cw" href="/sources">
           Re-run import
-        </button>
+        </Button>
       </PageHead>
 
-      <div className="grid-4" style={{ marginBottom: 16 }}>
+      {state === 'loading' && (
+        <>
+          <div className="grid-4 stat-grid">
+            <Skeleton variant="stat" count={4} />
+          </div>
+          <div className="grid-2 stat-grid">
+            <Skeleton variant="block" height={260} />
+            <Skeleton variant="block" height={260} />
+          </div>
+        </>
+      )}
+
+      {state === 'error' && <ErrorState message={error ?? undefined} onRetry={retry} />}
+
+      {state === 'empty' && (
+        <EmptyState
+          icon="sparkles"
+          title="No transactions yet"
+          body="Run your first Gmail import to see where your money goes."
+          action={{ label: 'Run an import', href: '/sources' }}
+        />
+      )}
+
+      {state === 'ready' && data && (
+        <OverviewContent data={data} review={review} reviewParts={reviewParts} shellStatus={shellStatus} taxCmp={taxCmp} />
+      )}
+
+      <FootMeta />
+    </div>
+  );
+}
+
+function OverviewContent({
+  data,
+  review,
+  reviewParts,
+  shellStatus,
+  taxCmp,
+}: {
+  data: OverviewDTO;
+  review: ReviewMeta | null;
+  reviewParts: string[] | null;
+  shellStatus: ShellStatus;
+  taxCmp: TaxDTO['comparison'] | null;
+}) {
+  const { income, expenses, net, savingsRate, prevSavingsRate } = data;
+  const topCats: CatView[] = data.topCategories.map((c) => ({ name: c.name, amt: c.amount, color: c.color, recurring: true }));
+  const maxCat = topCats.length ? topCats[0].amt : 1;
+  const recent = data.recent.map(recentToTxn);
+  const merchants = data.topMerchants;
+
+  return (
+    <>
+      <div className="grid-4 stat-grid">
         <StatCard lbl="Income" icon="arrow-down-to-line" val={<Money compact amount={income} pos />} delta="vs prior FY" dir="up" />
         <StatCard lbl="Expenses" icon="arrow-up-from-line" val={<Money compact amount={expenses} />} sub="CC payments de-duped" />
         <StatCard
@@ -93,14 +115,14 @@ export function Overview({ setPage }: OverviewProps) {
         <StatCard lbl="Savings rate" icon="percent" val={`${savingsRate}%`} delta={`${savingsRate - prevSavingsRate >= 0 ? '+' : ''}${savingsRate - prevSavingsRate} pts`} dir={savingsRate - prevSavingsRate >= 0 ? 'up' : 'down'} />
       </div>
 
-      <div className="grid-2" style={{ marginBottom: 16 }}>
+      <div className="grid-2 stat-grid">
         <div className="card">
           <div className="card-head">
             <h3>Where it went</h3>
-            <button className="link" onClick={() => setPage('expenses')}>
+            <Link className="link" href="/spending">
               All expenses
               <Icon name="arrow-right" size={13} />
-            </button>
+            </Link>
           </div>
           <div className="card-list">
             {topCats.map((c) => (
@@ -122,11 +144,12 @@ export function Overview({ setPage }: OverviewProps) {
                 </div>
               </div>
             ))}
+            {topCats.length === 0 && <div className="muted" style={{ padding: 16 }}>No spending yet this period.</div>}
           </div>
         </div>
 
         <div className="stack">
-          <div className="card card-pad" style={{ background: net >= 0 ? 'var(--gradient-mint)' : 'var(--gradient-hero)', border: 0, color: '#fff' }}>
+          <div className="card card-pad" style={{ background: net >= 0 ? 'var(--gradient-mint)' : 'var(--gradient-hero)', border: 0, color: 'var(--fg-on-dark)' }}>
             <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {net >= 0 ? 'You kept' : 'You overspent by'}
             </div>
@@ -139,16 +162,16 @@ export function Overview({ setPage }: OverviewProps) {
                 : 'More went out than came in — uncategorised imports often hide salary credits. Clear the review queue to firm this up.'}
             </div>
           </div>
-          <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('tax')}>
+          <Link href="/tax" className="card card-pad card-hover" style={{ display: 'block', textDecoration: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--indigo-50)', color: 'var(--indigo-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="receipt-indian-rupee" size={18} />
               </div>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: 0 }}>
-                {taxCmp ? `Tax: ${taxCmp.recommended} regime wins` : live ? 'Tax: compare regimes' : 'Tax: old regime wins'}
+                {taxCmp ? `Tax: ${taxCmp.recommended} regime wins` : 'Tax: compare regimes'}
               </h3>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--fg-2)', margin: '0 0 6px', lineHeight: 1.5 }}>
+            <p className="t-minor" style={{ margin: '0 0 6px', lineHeight: 1.5 }}>
               {taxCmp ? (
                 <>
                   Based on detected evidence, the {taxCmp.recommended} regime saves you{' '}
@@ -157,19 +180,14 @@ export function Overview({ setPage }: OverviewProps) {
                   </b>{' '}
                   this year.
                 </>
-              ) : live ? (
-                <>See how the old and new regimes compare on the income and deductions detected so far.</>
               ) : (
-                <>
-                  Based on detected evidence, the old regime saves you{' '}
-                  <b style={{ color: 'var(--mint-700)' }}>₹1,23,760</b> this year given your HRA and home-loan interest.
-                </>
+                <>See how the old and new regimes compare on the income and deductions detected so far.</>
               )}
             </p>
             <span className="link" style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 13 }}>
               Compare regimes →
             </span>
-          </div>
+          </Link>
         </div>
       </div>
 
@@ -177,52 +195,54 @@ export function Overview({ setPage }: OverviewProps) {
         <div className="card">
           <div className="card-head">
             <h3>Recent activity</h3>
-            <button className="link" onClick={() => setPage('expenses')}>
+            <Link className="link" href="/spending">
               See all
               <Icon name="arrow-right" size={13} />
-            </button>
+            </Link>
           </div>
           <div className="card-list">
             {recent.map((t) => (
               <TxnRow key={t.id} t={t} />
             ))}
+            {recent.length === 0 && <div className="muted" style={{ padding: 16 }}>No recent activity.</div>}
           </div>
         </div>
         <div className="stack">
-          <div className="card card-pad card-hover" style={{ cursor: 'pointer' }} onClick={() => setPage('expenses')}>
+          <Link href="/spending" className="card card-pad card-hover" style={{ display: 'block', textDecoration: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: 0 }}>Needs your eye</h3>
-              <span className={`badge ${review && review.total === 0 ? 'mint' : 'cau'}`}>
-                {review ? (review.total === 0 ? 'All clear' : `${review.total} item${review.total === 1 ? '' : 's'}`) : '23 items'}
-              </span>
+              {shellStatus === 'ready' && review && (
+                <span className={`badge ${review.total === 0 ? 'mint' : 'cau'}`}>
+                  {review.total === 0 ? 'All clear' : `${review.total} item${review.total === 1 ? '' : 's'}`}
+                </span>
+              )}
             </div>
-            <p style={{ fontSize: 13, color: 'var(--fg-2)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            <p className="t-minor" style={{ margin: '8px 0 0', lineHeight: 1.5 }}>
               {reviewParts
                 ? reviewParts.length > 0
                   ? `${reviewParts.join(', ')}. Clear them to make your numbers trustworthy.`
                   : 'Nothing waiting on you — every imported transaction is classified.'
-                : '2 locked PDFs, 14 uncategorised merchants, 6 low-confidence and 1 profile gap. Clear them to push coverage past 98%.'}
+                : 'Once your inbox is imported, anything that needs a second look shows up here.'}
             </p>
             <span className="link" style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 13, marginTop: 8, display: 'inline-block' }}>
               Go to Spending →
             </span>
-          </div>
+          </Link>
           <div className="card card-pad">
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, margin: '0 0 12px' }}>Top merchants</h3>
             {merchants.map((m) => (
               <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
                 <MerchantLogo name={m.name} color={m.color} size={30} />
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{labelForCategory(m.name)}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{displayMerchant(m.name, labelForCategory)}</span>
                 <span style={{ marginLeft: 'auto' }}>
-                  <Money amount={m.amt} />
+                  <Money amount={m.amount} />
                 </span>
               </div>
             ))}
+            {merchants.length === 0 && <div className="muted" style={{ padding: '8px 0' }}>No merchants yet.</div>}
           </div>
         </div>
       </div>
-
-      <FootMeta />
-    </div>
+    </>
   );
 }

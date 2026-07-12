@@ -34,7 +34,7 @@ a { color: inherit; }
 .topbar { height: 60px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.82); backdrop-filter: blur(10px); display: flex; align-items: center; gap: 14px; padding: 0 26px; flex-shrink: 0; z-index: 5; }
 .search { display: flex; align-items: center; gap: 9px; background: var(--bg-subtle); border: 1px solid transparent; border-radius: var(--radius-md); padding: 7px 13px; width: 300px; color: var(--fg-3); transition: all var(--dur); }
 .search:focus-within { background: #fff; border-color: var(--border-focus); box-shadow: var(--shadow-focus); }
-.search input { border: 0; background: transparent; outline: none; font-family: var(--font-text); font-size: 14px; color: var(--fg-1); width: 100%; }
+.search input { border: 0; background: transparent; outline: none; font-family: var(--font-text); font-size: 14px; color: var(--fg-1); width: 100%; min-width: 0; text-overflow: ellipsis; }
 /* .search already shows a focus ring on the container via :focus-within (border + shadow-focus);
    suppress the generic :focus-visible outline on the inner input so it doesn't double-ring. */
 .search input:focus-visible { outline: none; }
@@ -73,6 +73,10 @@ a { color: inherit; }
 .btn-lg { padding: 13px 24px; font-size: 16px; }
 .btn-sm { padding: 6px 12px; font-size: 13px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Row-as-button reset: interactive list rows are real <button>s for keyboard/AT,
+   but render exactly like the divs they replaced. */
+.rowbtn { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: inherit; }
 
 /* Cards */
 .card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }

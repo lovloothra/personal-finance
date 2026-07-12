@@ -1,5 +1,5 @@
 'use client';
-import type { Confidence } from '../lib/fixtures';
+import type { Confidence } from '../lib/types';
 
 const MAP: Record<Confidence, [string, string]> = {
   high: ['conf-high', 'High'],

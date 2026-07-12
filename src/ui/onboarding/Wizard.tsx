@@ -1,8 +1,10 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/ui/primitives/Icon';
+import { ImportRunner } from '@/ui/shared/ImportRunner';
 import { InstitutionPicker } from './InstitutionPicker';
+import { labelForOption } from '@/ui/lib/format';
 import type { ProfileSeed } from '@/profile/types';
 import type { ReactNode } from 'react';
 
@@ -297,7 +299,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
       <label>{label}</label>
       <select className="inp" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">Select...</option>
-        {options.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+        {options.map((o) => <option key={o} value={o}>{labelForOption(o)}</option>)}
       </select>
     </div>
   );
@@ -355,7 +357,7 @@ export function Wizard() {
 
   useEffect(() => {
     fetch('/api/profile/onboarding')
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => {
         setDraft(seedToDraft(data.seed));
         setLabels(data.labels ?? {});
@@ -605,7 +607,7 @@ function GmailQuest({ draft, onBack, onFinish, initialError }: { draft: Draft; o
 
   useEffect(() => {
     fetch('/api/oauth/client')
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d) => setHasClient(Boolean(d.hasClient)))
       .catch(() => setHasClient(false));
   }, []);
@@ -713,91 +715,5 @@ function GmailQuest({ draft, onBack, onFinish, initialError }: { draft: Draft; o
 }
 
 function ImportRun({ onDone }: { onDone: () => void }) {
-  const [phase, setPhase] = useState<'idle' | 'consent' | 'running' | 'done'>('idle');
-  const [pct, setPct] = useState(0);
-  const [lines, setLines] = useState<{ text: string; kind: string }[]>([]);
-  const [consent, setConsent] = useState<{ human: string; messageCount: number } | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
-  const esRef = useRef<EventSource | null>(null);
-  const totalRef = useRef(0);
-
-  const log = (text: string, kind = '') => setLines((p) => [...p, { text, kind }]);
-
-  const run = useCallback((yes: boolean) => {
-    setPhase('running');
-    setLines([]);
-    setPct(0);
-    const es = new EventSource(`/api/gmail/import?fy=${FY}${yes ? '&yes=1' : ''}`);
-    esRef.current = es;
-    es.onmessage = (ev) => {
-      const e = JSON.parse(ev.data) as { phase: string; message?: string; messageCount?: number; attachmentCount?: number };
-      switch (e.phase) {
-        case 'estimate':
-          if (e.messageCount) totalRef.current = e.messageCount;
-          log(e.message ?? 'Estimating...', 'dim');
-          break;
-        case 'consent_required':
-          es.close();
-          setConsent({ human: e.message?.replace(/^.*about /, '') ?? 'over 1 GB', messageCount: e.messageCount ?? 0 });
-          setPhase('consent');
-          break;
-        case 'fetch':
-          if (e.messageCount && totalRef.current) setPct(Math.min(99, Math.round((e.messageCount / totalRef.current) * 100)));
-          log(e.message ?? `Fetched ${e.messageCount ?? 0} messages`);
-          break;
-        case 'attachment':
-          log(e.message ?? 'attachment', 'ok');
-          break;
-        case 'done':
-          es.close();
-          setPct(100);
-          log(e.message ?? 'Import complete', 'ok');
-          setPhase('done');
-          onDone();
-          break;
-        case 'error':
-          es.close();
-          log(`Error: ${e.message}`, 'warn');
-          break;
-        default:
-          // Ingest phases (parse/classify/review) and any future ones — without
-          // this the log froze at "processing…" for the whole ingest stage.
-          if (e.message) log(e.message, 'dim');
-          break;
-      }
-    };
-    es.onerror = () => es.close();
-  }, [onDone]);
-
-  useEffect(() => {
-    run(false);
-    return () => esRef.current?.close();
-  }, [run]);
-
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = 9999;
-  }, [lines]);
-
-  if (phase === 'consent' && consent) {
-    return (
-      <>
-        <div className="note warn"><span className="ic"><Icon name="hard-drive-download" size={18} /></span><span>This import will download about {consent.human} locally.</span></div>
-        <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => run(true)}>Download & import</button>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div className="imp-bar"><i style={{ width: pct + '%' }} /></div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 14 }}>
-        <span className="muted">{phase === 'done' ? 'Done' : 'Working locally'}</span>
-        <span className="fig">{pct}%</span>
-      </div>
-      <div className="imp-log" ref={logRef}>
-        {lines.map((l, i) => <div key={i} className={l.kind}>{l.kind === 'ok' ? 'ok ' : l.kind === 'warn' ? 'err ' : '> '}{l.text}</div>)}
-        {phase === 'running' && <div className="dim">...</div>}
-      </div>
-    </>
-  );
+  return <ImportRunner fy={FY} onDone={onDone} consentLabel="Download & import" large />;
 }

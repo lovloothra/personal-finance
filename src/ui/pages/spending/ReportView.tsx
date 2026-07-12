@@ -21,7 +21,13 @@ export function ReportView({ spending }: { spending: ReturnType<typeof useSpendi
         const isOpen = open === c.name;
         return (
           <div key={c.name} className={`catrow ${isOpen ? 'open' : ''} ${highlight === c.name ? 'flash' : ''}`}>
-            <div className="top" onClick={() => setOpen(isOpen ? null : c.name)} style={{ cursor: 'pointer' }}>
+            <button
+              type="button"
+              className="top rowbtn"
+              onClick={() => setOpen(isOpen ? null : c.name)}
+              style={{ cursor: 'pointer' }}
+              aria-expanded={isOpen}
+            >
               <span className="nm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={15} color="var(--fg-3)" />
                 <CategoryGlyph name={c.name} size={26} />
@@ -30,9 +36,9 @@ export function ReportView({ spending }: { spending: ReturnType<typeof useSpendi
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span className="muted" style={{ fontSize: 12 }}>{Math.round((c.amt / total) * 100)}%</span>
-                <Money amount={c.amt} />
+                <Money amount={c.amt} interactive={false} />
               </span>
-            </div>
+            </button>
             <div className="track"><i style={{ width: `${(c.amt / max) * 100}%`, background: c.color }} /></div>
             {isOpen && (
               <div className="sub" style={{ display: 'block' }}>

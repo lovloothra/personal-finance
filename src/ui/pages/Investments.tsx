@@ -1,24 +1,56 @@
 'use client';
 import { useFy } from '../contexts/FyCtx';
-import { useMask } from '../contexts/MaskCtx';
-import { fySummary, investments } from '../lib/fixtures';
-import { inr } from '../lib/format';
+import { fyLabel } from '../lib/format';
+import { viewState } from '../lib/viewState';
 import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { StatCard } from '../primitives/StatCard';
+import { EmptyState } from '../primitives/EmptyState';
+import { ErrorState } from '../primitives/ErrorState';
+import { Skeleton } from '../primitives/Skeleton';
 import { FootMeta, PageHead } from './shared';
 import { useDashboard, type InvestmentsDTO } from '../data/useDashboard';
 
 export function Investments() {
   const { fy } = useFy();
-  const { masked } = useMask();
-  const { data } = useDashboard<InvestmentsDTO>('investments', fy);
-  const live = data?.hasData ? data : null;
+  const { data, loading, error, retry } = useDashboard<InvestmentsDTO>('investments', fy);
+  const state = viewState(loading, error, data?.hasData);
+  const f = fyLabel(fy);
 
-  const rows: { platform: string; kind: string; invested: number; value: number | null; glyph: string; color: string }[] = live
-    ? live.platforms
-    : investments.map((i) => ({ platform: i.platform, kind: i.kind, invested: i.invested, value: i.value, glyph: i.glyph, color: i.color }));
+  return (
+    <div className="content-wrap fade-in">
+      <PageHead title="Investments" sub={`${f.label} · reconstructed from broker & platform emails`} />
+
+      {state === 'loading' && (
+        <>
+          <div className="grid-3" style={{ marginBottom: 16 }}>
+            <Skeleton variant="stat" count={3} />
+          </div>
+          <Skeleton variant="block" height={260} />
+        </>
+      )}
+
+      {state === 'error' && <ErrorState message={error ?? undefined} onRetry={retry} />}
+
+      {state === 'empty' && (
+        <EmptyState
+          icon="trending-up"
+          title={`No investment activity found for ${f.label}.`}
+          body="SIPs, mutual fund contributions and brokerage activity show up here after your inbox is imported."
+          action={{ label: 'Run an import', href: '/sources' }}
+        />
+      )}
+
+      {state === 'ready' && data && <InvestmentsContent data={data} />}
+
+      <FootMeta />
+    </div>
+  );
+}
+
+function InvestmentsContent({ data }: { data: InvestmentsDTO }) {
+  const rows = data.platforms;
   const totInvested = rows.reduce((s, i) => s + i.invested, 0);
   const haveValues = rows.length > 0 && rows.every((i) => i.value != null);
   const totValue = haveValues ? rows.reduce((s, i) => s + (i.value ?? 0), 0) : null;
@@ -26,8 +58,7 @@ export function Investments() {
   const gainPct = gain != null && totInvested > 0 ? ((gain / totInvested) * 100).toFixed(1) : null;
 
   return (
-    <div className="content-wrap fade-in">
-      <PageHead title="Investments" sub={`${fySummary(fy).label} · reconstructed from broker & platform emails`} />
+    <>
       <div className="grid-3" style={{ marginBottom: 16 }}>
         <StatCard lbl="Invested" icon="banknote" val={<Money compact amount={totInvested} />} sub="Contributions detected" />
         <StatCard lbl="Current value" icon="trending-up" val={totValue != null ? <Money amount={totValue} pos /> : '—'} accent="var(--mint-600)" sub={totValue == null ? 'No holdings data in statements' : undefined} />
@@ -71,7 +102,7 @@ export function Investments() {
                       {i.value != null ? <Money amount={i.value} /> : <span className="muted">—</span>}
                     </td>
                     <td className="r">
-                      {g != null ? <span className="delta up">+{masked ? '₹•••,•••' : inr(g)}</span> : <span className="muted">—</span>}
+                      {g != null ? <span className="delta up">+<Money amount={g} pos /></span> : <span className="muted">—</span>}
                     </td>
                   </tr>
                 );
@@ -90,7 +121,6 @@ export function Investments() {
           device, so quotes can lag your broker app.
         </span>
       </div>
-      <FootMeta />
-    </div>
+    </>
   );
 }

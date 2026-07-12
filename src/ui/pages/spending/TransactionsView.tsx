@@ -23,13 +23,21 @@ export function TransactionsView({ fy }: { fy: string }) {
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [flow, setFlow] = useState<typeof FLOWS[number]>('all');
   const [q, setQ] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
       const p = new URLSearchParams({ fy });
       if (flow !== 'all') p.set('flow', flow);
       if (q) p.set('q', q);
-      fetch(`/api/dashboard/transactions?${p}`).then((r) => r.json()).then((d) => setRows(d.rows ?? [])).catch(() => setRows([]));
+      setError(null);
+      fetch(`/api/dashboard/transactions?${p}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((d) => setRows(d.rows ?? []))
+        .catch(() => {
+          setRows([]);
+          setError("Couldn't load transactions.");
+        });
     }, 200);
     return () => clearTimeout(t);
   }, [fy, flow, q]);
@@ -43,8 +51,9 @@ export function TransactionsView({ fy }: { fy: string }) {
         <input className="inp" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 220, marginLeft: 'auto' }} />
       </div>
       <div className="card-list">
-        {rows.map((r, i) => <TxnRow key={r.id} t={recentToTxn(toDTO(r), i)} onOpen={drawer.openProv} />)}
-        {rows.length === 0 && <div className="muted" style={{ padding: 16 }}>No transactions match.</div>}
+        {error && <div className="muted" style={{ padding: 16, color: 'var(--red-600)' }}>{error}</div>}
+        {!error && rows.map((r, i) => <TxnRow key={r.id} t={recentToTxn(toDTO(r), i)} onOpen={drawer.openProv} />)}
+        {!error && rows.length === 0 && <div className="muted" style={{ padding: 16 }}>No transactions match.</div>}
       </div>
     </div>
   );

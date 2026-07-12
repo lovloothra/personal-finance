@@ -1,73 +1,59 @@
 'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Icon } from '../primitives/Icon';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { review as reviewSeed, subscriptions as subsSeed } from '../lib/fixtures';
-
-export type WorkbenchPage =
-  | 'overview'
-  | 'income'
-  | 'expenses'
-  | 'investments'
-  | 'liabilities'
-  | 'subscriptions'
-  | 'tax'
-  | 'sources'
-  | 'profile'
-  | 'settings';
 
 interface NavItem {
-  id: WorkbenchPage;
+  href: string;
   label: string;
   icon: string;
   count?: number;
   alert?: boolean;
 }
 
-// Demo-mode fallbacks, shown until the first real import produces live counts.
-const SEED_REVIEW_COUNT = reviewSeed.reduce((n, i) => n + (i.count ?? 1), 0);
-const SEED_SUBS_COUNT = subsSeed.filter((s) => s.status !== 'dismissed').length;
-const SEED_COVERAGE = 94;
-
-interface SidebarProps {
-  page: WorkbenchPage;
-  setPage: (p: WorkbenchPage) => void;
-}
-
-export function Sidebar({ page, setPage }: SidebarProps) {
-  const { review, subsCount, sources } = useShellMeta();
-  const reviewCount = review ? review.total : SEED_REVIEW_COUNT;
-  const subs = subsCount ?? SEED_SUBS_COUNT;
-  const coverage = sources ? sources.coverage : SEED_COVERAGE;
+export function Sidebar() {
+  const pathname = usePathname();
+  const { status, review, subsCount, sources } = useShellMeta();
+  const ready = status === 'ready';
+  const reviewCount = ready ? review?.total ?? 0 : 0;
+  const subs = ready ? subsCount ?? 0 : 0;
+  const coverage = ready ? sources?.coverage ?? null : null;
 
   const MAIN: NavItem[] = [
-    { id: 'overview', label: 'Overview', icon: 'layout-dashboard' },
-    { id: 'income', label: 'Income', icon: 'arrow-down-to-line' },
-    { id: 'expenses', label: 'Spending', icon: 'arrow-up-from-line', count: reviewCount > 0 ? reviewCount : undefined, alert: reviewCount > 0 },
-    { id: 'investments', label: 'Investments', icon: 'trending-up' },
-    { id: 'liabilities', label: 'Liabilities', icon: 'landmark' },
-    { id: 'subscriptions', label: 'Subscriptions', icon: 'repeat', count: subs > 0 ? subs : undefined },
-    { id: 'tax', label: 'Tax', icon: 'receipt-indian-rupee' },
+    { href: '/', label: 'Overview', icon: 'layout-dashboard' },
+    { href: '/income', label: 'Income', icon: 'arrow-down-to-line' },
+    { href: '/spending', label: 'Spending', icon: 'arrow-up-from-line', count: reviewCount > 0 ? reviewCount : undefined, alert: reviewCount > 0 },
+    { href: '/investments', label: 'Investments', icon: 'trending-up' },
+    { href: '/liabilities', label: 'Liabilities', icon: 'landmark' },
+    { href: '/subscriptions', label: 'Subscriptions', icon: 'repeat', count: subs > 0 ? subs : undefined },
+    { href: '/tax', label: 'Tax', icon: 'receipt-indian-rupee' },
   ];
 
   const EVIDENCE: NavItem[] = [
-    { id: 'sources', label: 'Sources', icon: 'mail-search' },
-    { id: 'profile', label: 'Profile', icon: 'user-round' },
-    { id: 'settings', label: 'Settings', icon: 'settings' },
+    { href: '/sources', label: 'Sources', icon: 'mail-search' },
+    { href: '/profile', label: 'Profile', icon: 'user-round' },
+    { href: '/settings', label: 'Settings', icon: 'settings' },
   ];
-  const renderItem = (it: NavItem) => (
-    <button
-      key={it.id}
-      className={`sb-item ${page === it.id ? 'active' : ''}`}
-      onClick={() => setPage(it.id)}
-      title={it.label}
-    >
-      <Icon name={it.icon} size={18} />
-      <span>{it.label}</span>
-      {it.count != null && (
-        <span className={`sb-count ${it.alert ? 'alert' : ''}`}>{it.count}</span>
-      )}
-    </button>
-  );
+
+  const renderItem = (it: NavItem) => {
+    const active = it.href === '/' ? pathname === '/' : pathname === it.href || pathname.startsWith(`${it.href}/`);
+    return (
+      <Link
+        key={it.href}
+        href={it.href}
+        className={`sb-item ${active ? 'active' : ''}`}
+        aria-current={active ? 'page' : undefined}
+        title={it.label}
+      >
+        <Icon name={it.icon} size={18} />
+        <span>{it.label}</span>
+        {it.count != null && (
+          <span className={`sb-count ${it.alert ? 'alert' : ''}`}>{it.count}</span>
+        )}
+      </Link>
+    );
+  };
 
   return (
     <nav className="sidebar">

@@ -1,7 +1,16 @@
 'use client';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { FyKey } from '../lib/fixtures';
+import type { FyKey } from '../lib/types';
 
+/**
+ * FY selection deliberately lives in context, not the URL: the workbench
+ * layout (and these providers) persist across soft navigations, so the choice
+ * survives page switches exactly like before the route conversion. Putting it
+ * in the URL would force every internal <Link> to propagate ?fy= for zero
+ * server benefit (all data fetching is client-side against /api/dashboard/*).
+ * Mask state must never be URL-addressable — masked-by-default on a fresh
+ * load is a feature.
+ */
 interface FyCtxValue { fy: FyKey; setFy: (next: FyKey) => void; fys: FyKey[]; }
 const FyCtx = createContext<FyCtxValue>({ fy: '2025-26', setFy: () => {}, fys: [] });
 

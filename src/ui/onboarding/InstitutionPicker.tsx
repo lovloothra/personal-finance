@@ -46,11 +46,12 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/institutions?category=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { institutions: Institution[] };
         setResults(data.institutions);
         setOpen(true);
       } catch {
-        /* aborted */
+        /* aborted, or the request failed — leave the previous results in place */
       }
     }, 180);
     return () => {
@@ -89,8 +90,8 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
             top: 'calc(100% + 4px)',
             left: 0,
             right: 0,
-            background: 'var(--surface, #fff)',
-            border: '1px solid var(--line, #e6e6ef)',
+            background: 'var(--bg-page)',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             boxShadow: '0 12px 28px rgba(20,20,40,.14)',
             maxHeight: 240,
@@ -121,7 +122,7 @@ export function InstitutionPicker({ category, placeholder, value, valueLabel, on
                 cursor: 'pointer',
                 fontSize: 13.5,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2, #f4f4fb)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <InstLogo id={inst.id} name={inst.displayName} size={22} />

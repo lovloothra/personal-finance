@@ -1,12 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { useSpending, UncatGroup } from '../../data/useSpending';
 import { Money } from '../../primitives/Money';
+import { Button } from '../../primitives/Button';
 import { CategoryChipPicker } from '../../primitives/CategoryChipPicker';
 import { InstLogo } from '../../primitives/InstLogo';
 import { AssignAccountPanel } from './AssignAccountPanel';
 import { categoriesForFlow, labelForCategory, normalizeCategory } from '@/classifier/taxonomy';
 import type { Flow } from '@/classifier/types';
+import { rankCategories } from '@/review/rank-categories';
+
+/** Actions the currently-focused row exposes to TriageView's keyboard reducer. */
+export interface FocusedRowActions {
+  pickRanked: (n: number) => void;
+  assign: () => void;
+  markTransfer: () => void;
+  canTransfer: boolean;
+  hasCategory: boolean;
+}
 
 interface Detail { id: string; date: string; amount: number; rawDescription: string | null; from: string | null; subject: string | null; }
 
@@ -22,14 +33,15 @@ function AccountChip({ group, assignOpen, onToggleAssign }: {
     // Clicking opens the document-level assign flow — the account belongs to
     // the source statement, so the panel lists documents, not this txn group.
     return (
-      <button
-        className="badge neutral"
-        style={{ fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer', borderColor: assignOpen ? 'var(--fg-3)' : undefined }}
+      <Button
+        variant="ghost"
+        size="sm"
         title="The statement this came from didn't reveal an account number the app could match to one of your registered accounts. Click to assign it."
+        aria-expanded={assignOpen}
         onClick={onToggleAssign}
       >
         No account detected — assign
-      </button>
+      </Button>
     );
   }
 
@@ -40,7 +52,7 @@ function AccountChip({ group, assignOpen, onToggleAssign }: {
         display: 'inline-flex', alignItems: 'center', gap: 6,
         padding: '2px 9px 2px 3px',
         borderRadius: 20,
-        background: 'var(--bg-0, #fff)',
+        background: 'var(--bg-page)',
         border: '1px solid var(--border)',
         fontSize: 12,
         fontWeight: 500,
@@ -52,7 +64,7 @@ function AccountChip({ group, assignOpen, onToggleAssign }: {
       {/* Bank marks are detailed — they need a white well and real pixels to read. */}
       <span style={{
         width: 22, height: 22, borderRadius: '50%',
-        background: '#fff',
+        background: 'var(--bg-page)',
         border: '1px solid var(--border)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         flexShrink: 0, overflow: 'hidden',
@@ -90,8 +102,10 @@ function CounterpartyLine({ raw, flow }: { raw: string; flow: string }) {
   );
 }
 
-export function GroupRow({ group, spending, focused }: {
+export function GroupRow({ group, spending, focused, registerActions }: {
   group: UncatGroup; spending: ReturnType<typeof useSpending>; focused?: boolean;
+  /** TriageView's keyboard reducer calls into whichever row is focused. */
+  registerActions?: (a: FocusedRowActions | null) => void;
 }) {
   // Derive the group's flow so we can filter categories appropriately.
   // The group carries an explicit flow from the DB; fall back to sign-derived.
@@ -108,9 +122,24 @@ export function GroupRow({ group, spending, focused }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail[] | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [assignAccountOpen, setAssignAccountOpen] = useState(false);
   const sug = group.localSuggestion;
+
+  // The server already computes a deterministic ranking (rank-categories.ts)
+  // and sends it as group.ranked; only compose it client-side when that's
+  // absent from the payload (older/demo data).
+  const fallbackRanked = useMemo(() => rankCategories(
+    {
+      suggestedCategory: sug?.category ?? null,
+      distribution: undefined,
+      topCategories: spending.triage?.topCategories ?? [],
+      groupFlow,
+    },
+    categoriesForFlow,
+  ), [sug, spending.triage?.topCategories, groupFlow]);
+  const ranked = group.ranked ?? fallbackRanked;
 
   const toggleDetail = async () => {
     if (detailOpen) { setDetailOpen(false); return; }
@@ -118,17 +147,21 @@ export function GroupRow({ group, spending, focused }: {
     if (!detail) {
       try {
         const r = await fetch(`/api/review/uncategorised?signature=${encodeURIComponent(group.signature)}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         setDetail(((await r.json()) as { txns: Detail[] }).txns);
-      } catch { setDetail([]); }
+      } catch {
+        setDetail([]);
+        setDetailError("Couldn't load transactions.");
+      }
     }
   };
 
-  const assign = async () => {
+  const assign = useCallback(async () => {
     if (!category) return;
     setBusy(true); setError(null);
     try { await spending.assign(group.signature, merchant.trim(), category); }
     catch (e) { setError(e instanceof Error ? e.message : 'Assign failed'); setBusy(false); }
-  };
+  }, [category, merchant, group.signature, spending]);
 
   const accept = async () => {
     if (!sug) return;
@@ -142,13 +175,13 @@ export function GroupRow({ group, spending, focused }: {
    * which sets flow='transfer', isInternalTransfer=true, and clears
    * suspectedTransfer so the row is counted per its new flow.
    */
-  const markAsTransfer = async () => {
+  const markAsTransfer = useCallback(async () => {
     setBusy(true); setError(null);
     // No merchant: a transfer between own accounts has no merchant, and the
     // signature-derived guess must never be recorded as one.
     try { await spending.assign(group.signature, '', 'Transfer'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Mark as transfer failed'); setBusy(false); }
-  };
+  }, [group.signature, spending]);
 
   /**
    * "It's income" — calls /api/review/assign with category='Income',
@@ -160,6 +193,24 @@ export function GroupRow({ group, spending, focused }: {
     try { await spending.assign(group.signature, '', 'Income'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Mark as income failed'); setBusy(false); }
   };
+
+  // Expose this row's actions to TriageView's keyboard reducer while it's
+  // the focused row; deregister on blur/unmount so a stale row never
+  // swallows a keypress meant for whichever row is focused now.
+  useEffect(() => {
+    if (!focused || !registerActions) return;
+    registerActions({
+      pickRanked: (n) => {
+        const picked = ranked[n - 1];
+        if (picked) setCategory(picked);
+      },
+      assign: () => { void assign(); }, // assign() itself no-ops without a category
+      markTransfer: () => { if (groupFlow === 'expense') void markAsTransfer(); },
+      canTransfer: groupFlow === 'expense',
+      hasCategory: !!category,
+    });
+    return () => registerActions(null);
+  }, [focused, registerActions, ranked, category, groupFlow, assign, markAsTransfer]);
 
   return (
     <div className={`review-item ${focused ? 'focused' : ''}`} style={{ alignItems: 'flex-start' }} data-sig={group.signature}>
@@ -206,7 +257,8 @@ export function GroupRow({ group, spending, focused }: {
         {detailOpen && (
           <div style={{ margin: '10px 0 2px', borderLeft: '2px solid var(--border)', paddingLeft: 12, display: 'grid', gap: 8 }}>
             {detail === null && <div className="muted" style={{ fontSize: 12.5 }}>Loading…</div>}
-            {detail?.map((t) => (
+            {detailError && <div style={{ fontSize: 12.5, color: 'var(--red-600)' }}>{detailError}</div>}
+            {!detailError && detail?.map((t) => (
               <div key={t.id} style={{ fontSize: 12.5, minWidth: 0 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
                   <span className="muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{t.date}</span>
@@ -226,13 +278,13 @@ export function GroupRow({ group, spending, focused }: {
         {group.suspectedTransfer && (
           <div style={{
             marginTop: 10, padding: '10px 12px',
-            border: '1px solid var(--cau-400, #f59e0b)',
+            border: '1px solid var(--amber-400)',
             borderRadius: 8,
-            background: 'var(--cau-50, #fffbeb)',
+            background: 'var(--amber-50)',
             display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
           }}>
             <span className="badge cau">Suspected transfer</span>
-            <span style={{ fontSize: 13, color: 'var(--fg-2)', flex: 1 }}>
+            <span className="t-minor" style={{ flex: 1 }}>
               Not counted as income — confirm what this is.
             </span>
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsTransfer}>
@@ -259,6 +311,7 @@ export function GroupRow({ group, spending, focused }: {
               onPick={setCategory}
               suggested={sug ? normalizeCategory(sug.category) : null}
               priority={spending.triage?.topCategories ?? []}
+              ranked={ranked}
             />
           </div>
           <button className="btn btn-primary btn-sm" disabled={busy || !category} onClick={assign}>

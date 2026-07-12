@@ -1,8 +1,11 @@
 'use client';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { Dialog, useDialogClose } from '../primitives/Dialog';
 import { Icon } from '../primitives/Icon';
+import { ErrorState } from '../primitives/ErrorState';
 import { FootMeta, PageHead } from './shared';
 import { InstitutionPicker } from '../onboarding/InstitutionPicker';
+import { labelForOption } from '../lib/format';
 import type { ReviewDTO } from '../data/useDashboard';
 
 type FieldType = 'text' | 'date' | 'number' | 'select' | 'institution';
@@ -81,29 +84,21 @@ function shortLabel(f: FieldView, heading: string | null): string {
 // --- Edit drawer -----------------------------------------------------------
 
 function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView; onClose: () => void; onSaved: () => void }) {
-  const [show, setShow] = useState(false);
+  return (
+    <Dialog open onClose={onClose} label={section.name}>
+      <ProfileEditDrawerBody section={section} onSaved={onSaved} />
+    </Dialog>
+  );
+}
+
+function ProfileEditDrawerBody({ section, onSaved }: { section: SectionView; onSaved: () => void }) {
+  const close = useDialogClose();
   const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(section.fields.map((f) => [f.key, f.value])));
   const [ids, setIds] = useState<Record<string, string>>(() =>
     Object.fromEntries(section.fields.filter((f) => f.type === 'institution').map((f) => [f.key, f.currentId ?? ''])),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShow(true), 10);
-    return () => clearTimeout(t);
-  }, []);
-
-  const close = useCallback(() => {
-    setShow(false);
-    setTimeout(onClose, 220);
-  }, [onClose]);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === 'Escape' && close();
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [close]);
 
   const save = async () => {
     setSaving(true);
@@ -136,14 +131,12 @@ function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView
 
   return (
     <>
-      <div className={`scrim ${show ? 'show' : ''}`} onClick={close} />
-      <aside className={`drawer ${show ? 'show' : ''}`}>
         <div className="drawer-head">
           <div>
             <h3>{section.name}</h3>
             <p>{section.why}</p>
           </div>
-          <button className="drawer-x" onClick={close}>
+          <button className="drawer-x" onClick={close} aria-label="Close">
             <Icon name="x" size={20} />
           </button>
         </div>
@@ -175,7 +168,7 @@ function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView
                         <select className="inp" value={vals[f.key] ?? ''} onChange={(e) => setVals((m) => ({ ...m, [f.key]: e.target.value }))}>
                           <option value="">Select…</option>
                           {(f.options ?? []).map((o) => (
-                            <option key={o} value={o}>{o}</option>
+                            <option key={o} value={o}>{labelForOption(o)}</option>
                           ))}
                         </select>
                       ) : (
@@ -211,7 +204,6 @@ function ProfileEditDrawer({ section, onClose, onSaved }: { section: SectionView
             </button>
           )}
         </div>
-      </aside>
     </>
   );
 }
@@ -223,15 +215,18 @@ export function Profile() {
   const [overall, setOverall] = useState(0);
   const [editing, setEditing] = useState<SectionView | null>(null);
   const [profileGaps, setProfileGaps] = useState<ReviewDTO['items']>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setError(null);
     try {
       const res = await fetch('/api/profile/full');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { sections: SectionView[]; overall: number };
       setSections(data.sections ?? []);
       setOverall(data.overall ?? 0);
-    } catch {
-      /* leave empty */
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load profile');
     }
   }, []);
 
@@ -252,69 +247,75 @@ export function Profile() {
     <div className="content-wrap fade-in">
       <PageHead title="Profile" sub="The more we know, the more we can recognise. All of it stays local." />
 
-      {/* Profile-gap nudge banner */}
-      {profileGaps.length > 0 && (
-        <div className="card card-pad" style={{ marginBottom: 16, borderColor: 'var(--amber-400)' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <Icon name="info" size={16} color="var(--amber-600)" style={{ flexShrink: 0, marginTop: 2 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>A few profile gaps are affecting classification</div>
-              {profileGaps.map((item) => (
-                <div key={item.id} style={{ fontSize: 13, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 500 }}>{item.title}</span>
-                  {item.desc && <span className="muted" style={{ marginLeft: 6 }}>{item.desc}</span>}
+      {error ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : (
+        <>
+          {/* Profile-gap nudge banner */}
+          {profileGaps.length > 0 && (
+            <div className="card card-pad" style={{ marginBottom: 16, borderColor: 'var(--amber-400)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <Icon name="info" size={16} color="var(--amber-600)" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>A few profile gaps are affecting classification</div>
+                  {profileGaps.map((item) => (
+                    <div key={item.id} style={{ fontSize: 13, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 500 }}>{item.title}</span>
+                      {item.desc && <span className="muted" style={{ marginLeft: 6 }}>{item.desc}</span>}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
+          )}
+
+          <div className="card card-pad" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div className="ring" style={{ ['--p' as string]: overall, width: 56, height: 56 } as CSSProperties}>
+              <i style={{ width: 44, height: 44, fontSize: 13 }}>{overall}%</i>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, fontFamily: 'var(--font-display)' }}>
+                {overall >= 100 ? 'Profile complete' : `Profile is ${overall}% complete`}
+              </div>
+              <div className="t-minor" style={{ marginTop: 2 }}>
+                {overall >= 100 ? 'Everything we need is on file. You can refine details anytime.' : 'Filling the gaps below lifts classification accuracy and source coverage.'}
+              </div>
+            </div>
+            <span className="ondevice"><Icon name="lock" size={14} />Encrypted on disk</span>
           </div>
-        </div>
+
+          <div className="grid-2e">
+            {sections.map((p) => (
+              <div
+                key={p.id}
+                className={`card card-pad ${p.editable ? 'card-hover' : ''}`}
+                style={{ cursor: p.editable ? 'pointer' : 'default' }}
+                onClick={() => setEditing(p)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <div className="ring" style={{ ['--p' as string]: p.editable ? p.pct : 100 } as CSSProperties}>
+                    <i>{p.editable ? p.pct : <Icon name="sparkles" size={13} />}</i>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="t-strong">{p.name}</div>
+                    <div className="muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {summarise(p)}
+                    </div>
+                  </div>
+                  <span className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
+                    <Icon name={p.editable ? 'pencil' : 'eye'} size={14} />
+                    {p.editable ? 'Edit' : 'View'}
+                  </span>
+                </div>
+                <div className="t-meta" style={{ display: 'flex', gap: 7, alignItems: 'flex-start', background: 'var(--bg-subtle)', padding: '9px 11px', borderRadius: 10 }}>
+                  <Icon name="help-circle" size={14} color="var(--fg-3)" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>{p.why}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
-
-      <div className="card card-pad" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div className="ring" style={{ ['--p' as string]: overall, width: 56, height: 56 } as CSSProperties}>
-          <i style={{ width: 44, height: 44, fontSize: 13 }}>{overall}%</i>
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, fontFamily: 'var(--font-display)' }}>
-            {overall >= 100 ? 'Profile complete' : `Profile is ${overall}% complete`}
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--fg-2)', marginTop: 2 }}>
-            {overall >= 100 ? 'Everything we need is on file. You can refine details anytime.' : 'Filling the gaps below lifts classification accuracy and source coverage.'}
-          </div>
-        </div>
-        <span className="ondevice"><Icon name="lock" size={14} />Encrypted on disk</span>
-      </div>
-
-      <div className="grid-2e">
-        {sections.map((p) => (
-          <div
-            key={p.id}
-            className={`card card-pad ${p.editable ? 'card-hover' : ''}`}
-            style={{ cursor: p.editable ? 'pointer' : 'default' }}
-            onClick={() => setEditing(p)}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div className="ring" style={{ ['--p' as string]: p.editable ? p.pct : 100 } as CSSProperties}>
-                <i>{p.editable ? p.pct : <Icon name="sparkles" size={13} />}</i>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14.5 }}>{p.name}</div>
-                <div className="muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {summarise(p)}
-                </div>
-              </div>
-              <span className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
-                <Icon name={p.editable ? 'pencil' : 'eye'} size={14} />
-                {p.editable ? 'Edit' : 'View'}
-              </span>
-            </div>
-            <div style={{ fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', gap: 7, alignItems: 'flex-start', background: 'var(--bg-subtle)', padding: '9px 11px', borderRadius: 10 }}>
-              <Icon name="help-circle" size={14} color="var(--fg-3)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span>{p.why}</span>
-            </div>
-          </div>
-        ))}
-      </div>
       <FootMeta />
       {editing && <ProfileEditDrawer section={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </div>

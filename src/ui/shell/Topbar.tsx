@@ -4,22 +4,25 @@ import { useMask } from '../contexts/MaskCtx';
 import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
-import { fys, fySummary, household, type FyKey } from '../lib/fixtures';
+import { fyLabel } from '../lib/format';
+import { labelForCategory } from '@/classifier/taxonomy';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
+import { SegmentedControl } from '../primitives/SegmentedControl';
 import { recentToTxn, type RecentTxnDTO } from '../data/useOverview';
 
 export function Topbar() {
   const { masked, setMasked } = useMask();
-  const { fy, setFy, fys: liveFys } = useFy();
+  const { fy, setFy, fys } = useFy();
   const { openProv } = useDrawer();
   const { profileName } = useShellMeta();
-  const keys = (liveFys.length ? liveFys : (Object.keys(fys) as FyKey[]));
-  const name = profileName ?? household.name;
-  const initials = name.split(/\s+/).map((w) => w.charAt(0)).join('').slice(0, 2).toUpperCase();
+  const initials = profileName
+    ? profileName.split(/\s+/).map((w) => w.charAt(0)).join('').slice(0, 2).toUpperCase()
+    : null;
 
   const [q, setQ] = useState('');
   const [results, setResults] = useState<RecentTxnDTO[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
@@ -28,17 +31,22 @@ export function Topbar() {
     const query = q.trim();
     if (query.length < 2) {
       setResults(null);
+      setSearchError(null);
       setOpen(false);
       return;
     }
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { results: RecentTxnDTO[] };
         setResults(data.results);
+        setSearchError(null);
         setOpen(true);
       } catch {
         setResults(null);
+        setSearchError('Search failed — try again.');
+        setOpen(true);
       }
     }, 250);
     return () => clearTimeout(t);
@@ -58,13 +66,13 @@ export function Topbar() {
       <div className="search" ref={boxRef} style={{ position: 'relative' }}>
         <Icon name="search" size={16} />
         <input
-          placeholder="Search merchants, categories, ₹ amounts…"
+          placeholder="Search transactions…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          onFocus={() => results && setOpen(true)}
+          onFocus={() => (results || searchError) && setOpen(true)}
           onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
         />
-        {open && results && (
+        {open && (searchError || results) && (
           <div
             className="card"
             style={{
@@ -78,15 +86,20 @@ export function Topbar() {
               boxShadow: 'var(--shadow-lg, 0 12px 32px rgba(16, 24, 40, 0.16))',
             }}
           >
-            {results.length === 0 ? (
+            {searchError ? (
+              <div className="muted" style={{ padding: 14, fontSize: 13 }}>
+                {searchError}
+              </div>
+            ) : results && results.length === 0 ? (
               <div className="muted" style={{ padding: 14, fontSize: 13 }}>
                 No transactions match &ldquo;{q.trim()}&rdquo;.
               </div>
             ) : (
-              results.map((r, i) => (
-                <div
+              results!.map((r, i) => (
+                <button
                   key={r.id}
-                  className="txn click"
+                  type="button"
+                  className="txn click rowbtn"
                   style={{ padding: '9px 14px' }}
                   onClick={() => {
                     setOpen(false);
@@ -96,34 +109,37 @@ export function Topbar() {
                   <div className="txn-mid" style={{ minWidth: 0 }}>
                     <div className="mer" style={{ fontSize: 13.5 }}>{r.merchant}</div>
                     <div className="cat" style={{ fontSize: 12 }}>
-                      {r.cat}
-                      {r.sub ? ' · ' + r.sub : ''}
+                      {labelForCategory(r.cat)}
+                      {r.sub ? ' · ' + labelForCategory(r.sub) : ''}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div className={`amt ${r.amt > 0 ? 'pos' : ''}`} style={{ fontSize: 13 }}>
                       {r.amt > 0 ? '+' : '−'}
-                      <Money amount={Math.abs(r.amt)} pos={r.amt > 0} />
+                      <Money amount={Math.abs(r.amt)} pos={r.amt > 0} interactive={false} />
                     </div>
                     <div className="muted" style={{ fontSize: 11 }}>{r.date}</div>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
         )}
       </div>
       <div className="topbar-right">
-        <div className="seg" role="tablist" aria-label="Financial year">
-          {keys.map((k) => (
-            <button key={k} className={fy === k ? 'on' : ''} onClick={() => setFy(k)}>
-              {fySummary(k).label}
-            </button>
-          ))}
-        </div>
+        {fys.length > 0 && (
+          <SegmentedControl
+            aria-label="Financial year"
+            value={fy}
+            onChange={(v) => setFy(v)}
+            options={fys.map((k) => ({ value: k, label: fyLabel(k).label }))}
+          />
+        )}
         <button
           className={`icon-btn ${masked ? 'on' : ''}`}
           title={masked ? 'Reveal all amounts' : 'Hide all amounts'}
+          aria-pressed={masked}
+          aria-label={masked ? 'Reveal all amounts' : 'Hide all amounts'}
           onClick={() => setMasked((m) => !m)}
         >
           <Icon name={masked ? 'eye-off' : 'eye'} size={18} />
@@ -132,8 +148,8 @@ export function Topbar() {
           <Icon name="shield-check" size={14} />
           Local only
         </div>
-        <div className="avatar" title={name}>
-          {initials}
+        <div className="avatar" title={profileName ?? undefined}>
+          {initials ?? <Icon name="user-round" size={16} />}
         </div>
       </div>
     </header>

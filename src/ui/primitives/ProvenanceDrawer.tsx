@@ -1,10 +1,11 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { classifierLayers, type Txn } from '../lib/fixtures';
-import { useMask } from '../contexts/MaskCtx';
-import { inr2 } from '../lib/format';
+import { classifierLayers } from '../lib/classifierLayers';
+import type { Txn } from '../lib/types';
 import { ConfidenceBadge } from './ConfidenceBadge';
+import { Dialog, useDialogClose } from './Dialog';
 import { Icon } from './Icon';
+import { Money } from './Money';
+import { labelForCategory } from '@/classifier/taxonomy';
 
 interface ProvenanceDrawerProps {
   txn: Txn;
@@ -12,42 +13,28 @@ interface ProvenanceDrawerProps {
 }
 
 export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
-  const [show, setShow] = useState(false);
-  const { masked } = useMask();
+  return (
+    <Dialog open onClose={onClose} label={txn.merchant}>
+      <ProvenanceDrawerBody txn={txn} />
+    </Dialog>
+  );
+}
 
-  const close = useCallback(() => {
-    setShow(false);
-    setTimeout(onClose, 220);
-  }, [onClose]);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShow(true), 10);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [close]);
-
+function ProvenanceDrawerBody({ txn }: { txn: Txn }) {
+  const close = useDialogClose();
   const hitLayer = txn.layer;
   const src = txn.source;
 
   return (
     <>
-      <div className={`scrim ${show ? 'show' : ''}`} onClick={close} />
-      <aside className={`drawer ${show ? 'show' : ''}`}>
         <div className="drawer-head">
           <div>
             <h3>{txn.merchant}</h3>
             <p>
-              {txn.date} · {txn.acct} · {txn.method}
+              {[txn.date, txn.acct, txn.method].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <button className="drawer-x" onClick={close}>
+          <button className="drawer-x" onClick={close} aria-label="Close">
             <Icon name="x" size={20} />
           </button>
         </div>
@@ -55,7 +42,7 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
             <div className="doc-amt">
               {txn.flow === 'in' ? '+' : '−'}
-              {masked ? '₹•••,•••' : inr2(txn.amt)}
+              <Money amount={txn.amt} precise />
             </div>
             <ConfidenceBadge level={txn.conf} />
           </div>
@@ -66,8 +53,8 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
                 : txn.flow === 'in' ? 'Income' : 'Expense'}
             </span>
             <span className="badge neutral">
-              {txn.cat}
-              {txn.sub ? ' · ' + txn.sub : ''}
+              {labelForCategory(txn.cat)}
+              {txn.sub ? ' · ' + labelForCategory(txn.sub) : ''}
             </span>
             {txn.transfer && <span className="badge mint">Internal transfer · de-duped</span>}
             {txn.recurring && <span className="badge coral">Recurring</span>}
@@ -124,7 +111,7 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
         <div className="card-head" style={{ padding: '6px 0 10px' }}>
             <h3 style={{ fontSize: 13.5 }}>Source evidence</h3>
           </div>
-          {src && src.type === 'email' && (
+          {src && src.type === 'email' && (src.from || src.subject) && (
             <div className="doc">
               <div className="doc-bar">
                 <svg className="gm" viewBox="0 0 24 24" fill="none">
@@ -138,7 +125,9 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
                 <div className="from">{src.from}</div>
                 <div className="subj">{src.subject}</div>
               </div>
-              <div className="doc-body">{src.body}</div>
+              <div className="doc-body">
+                {src.body || <span className="muted">The original message isn&apos;t stored — evidence is re-read from your inbox at import time.</span>}
+              </div>
             </div>
           )}
           {src && src.type === 'pdf' && (
@@ -159,7 +148,6 @@ export function ProvenanceDrawer({ txn, onClose }: ProvenanceDrawerProps) {
             <span>This evidence lives on your device only. We re-read it from your inbox at import time — it&apos;s never uploaded.</span>
           </div>
         </div>
-      </aside>
     </>
   );
 }
