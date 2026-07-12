@@ -58,6 +58,16 @@ export function categoriesForFlow(flow: Flow): string[] {
   return TAXONOMY[flow];
 }
 
+/** Preserve canonical transfer keys; legacy/non-transfer verdicts keep the
+ * historical `Transfer` fallback when a later linking pass confirms them. */
+export function transferStorageCategory(category: string, existingCategory?: string): string {
+  if (category === 'cc_payment') return category;
+  if (existingCategory === 'Transfer' || (existingCategory && TAXONOMY.transfer.includes(existingCategory))) {
+    return existingCategory;
+  }
+  return TAXONOMY.transfer.includes(category) ? category : 'Transfer';
+}
+
 /** Display-label exceptions where plain title-casing reads wrong. */
 const LABEL_OVERRIDES: Record<string, string> = {
   mobile_internet: 'Mobile & Internet',

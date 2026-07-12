@@ -23,6 +23,7 @@ import { rebuildClassificationReviewItems } from './review-items';
 import { detectSubscriptions } from '@/ledger/subscriptions';
 import { decideClassification } from '@/intelligence/local-model';
 import { loadLocalClassifierState, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
+import { transferStorageCategory } from '@/classifier/taxonomy';
 
 export interface ReclassifyResult {
   transactions: number;
@@ -107,9 +108,12 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
   db.transaction((tx) => {
     for (const { raw, prev, c, deterministic, decision } of results) {
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
+      const isSuspectedTransfer = !isTransfer && transfer.suspectedIds.has(raw.id);
       const final = isTransfer ? deterministic : c;
       const flow = isTransfer ? 'transfer' : final.flow;
-      const category = isTransfer && final.category !== 'cc_payment' ? 'Transfer' : final.category;
+      const category = isTransfer
+        ? transferStorageCategory(final.category, prev.flow === 'transfer' ? (prev.category ?? undefined) : undefined)
+        : final.category;
       const merchant = final.merchant ?? final.subcategory ?? null;
       const acceptedPredictionId =
         !isTransfer && decision.source === 'local_ml' && decision.localPrediction
@@ -130,7 +134,7 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
           layer: final.layer,
           classificationSource: isTransfer ? 'deterministic' : decision.source,
           acceptedPredictionId,
-          reviewRequired: isTransfer ? false : (final.reviewRequired || transfer.suspectedIds.has(raw.id)),
+          reviewRequired: isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
           isInternalTransfer: isTransfer,
           isRecurring: final.isRecurring ?? false,
           projectId: final.projectId ?? null,
@@ -139,7 +143,7 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
           counterpartyRaw: raw.counterpartyRaw ?? null,
           counterpartyId: cp.counterpartyId ?? null,
           counterpartyKind: cp.counterpartyKind ?? 'unknown',
-          suspectedTransfer: transfer.suspectedIds.has(raw.id),
+          suspectedTransfer: isSuspectedTransfer,
           updatedAt: Date.now(),
         })
         .where(eq(transactions.id, raw.id))

@@ -35,6 +35,7 @@ import { rebuildClassificationReviewItems } from './review-items';
 import { detectSubscriptions } from '@/ledger/subscriptions';
 import { decideClassification } from '@/intelligence/local-model';
 import { loadLocalClassifierState, predictionIdFor, recordLocalDecision } from '@/intelligence/store';
+import { transferStorageCategory } from '@/classifier/taxonomy';
 
 export interface IngestProgress {
   phase: 'parse' | 'classify' | 'review' | 'done';
@@ -372,6 +373,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       const fyKey = fyForDate(raw.date);
       byFy[fyKey] = (byFy[fyKey] ?? 0) + 1;
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
+      const isSuspectedTransfer = !isTransfer && transfer.suspectedIds.has(raw.id);
       const final = isTransfer ? deterministic : c;
       const flow = isTransfer ? 'transfer' : final.flow;
       const acceptedPredictionId =
@@ -391,7 +393,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           rawDescription: raw.rawDescription,
           merchant: final.merchant ?? final.subcategory ?? null,
           flow,
-          category: isTransfer && final.category !== 'cc_payment' ? 'Transfer' : final.category,
+          category: isTransfer ? transferStorageCategory(final.category) : final.category,
           subcategory: final.subcategory,
           confidence: final.confidence,
           classificationReason: final.reason,
@@ -399,7 +401,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           layer: final.layer,
           classificationSource: isTransfer ? 'deterministic' : decision.source,
           acceptedPredictionId,
-          reviewRequired: isTransfer ? false : (final.reviewRequired || transfer.suspectedIds.has(raw.id)),
+          reviewRequired: isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
           isInternalTransfer: isTransfer,
           isRecurring: final.isRecurring ?? false,
           projectId: final.projectId ?? null,
@@ -410,13 +412,13 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           counterpartyRaw: meta.counterpartyRaw ?? null,
           counterpartyId: meta.counterpartyId ?? null,
           counterpartyKind: meta.counterpartyKind ?? 'unknown',
-          suspectedTransfer: transfer.suspectedIds.has(raw.id),
+          suspectedTransfer: isSuspectedTransfer,
         })
         .onConflictDoUpdate({
           target: transactions.id,
           set: {
             flow,
-            category: isTransfer && final.category !== 'cc_payment' ? 'Transfer' : final.category,
+            category: isTransfer ? transferStorageCategory(final.category) : final.category,
             subcategory: final.subcategory,
             confidence: final.confidence,
             classificationReason: final.reason,
@@ -424,7 +426,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
             layer: final.layer,
             classificationSource: isTransfer ? 'deterministic' : decision.source,
             acceptedPredictionId,
-            reviewRequired: isTransfer ? false : (final.reviewRequired || transfer.suspectedIds.has(raw.id)),
+            reviewRequired: isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
             isInternalTransfer: isTransfer,
             isRecurring: final.isRecurring ?? false,
             projectId: final.projectId ?? null,
@@ -435,7 +437,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
             counterpartyRaw: meta.counterpartyRaw ?? null,
             counterpartyId: meta.counterpartyId ?? null,
             counterpartyKind: meta.counterpartyKind ?? 'unknown',
-            suspectedTransfer: transfer.suspectedIds.has(raw.id),
+            suspectedTransfer: isSuspectedTransfer,
           },
         })
         .run();
