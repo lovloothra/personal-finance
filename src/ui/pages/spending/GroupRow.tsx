@@ -184,6 +184,16 @@ export function GroupRow({ group, spending, focused, registerActions }: {
   }, [group.signature, spending]);
 
   /**
+   * Friendly CC-bill action. The assign route owns flow derivation and maps
+   * this label to canonical cc_payment; empty merchant is intentional.
+   */
+  const markAsCreditCardPayment = useCallback(async () => {
+    setBusy(true); setError(null);
+    try { await spending.assign(group.signature, '', 'credit card payment'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Credit card payment failed'); setBusy(false); }
+  }, [group.signature, spending]);
+
+  /**
    * "It's income" — calls /api/review/assign with category='Income',
    * which sets flow='income' and clears suspectedTransfer so the row is
    * counted as income in all rollups.
@@ -317,6 +327,11 @@ export function GroupRow({ group, spending, focused, registerActions }: {
           <button className="btn btn-primary btn-sm" disabled={busy || !category} onClick={assign}>
             {busy ? 'Assigning…' : `Assign ${group.count > 1 ? `all ${group.count}` : ''}`}
           </button>
+          {groupFlow === 'expense' && (
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsCreditCardPayment}>
+              Credit card payment
+            </button>
+          )}
           {/* Transfer must be reachable on every debit group, not only when the
               classifier already suspected it (see review-ui-conventions skill). */}
           {groupFlow === 'expense' && !group.suspectedTransfer && (

@@ -132,7 +132,8 @@ export async function POST(req: Request): Promise<Response> {
     // "Credit card payment" is the friendly face of a Transfer: the card's own
     // statement already carries every expense, so the bill payment must never
     // count as spending. Stored canonically so rollups and dedupe see Transfer.
-    if (category.toLowerCase() === 'credit card payment') {
+    const isCreditCardPayment = category.toLowerCase() === 'credit card payment';
+    if (isCreditCardPayment) {
       category = 'Transfer';
       subcategory = 'Credit card payment';
     }
@@ -146,7 +147,7 @@ export async function POST(req: Request): Promise<Response> {
 
     // Normalize once; flowFor still receives the original `category` so legacy
     // strings like 'Transfer' and 'Income' are handled by its fallback rules.
-    const canonicalCategory = normalizeCategory(category);
+    const canonicalCategory = isCreditCardPayment ? 'cc_payment' : normalizeCategory(category);
 
     const reason = merchant
       ? `User override: assigned "${merchant}" → ${category}${subcategory ? ` / ${subcategory}` : ''}.`
