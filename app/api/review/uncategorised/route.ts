@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { accountsBank, accountsCard, classificationPredictions, gmailMessages, localModelSuggestions, transactions } from '@/db/schema';
+import { accountsBank, accountsCard, classificationPredictions, duplicateCandidates, gmailMessages, localModelSuggestions, transactions } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
 import { json, badRequest } from '@/server/api';
 import { categoriesForFlow } from '@/classifier/taxonomy';
@@ -133,6 +133,63 @@ export async function GET(req: Request): Promise<Response> {
     const rows = q
       ? allRows.filter((r) => (r.rawDescription ?? '').toLowerCase().includes(q))
       : allRows;
+
+    const openDuplicateRows = db
+      .select()
+      .from(duplicateCandidates)
+      .where(eq(duplicateCandidates.status, 'open'))
+      .all();
+    const duplicateTxnIds = [...new Set(openDuplicateRows.flatMap((r) => [r.keeperTransactionId, r.candidateTransactionId]))];
+    const duplicateTxns = duplicateTxnIds.length
+      ? db
+          .select({
+            id: transactions.id,
+            documentId: transactions.documentId,
+            date: transactions.txnDate,
+            amount: transactions.amount,
+            rawDescription: transactions.rawDescription,
+            ownAccountId: transactions.ownAccountId,
+            from: gmailMessages.fromAddr,
+            subject: gmailMessages.subject,
+          })
+          .from(transactions)
+          .leftJoin(gmailMessages, eq(transactions.messageId, gmailMessages.id))
+          .where(inArray(transactions.id, duplicateTxnIds))
+          .all()
+      : [];
+    const duplicateTxnById = new Map(duplicateTxns.map((r) => [r.id, r]));
+    const suspectedDuplicates = openDuplicateRows
+      .map((candidate) => {
+        const keeper = duplicateTxnById.get(candidate.keeperTransactionId);
+        const duplicate = duplicateTxnById.get(candidate.candidateTransactionId);
+        if (!keeper || !duplicate) return null;
+        return {
+          id: candidate.id,
+          basis: candidate.basis,
+          amount: Math.round(duplicate.amount / 100),
+          accountId: duplicate.ownAccountId ?? null,
+          keeper: {
+            transactionId: keeper.id,
+            documentId: keeper.documentId,
+            date: keeper.date,
+            rawDescription: keeper.rawDescription ?? '',
+            from: keeper.from,
+            subject: keeper.subject,
+          },
+          candidate: {
+            transactionId: duplicate.id,
+            documentId: duplicate.documentId,
+            date: duplicate.date,
+            rawDescription: duplicate.rawDescription ?? '',
+            from: duplicate.from,
+            subject: duplicate.subject,
+          },
+        };
+      })
+      .filter((pair): pair is NonNullable<typeof pair> => pair !== null)
+      .filter((pair) => !q
+        || pair.keeper.rawDescription.toLowerCase().includes(q)
+        || pair.candidate.rawDescription.toLowerCase().includes(q));
 
     const suggestions = db
       .select({
@@ -287,9 +344,11 @@ export async function GET(req: Request): Promise<Response> {
       });
 
     return json({
-      hasData: rows.length > 0,
+      hasData: rows.length > 0 || suspectedDuplicates.length > 0,
       totalTransactions: rows.length,
       totalGroups: sorted.length,
+      totalSuspectedDuplicates: suspectedDuplicates.length,
+      suspectedDuplicates,
       groups: sorted.slice(0, 150),
       topCategories,
     });

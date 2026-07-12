@@ -18,7 +18,7 @@ export function SpendingPage() {
   const spending = useSpending(fy);
   const [seg, setSeg] = useState<Seg>('report');
   const f = fyLabel(fy);
-  const triageCount = spending.triage?.totalTransactions ?? 0;
+  const triageCount = (spending.triage?.totalTransactions ?? 0) + (spending.triage?.totalSuspectedDuplicates ?? 0);
 
   return (
     <div className="content-wrap fade-in">

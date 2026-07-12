@@ -28,9 +28,27 @@ export interface UncatGroup {
   /** Deterministic top-5 category shortlist computed server-side (rank-categories.ts). */
   ranked?: string[];
 }
+export interface SuspectedDuplicate {
+  id: string;
+  basis: string;
+  amount: number;
+  accountId: string | null;
+  keeper: DuplicateSide;
+  candidate: DuplicateSide;
+}
+export interface DuplicateSide {
+  transactionId: string;
+  documentId: string | null;
+  date: string;
+  rawDescription: string;
+  from: string | null;
+  subject: string | null;
+}
 export interface UncatDTO {
   hasData: boolean; totalTransactions: number; totalGroups: number;
   groups: UncatGroup[];
+  totalSuspectedDuplicates: number;
+  suspectedDuplicates: SuspectedDuplicate[];
   /** User's most-assigned category keys, ranked — feeds the picker shortlist. */
   topCategories?: string[];
 }
@@ -159,5 +177,18 @@ export function useSpending(fy: string) {
     } : u);
   }, []);
 
-  return { report, triage, loading, error, retry, highlight, clearedThisSession, lastOpId, undoLast, assign, acceptSuggestion, rejectSuggestion, search, refreshReport, loadTriage };
+  const resolveDuplicate = useCallback(async (id: string, action: 'remove' | 'keep') => {
+    const res = await fetch(`/api/review/duplicates/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? 'Duplicate review failed');
+    setTriage((current) => current ? {
+      ...current,
+      suspectedDuplicates: current.suspectedDuplicates.filter((pair) => pair.id !== id),
+      totalSuspectedDuplicates: Math.max(0, current.totalSuspectedDuplicates - 1),
+    } : current);
+    if (action === 'remove') void refreshReport();
+    return data as { ok: true; id: string; status: 'removed' | 'kept'; removedTransactionId?: string };
+  }, [refreshReport]);
+
+  return { report, triage, loading, error, retry, highlight, clearedThisSession, lastOpId, undoLast, assign, acceptSuggestion, rejectSuggestion, resolveDuplicate, search, refreshReport, loadTriage };
 }

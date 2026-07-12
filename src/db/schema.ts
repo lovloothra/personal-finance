@@ -38,6 +38,7 @@ type ClassificationSource = 'deterministic' | 'local_ml';
 type FeedbackSource = 'review_assignment' | 'user_override' | 'suggestion_accept';
 type PredictionDecision = 'accepted' | 'suggested' | 'stored' | 'rejected';
 type SuggestionStatus = 'open' | 'accepted' | 'rejected' | 'edited';
+type DuplicateCandidateStatus = 'open' | 'kept' | 'removed';
 
 // ---------------------------------------------------------------------------
 // Profile (single-household, India-first; sections map to onboarding steps)
@@ -376,6 +377,29 @@ export const transactions = sqliteTable(
     index('transactions_review_idx').on(t.reviewRequired),
     index('transactions_date_idx').on(t.txnDate),
     index('transactions_classification_source_idx').on(t.classificationSource),
+  ],
+);
+
+/**
+ * Durable review decisions for weak cross-document duplicate matches.
+ * Transaction ids are intentionally not foreign keys: a kept/removed decision
+ * must survive reparse or deletion so the same deterministic candidate id is
+ * not reopened on the next ingest.
+ */
+export const duplicateCandidates = sqliteTable(
+  'duplicate_candidates',
+  {
+    id: text('id').primaryKey(),
+    keeperTransactionId: text('keeper_transaction_id').notNull(),
+    candidateTransactionId: text('candidate_transaction_id').notNull(),
+    basis: text('basis').notNull().default('signature_token_prefix'),
+    status: text('status').$type<DuplicateCandidateStatus>().notNull().default('open'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('duplicate_candidates_candidate_idx').on(t.candidateTransactionId),
+    index('duplicate_candidates_status_idx').on(t.status),
   ],
 );
 

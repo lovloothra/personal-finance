@@ -25,6 +25,9 @@ import {
   userOverrides,
 } from '@/db/schema';
 
+type DbTransaction = Parameters<Parameters<DB['transaction']>[0]>[0];
+type DbExecutor = DB | DbTransaction;
+
 export function clearDocumentOutput(db: DB, docId: string): void {
   const txnIds = db
     .select({ id: transactions.id })
@@ -38,7 +41,7 @@ export function clearDocumentOutput(db: DB, docId: string): void {
 
 /** Detach/remove every FK child of the given transaction ids so the rows can
  * be deleted. Also used by the duplicate-cleanup script. */
-export function detachTransactionChildren(db: DB, txnIds: string[]): void {
+export function detachTransactionChildren(db: DbExecutor, txnIds: string[]): void {
   // Chunk id lists to stay well under SQLite's bound-parameter limit.
   for (let i = 0; i < txnIds.length; i += 500) {
     const chunk = txnIds.slice(i, i + 500);
