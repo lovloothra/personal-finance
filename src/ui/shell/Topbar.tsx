@@ -5,6 +5,7 @@ import { useFy } from '../contexts/FyCtx';
 import { useDrawer } from '../contexts/DrawerCtx';
 import { useShellMeta } from '../contexts/ShellMetaCtx';
 import { fyLabel } from '../lib/format';
+import { labelForCategory } from '@/classifier/taxonomy';
 import { Icon } from '../primitives/Icon';
 import { Money } from '../primitives/Money';
 import { SegmentedControl } from '../primitives/SegmentedControl';
@@ -65,7 +66,7 @@ export function Topbar() {
       <div className="search" ref={boxRef} style={{ position: 'relative' }}>
         <Icon name="search" size={16} />
         <input
-          placeholder="Search merchants, categories, ₹ amounts…"
+          placeholder="Search transactions…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => (results || searchError) && setOpen(true)}
@@ -95,9 +96,10 @@ export function Topbar() {
               </div>
             ) : (
               results!.map((r, i) => (
-                <div
+                <button
                   key={r.id}
-                  className="txn click"
+                  type="button"
+                  className="txn click rowbtn"
                   style={{ padding: '9px 14px' }}
                   onClick={() => {
                     setOpen(false);
@@ -107,18 +109,18 @@ export function Topbar() {
                   <div className="txn-mid" style={{ minWidth: 0 }}>
                     <div className="mer" style={{ fontSize: 13.5 }}>{r.merchant}</div>
                     <div className="cat" style={{ fontSize: 12 }}>
-                      {r.cat}
-                      {r.sub ? ' · ' + r.sub : ''}
+                      {labelForCategory(r.cat)}
+                      {r.sub ? ' · ' + labelForCategory(r.sub) : ''}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div className={`amt ${r.amt > 0 ? 'pos' : ''}`} style={{ fontSize: 13 }}>
                       {r.amt > 0 ? '+' : '−'}
-                      <Money amount={Math.abs(r.amt)} pos={r.amt > 0} />
+                      <Money amount={Math.abs(r.amt)} pos={r.amt > 0} interactive={false} />
                     </div>
                     <div className="muted" style={{ fontSize: 11 }}>{r.date}</div>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
@@ -136,6 +138,8 @@ export function Topbar() {
         <button
           className={`icon-btn ${masked ? 'on' : ''}`}
           title={masked ? 'Reveal all amounts' : 'Hide all amounts'}
+          aria-pressed={masked}
+          aria-label={masked ? 'Reveal all amounts' : 'Hide all amounts'}
           onClick={() => setMasked((m) => !m)}
         >
           <Icon name={masked ? 'eye-off' : 'eye'} size={18} />

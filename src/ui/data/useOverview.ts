@@ -1,7 +1,8 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import type { Txn } from '../lib/types';
-import { fmtDate } from '../lib/format';
+import { displayMerchant, fmtDate } from '../lib/format';
+import { labelForCategory } from '@/classifier/taxonomy';
 
 /** Client mirror of the server OverviewRollup (server module is server-only). */
 export interface RecentTxnDTO {
@@ -84,7 +85,10 @@ export function recentToTxn(r: RecentTxnDTO, i: number): Txn {
   return {
     id: r.id,
     date: fmtDate(r.date),
-    merchant: r.merchant,
+    // The rollup falls back merchant → category key when a txn has no
+    // merchant; keys are storage, not copy, so label key-shaped values while
+    // leaving real merchant names untouched.
+    merchant: displayMerchant(r.merchant || r.cat, labelForCategory),
     cat: r.cat,
     sub: r.sub ?? '',
     amt: Math.abs(r.amt),

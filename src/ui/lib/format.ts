@@ -52,6 +52,16 @@ export function labelForOption(value: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+/**
+ * Display form for a merchant name that may actually be a taxonomy-key
+ * fallback (rollups fall back merchant → category key when a txn has no
+ * merchant). Real merchant names pass through untouched — title-casing them
+ * mangles brands ("IDFC" → "Idfc"); only key-shaped values get labeled.
+ */
+export function displayMerchant(name: string, label: (key: string) => string): string {
+  return /^[a-z0-9_]+$/.test(name) ? label(name) : name;
+}
+
 /** Redact every ₹-amount inside a prose string, for mask-aware rendering of
  * server-built copy (tax tips embed literal amounts). Matches plain and
  * compact forms: ₹2,53,500 · ₹1.07 Cr · ₹12.5 L. */

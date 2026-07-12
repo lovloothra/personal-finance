@@ -136,7 +136,7 @@ function ProfileEditDrawerBody({ section, onSaved }: { section: SectionView; onS
             <h3>{section.name}</h3>
             <p>{section.why}</p>
           </div>
-          <button className="drawer-x" onClick={close}>
+          <button className="drawer-x" onClick={close} aria-label="Close">
             <Icon name="x" size={20} />
           </button>
         </div>

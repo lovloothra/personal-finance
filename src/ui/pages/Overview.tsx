@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useFy } from '../contexts/FyCtx';
-import { fyLabel } from '../lib/format';
+import { displayMerchant, fyLabel } from '../lib/format';
 import { viewState } from '../lib/viewState';
 import { MerchantLogo } from '../primitives/MerchantLogo';
 import { Button } from '../primitives/Button';
@@ -233,7 +233,7 @@ function OverviewContent({
             {merchants.map((m) => (
               <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
                 <MerchantLogo name={m.name} color={m.color} size={30} />
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{m.name}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{displayMerchant(m.name, labelForCategory)}</span>
                 <span style={{ marginLeft: 'auto' }}>
                   <Money amount={m.amount} />
                 </span>

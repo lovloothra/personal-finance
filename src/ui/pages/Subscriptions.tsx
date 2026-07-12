@@ -51,7 +51,7 @@ function SubRow({ s, mode, onStatus }: { s: Sub; mode: 'confirmed' | 'likely'; o
           <button className="btn btn-primary btn-sm" onClick={() => onStatus(s.id, 'confirmed')}>Confirm</button>
         </div>
       ) : (
-        <button className="btn btn-ghost btn-sm" onClick={() => onStatus(s.id, 'dismissed')} title="Stop tracking">
+        <button className="btn btn-ghost btn-sm" onClick={() => onStatus(s.id, 'dismissed')} title="Stop tracking" aria-label={`Dismiss ${s.name}`}>
           <Icon name="x" size={15} />
         </button>
       )}

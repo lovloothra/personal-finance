@@ -33,7 +33,7 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
   const drawer = useDrawer();
   const open = onOpen ?? drawer.openProv;
   return (
-    <div className="txn click" onClick={() => open(t)}>
+    <button type="button" className="txn click rowbtn" onClick={() => open(t)}>
       <MerchantLogo name={t.merchant} color={t.color} size={38} />
       <div className="txn-mid">
         <div className="mer">{t.merchant}</div>
@@ -68,13 +68,13 @@ export function TxnRow({ t, onOpen }: { t: Txn; onOpen?: (t: Txn) => void }) {
       <div style={{ textAlign: 'right' }}>
         <div className={`amt ${t.flow === 'in' ? 'pos' : ''}`}>
           {t.flow === 'in' ? '+' : '−'}
-          <Money amount={t.amt} pos={t.flow === 'in'} />
+          <Money amount={t.amt} pos={t.flow === 'in'} interactive={false} />
         </div>
         <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
           {t.date}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
