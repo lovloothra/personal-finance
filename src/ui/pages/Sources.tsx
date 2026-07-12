@@ -216,7 +216,8 @@ export function Sources() {
           <Icon name="shield-check" size={16} />
         </span>
         <span>
-          Every query is <b>read-only</b> and runs against Google&apos;s API directly from this machine. Attachments are written to a
+          Every query is <b>read-only</b>{' '}
+          and runs against Google&apos;s API directly from this machine. Attachments are written to a
           gitignored local folder. No third party ever sees your inbox.
         </span>
       </div>

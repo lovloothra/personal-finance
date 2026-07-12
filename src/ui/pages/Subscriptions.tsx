@@ -182,7 +182,8 @@ export function Subscriptions() {
             <div className="note info" style={{ marginTop: 16 }}>
               <span className="ic"><Icon name="calendar-clock" size={16} /></span>
               <span>
-                Next renewal — <b>{upcoming.name}</b> (<Money amount={upcoming.amt} />) around {upcoming.next}. Reminders stay on this device; we never email or charge you.
+                Next renewal — <b>{upcoming.name}</b>{' '}
+                (<Money amount={upcoming.amt} />) around {upcoming.next}. Reminders stay on this device; we never email or charge you.
               </span>
             </div>
           )}

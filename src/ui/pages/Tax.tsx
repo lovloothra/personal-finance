@@ -229,7 +229,8 @@ function TaxContent({
                 <Icon name="lightbulb" size={16} />
               </span>
               <div className="body">
-                <b>{masked ? redactInr(tip.t) : tip.t}</b> {masked ? redactInr(tip.d) : tip.d}
+                <b>{masked ? redactInr(tip.t) : tip.t}</b>{' '}
+                {masked ? redactInr(tip.d) : tip.d}
               </div>
             </div>
           ))}
