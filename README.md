@@ -50,14 +50,20 @@ Amounts are hidden with the app's built-in mask.
   `gmail.readonly` OAuth client.
 - **Local parsing** - downloads attachments, decrypts supported PDFs, extracts
   text, parses statements, and de-duplicates overlapping rows.
-- **Ledger workbench** - shows income, expenses, investments, liabilities,
-  subscriptions, taxes, review queue, sources, profile, and settings.
+- **Ledger workbench** - deep-linkable pages for income, spending, investments,
+  liabilities, subscriptions, taxes, review triage, sources, profile, and
+  settings. Amounts are masked by default; every screen has honest loading,
+  empty, and error states (no demo data pretending to be yours).
+- **Keyboard-first review** - triage the queue without a mouse: `j`/`k` to
+  move, `1`-`5` to pick a ranked category, `Enter` to assign, `x` to mark a
+  transfer, `u` to undo the last assignment (journaled, exact restore).
 - **Conservative classification** - combines deterministic rules with local
-  MiniLM suggestions learned from review feedback.
+  MiniLM suggestions learned from review feedback; every correction you make
+  is training data for the local model.
 - **Source provenance** - keeps links from rollups and transactions back to the
   imported evidence.
-- **India tax view** - compares FY 2025-26 / 2026-27 old and new regime
-  outcomes from detected evidence.
+- **India tax view** - compares the current and previous financial years'
+  old- and new-regime outcomes from detected evidence.
 
 ## How it works (30 seconds)
 
@@ -207,7 +213,7 @@ npm run eval:classifier        # classifier accuracy scorecard (golden set)
 npm run eval:ledger            # ledger data-quality metrics
 npm run profile:seed           # load secrets/profile.local.json
 npm run gmail:auth             # authorize read-only Gmail from CLI
-npm run gmail:fetch -- --fy=2025-26 [--all] [--yes]
+npm run gmail:fetch -- --fy=<yyyy-yy> [--all] [--yes]   # e.g. --fy=2025-26
 npm run ingest                 # parse, classify, and index attachments
 ```
 
@@ -229,6 +235,7 @@ when Ollama is not running or the configured model is missing.
 | Parsing | Provider-dispatched statements plus universal bank/card fallbacks |
 | Classification | Deterministic pipeline plus local MiniLM suggestions |
 | Ledger | Income, expense, subscription, investment, liability, tax, source rollups |
+| Workbench UI | Deep-linkable routes, keyboard-first triage with journaled undo, masked-by-default amounts, AA contrast and full keyboard/screen-reader access |
 | Re-ingestion | Idempotent document ids and cross-statement de-duplication |
 | Assistant | Typed ledger tools with optional localhost Ollama synthesis |
 | Quality | Golden-set classifier eval and ledger data-quality scorecard (`evals/`) |
@@ -242,6 +249,7 @@ when Ollama is not running or the configured model is missing.
 | `src/ui/` | Shell, onboarding, primitives, page components, contexts, data hooks |
 | `src/db/` | Drizzle schema, SQLCipher connection, migrations |
 | `src/classifier/` | Deterministic transaction classification pipeline |
+| `src/review/` | Triage shortlist ranking and the assign undo journal |
 | `src/intelligence/` | MiniLM embedding runtime, softmax head, feedback, predictions, suggestions |
 | `src/assistant/` | Typed query selection and optional Ollama synthesis |
 | `src/gmail/` | OAuth, query builder, fetcher, consent gate |
@@ -264,10 +272,10 @@ Engineering guidance lives in-repo and is written to be agent-agnostic:
 - `AGENTS.md` — entry point for any coding agent: skill index, non-negotiable
   invariants, common errors with fixes.
 - `CLAUDE.md` — architecture, commands, and conventions.
-- `.claude/skills/` — nine workflow runbooks (schema/migrations, DB tests,
+- `.claude/skills/` — ten workflow runbooks (schema/migrations, DB tests,
   parsers, classifier, misclassification debugging, local-ML guardrails,
-  packs, verification, backup/recovery), each anchored to a real incident
-  from this repo's history.
+  packs, review-UI conventions, verification, backup/recovery), each anchored
+  to a real incident from this repo's history.
 - `docs/DECISIONS.md` — the product principles and load-bearing technical
   decisions; read before proposing structural changes.
 - `docs/GOALS.md` — the backlog: self-contained project briefs with
