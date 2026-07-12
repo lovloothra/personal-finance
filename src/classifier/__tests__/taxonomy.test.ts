@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { categoriesForFlow, labelForCategory, normalizeCategory, TAXONOMY } from '../taxonomy';
+import { categoriesForFlow, labelForCategory, normalizeCategory, TAXONOMY, transferStorageCategory } from '../taxonomy';
 
 test('labelForCategory renders human display labels, never snake_case', () => {
   assert.equal(labelForCategory('mobile_internet'), 'Mobile & Internet');
@@ -51,4 +51,13 @@ test('every taxonomy value is unique within its flow', () => {
     const set = new Set(TAXONOMY[flow]);
     assert.equal(set.size, TAXONOMY[flow].length);
   }
+});
+
+test('transferStorageCategory preserves canonical keys and keeps the legacy fallback', () => {
+  assert.equal(transferStorageCategory('self_transfer'), 'self_transfer');
+  assert.equal(transferStorageCategory('cc_payment'), 'cc_payment');
+  assert.equal(transferStorageCategory('Uncategorised'), 'Transfer');
+  assert.equal(transferStorageCategory('self_transfer', 'Transfer'), 'Transfer');
+  assert.equal(transferStorageCategory('self_transfer', 'self_transfer'), 'self_transfer');
+  assert.equal(transferStorageCategory('cc_payment', 'Transfer'), 'cc_payment');
 });
