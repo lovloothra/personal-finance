@@ -377,7 +377,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           rawDescription: raw.rawDescription,
           merchant: final.merchant ?? final.subcategory ?? null,
           flow,
-          category: isTransfer ? 'Transfer' : final.category,
+          category: isTransfer && final.category !== 'cc_payment' ? 'Transfer' : final.category,
           subcategory: final.subcategory,
           confidence: final.confidence,
           classificationReason: final.reason,
@@ -402,7 +402,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           target: transactions.id,
           set: {
             flow,
-            category: isTransfer ? 'Transfer' : final.category,
+            category: isTransfer && final.category !== 'cc_payment' ? 'Transfer' : final.category,
             subcategory: final.subcategory,
             confidence: final.confidence,
             classificationReason: final.reason,

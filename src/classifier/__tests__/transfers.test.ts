@@ -174,6 +174,18 @@ test('card autopay debit (card-bill context) is still single-sided marked', () =
   assert.ok(transferIds.has('n3'), 'autopay + card context is a card bill by definition');
 });
 
+test('CRED via BillDesk debit is single-sided marked as a card payment', () => {
+  const txns = [t(
+    'cred-billdesk',
+    '2025-11-02',
+    -58478600,
+    'BIL/ONL/001104143602/BILL DESK/CRED_BICIEC3112/MKS-10000007874 BANK/113537545429',
+    'doc_bank',
+  )];
+  const { transferIds } = linkInternalTransfers(txns);
+  assert.ok(transferIds.has('cred-billdesk'));
+});
+
 test('autopay alone is not a pairing signal for coincidental equal amounts', () => {
   const txns = [
     t('n4', '2025-06-10', -64900, 'UPI-AUTOPAY/NETFLIX/mandate', 'doc_bank'),

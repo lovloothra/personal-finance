@@ -23,6 +23,7 @@
 
     { "id": "kw-cred-club", "desc": "UPI-CRED.CLUB-cc bill", "amount": -2500000, "expect": { "flow": "transfer", "category": "Transfer" } },
     { "id": "kw-cc-payment", "desc": "CREDIT CARD PAYMENT HDFC 7702", "amount": -3200000, "expect": { "flow": "transfer", "category": "Transfer" } },
+    { "id": "kw-cred-billdesk-card-payment", "desc": "BIL/ONL/987654321012/BILL DESK/CRED_BICIEC4321/MKS-10000001234", "amount": -58478600, "expect": { "flow": "transfer", "category": "cc_payment" } },
     { "id": "autopay-card-review-at-classify", "desc": "AUTOPAY SI-TAD HDFC CARD", "amount": -1500000, "expect": { "flow": "expense", "category": "Uncategorised" }, "expectReview": true },
     { "id": "autopay-merchant-is-spending", "desc": "UPI-AUTOPAY/NETFLIX/mandate@icici", "amount": -64900, "expect": { "flow": "expense", "category": "Ott" } },
     { "id": "last4-in-upi-ref-not-cc-transfer", "desc": "UPI/P2M/517702123456/SWIGGY BLR", "amount": -45000, "expect": { "flow": "expense", "category": "Food Delivery" } },
