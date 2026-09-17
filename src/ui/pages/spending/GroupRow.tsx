@@ -112,13 +112,15 @@ export function GroupRow({ group, spending, focused, registerActions }: {
   const groupFlow = (['income', 'expense', 'transfer', 'investment'] as Flow[]).includes(group.flow as Flow)
     ? (group.flow as Flow)
     : group.total > 0 ? 'income' : 'expense';
-  const flowCategories = categoriesForFlow(groupFlow);
+  const isCardCredit = group.ownAccountKind === 'card' && groupFlow === 'income';
+  const flowCategories = isCardCredit ? ['refund'] : categoriesForFlow(groupFlow);
   // Prefill only from a real ML suggestion — never from the title-cased
   // signature guess, which pollutes overrides and training data with junk
   // "merchants" like "Mobile Banking Sh Idfb". The guess stays visible as a
   // placeholder hint the user can choose to type.
   const [merchant, setMerchant] = useState(group.localSuggestion?.merchant ?? '');
-  const [category, setCategory] = useState(group.localSuggestion?.category ?? group.category ?? '');
+  const initialCategory = group.localSuggestion?.category ?? group.category ?? '';
+  const [category, setCategory] = useState(flowCategories.includes(initialCategory) ? initialCategory : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail[] | null>(null);
@@ -137,8 +139,8 @@ export function GroupRow({ group, spending, focused, registerActions }: {
       topCategories: spending.triage?.topCategories ?? [],
       groupFlow,
     },
-    categoriesForFlow,
-  ), [sug, spending.triage?.topCategories, groupFlow]);
+    (flow) => isCardCredit && flow === 'income' ? ['refund'] : categoriesForFlow(flow),
+  ), [sug, spending.triage?.topCategories, groupFlow, isCardCredit]);
   const ranked = group.ranked ?? fallbackRanked;
 
   const toggleDetail = async () => {
@@ -215,12 +217,15 @@ export function GroupRow({ group, spending, focused, registerActions }: {
         if (picked) setCategory(picked);
       },
       assign: () => { void assign(); }, // assign() itself no-ops without a category
-      markTransfer: () => { if (groupFlow === 'expense') void markAsTransfer(); },
-      canTransfer: groupFlow === 'expense',
+      markTransfer: () => {
+        if (isCardCredit) void markAsCreditCardPayment();
+        else if (groupFlow === 'expense') void markAsTransfer();
+      },
+      canTransfer: groupFlow === 'expense' || isCardCredit,
       hasCategory: !!category,
     });
     return () => registerActions(null);
-  }, [focused, registerActions, ranked, category, groupFlow, assign, markAsTransfer]);
+  }, [focused, registerActions, ranked, category, groupFlow, isCardCredit, assign, markAsTransfer, markAsCreditCardPayment]);
 
   return (
     <div className={`review-item ${focused ? 'focused' : ''}`} style={{ alignItems: 'flex-start' }} data-sig={group.signature}>
@@ -264,6 +269,19 @@ export function GroupRow({ group, spending, focused, registerActions }: {
           </div>
         )}
 
+        {isCardCredit && (
+          <div style={{
+            marginTop: 10, padding: '10px 12px', border: '1px solid var(--indigo-200)',
+            borderRadius: 8, background: 'var(--indigo-50)', display: 'flex',
+            gap: 10, alignItems: 'center', flexWrap: 'wrap',
+          }}>
+            <span className="badge neutral">Credit-card credit</span>
+            <span className="t-minor" style={{ flex: 1 }}>
+              This can only be a card-bill payment or a refund/reversal — never salary or investment income.
+            </span>
+          </div>
+        )}
+
         {detailOpen && (
           <div style={{ margin: '10px 0 2px', borderLeft: '2px solid var(--border)', paddingLeft: 12, display: 'grid', gap: 8 }}>
             {detail === null && <div className="muted" style={{ fontSize: 12.5 }}>Loading…</div>}
@@ -300,9 +318,11 @@ export function GroupRow({ group, spending, focused, registerActions }: {
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsTransfer}>
               Mark as transfer
             </button>
-            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsIncome}>
-              It&apos;s income
-            </button>
+            {!isCardCredit && (
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsIncome}>
+                It&apos;s income
+              </button>
+            )}
           </div>
         )}
 
@@ -327,7 +347,7 @@ export function GroupRow({ group, spending, focused, registerActions }: {
           <button className="btn btn-primary btn-sm" disabled={busy || !category} onClick={assign}>
             {busy ? 'Assigning…' : `Assign ${group.count > 1 ? `all ${group.count}` : ''}`}
           </button>
-          {groupFlow === 'expense' && (
+          {(groupFlow === 'expense' || isCardCredit) && (
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markAsCreditCardPayment}>
               Credit card payment
             </button>

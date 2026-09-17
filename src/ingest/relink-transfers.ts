@@ -24,6 +24,7 @@ import { loadProfileSeed } from '@/profile/signals';
 export interface RelinkResult {
   newlyLinked: number;
   newlySuspected: number;
+  accountClassified: number;
   links: number;
 }
 
@@ -36,11 +37,17 @@ export function relinkTransfersLedgerWide(db: DB): RelinkResult {
       rawDescription: transactions.rawDescription,
       documentId: transactions.documentId,
       flow: transactions.flow,
+      category: transactions.category,
+      subcategory: transactions.subcategory,
       merchant: transactions.merchant,
       ownAccountId: transactions.ownAccountId,
+      ownAccountKind: transactions.ownAccountKind,
       counterpartyRaw: transactions.counterpartyRaw,
       isInternalTransfer: transactions.isInternalTransfer,
       suspectedTransfer: transactions.suspectedTransfer,
+      layer: transactions.layer,
+      classificationReason: transactions.classificationReason,
+      profileSignalUsed: transactions.profileSignalUsed,
     })
     .from(transactions)
     .all();
@@ -70,7 +77,9 @@ export function relinkTransfersLedgerWide(db: DB): RelinkResult {
       rawDescription: r.rawDescription ?? '',
       documentId: r.documentId,
       flow: r.flow ?? undefined,
+      category: r.category,
       ownAccountId: r.ownAccountId,
+      ownAccountKind: r.ownAccountKind,
       counterpartyKind: resolveCounterparty(r.counterpartyRaw, cpRegistry).counterpartyKind,
       merchant: r.merchant,
     })),
@@ -81,6 +90,20 @@ export function relinkTransfersLedgerWide(db: DB): RelinkResult {
   const newlySuspected = rows
     .filter((r) => transfer.suspectedIds.has(r.id) && !r.suspectedTransfer && !r.isInternalTransfer)
     .map((r) => r.id);
+  const accountClassified = rows.filter((r) => {
+    const c = transfer.accountClassifications.get(r.id);
+    return c && (
+      r.flow !== c.flow
+      || r.category !== c.category
+      || r.subcategory !== c.subcategory
+      || r.merchant !== null
+      || r.isInternalTransfer !== (c.isInternalTransfer ?? false)
+      || r.suspectedTransfer
+      || r.classificationReason !== c.reason
+      || r.profileSignalUsed !== c.signal
+      || r.layer !== c.layer
+    );
+  });
 
   db.transaction((tx) => {
     for (let i = 0; i < newlyTransfer.length; i += 500) {
@@ -104,6 +127,28 @@ export function relinkTransfersLedgerWide(db: DB): RelinkResult {
         .where(inArray(transactions.id, newlySuspected.slice(i, i + 500)))
         .run();
     }
+    for (const row of accountClassified) {
+      const c = transfer.accountClassifications.get(row.id)!;
+      tx.update(transactions)
+        .set({
+          flow: c.flow,
+          category: c.category,
+          subcategory: c.subcategory,
+          merchant: null,
+          confidence: c.confidence,
+          layer: c.layer,
+          classificationSource: 'deterministic',
+          acceptedPredictionId: null,
+          classificationReason: c.reason,
+          profileSignalUsed: c.signal,
+          isInternalTransfer: c.isInternalTransfer ?? false,
+          suspectedTransfer: false,
+          reviewRequired: false,
+          updatedAt: Date.now(),
+        })
+        .where(inArray(transactions.id, [row.id]))
+        .run();
+    }
 
     // Rebuild the links table from the full ledger-wide pair set.
     tx.delete(internalTransferLinks).run();
@@ -121,5 +166,10 @@ export function relinkTransfersLedgerWide(db: DB): RelinkResult {
     }
   });
 
-  return { newlyLinked: newlyTransfer.length, newlySuspected: newlySuspected.length, links: transfer.links.length };
+  return {
+    newlyLinked: newlyTransfer.length,
+    newlySuspected: newlySuspected.length,
+    accountClassified: accountClassified.length,
+    links: transfer.links.length,
+  };
 }

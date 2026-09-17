@@ -3,7 +3,7 @@ import { getDb } from '@/db/client';
 import { accountsBank, accountsCard, classificationPredictions, duplicateCandidates, gmailMessages, localModelSuggestions, transactions } from '@/db/schema';
 import { signature } from '@/classifier/normalize';
 import { json, badRequest } from '@/server/api';
-import { categoriesForFlow } from '@/classifier/taxonomy';
+import { categoriesForFlow, normalizeCategory } from '@/classifier/taxonomy';
 import { rankCategories, type DistributionEntry } from '@/review/rank-categories';
 import type { Flow } from '@/classifier/types';
 
@@ -237,7 +237,11 @@ export async function GET(req: Request): Promise<Response> {
       const desc = r.rawDescription ?? '';
       const sig = signature(desc);
       if (!sig) continue;
-      const localSuggestion = suggestionByTxn.get(r.id) ?? null;
+      let localSuggestion = suggestionByTxn.get(r.id) ?? null;
+      if (localSuggestion && r.ownAccountKind === 'card' && r.amount > 0) {
+        const suggested = normalizeCategory(localSuggestion.category);
+        if (suggested !== 'refund' && suggested !== 'cc_payment') localSuggestion = null;
+      }
       let g = groups.get(sig);
       if (g) {
         g.count += 1;
@@ -329,6 +333,10 @@ export async function GET(req: Request): Promise<Response> {
         const groupFlow: Flow = knownFlows.includes(g.flow as Flow)
           ? (g.flow as Flow)
           : g.total > 0 ? 'income' : 'expense';
+        const isCardCredit = g.ownAccountKind === 'card' && groupFlow === 'income';
+        const categoriesForGroup = (flow: Flow) => isCardCredit && flow === 'income'
+          ? ['refund']
+          : categoriesForFlow(flow);
         const winningTxnId = winningSuggestionTxnId.get(g.signature);
         const distribution = winningTxnId ? extractDistribution(provenanceByTxn.get(winningTxnId)) : undefined;
         const ranked = rankCategories(
@@ -338,7 +346,7 @@ export async function GET(req: Request): Promise<Response> {
             topCategories,
             groupFlow,
           },
-          categoriesForFlow,
+          categoriesForGroup,
         );
         return { ...g, total: Math.round(g.total / 100), ranked };
       });
