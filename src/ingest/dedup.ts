@@ -97,6 +97,19 @@ export function dedupKey(r: { date: string; amount: number; rawDescription: stri
 }
 
 /**
+ * Exact-content identity key, keeping the RAW descriptor.
+ *
+ * `dedupKey` answers "is this an equivalent transaction?" and deliberately
+ * strips digits, so two different payments that differ only in their reference
+ * numbers share one key. Verifying that a stored decision still applies to the
+ * row sitting at a positional id needs the stricter question — "is this the
+ * same transaction?" — so this key keeps every character of the descriptor.
+ */
+export function rowFingerprint(r: { date: string; amount: number; rawDescription: string; ownAccountId?: string | null }): string {
+  return `${r.date}|${r.amount}|${r.rawDescription}|${r.ownAccountId ?? ''}`;
+}
+
+/**
  * Drop rows whose key was already claimed by a DIFFERENT document — either
  * earlier in this batch or by rows already stored in the DB (`existingKeys`,
  * which by construction only contains other documents: a re-parsed document's

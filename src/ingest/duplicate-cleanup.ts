@@ -6,7 +6,7 @@ import 'server-only';
 import { eq, inArray } from 'drizzle-orm';
 import type { DB } from '@/db/client';
 import { duplicateCandidates, transactions } from '@/db/schema';
-import { detectSuspectedDuplicates, type SuspectedDedupRow, type SuspectedDuplicatePair } from './dedup';
+import { detectSuspectedDuplicates, rowFingerprint, type SuspectedDedupRow, type SuspectedDuplicatePair } from './dedup';
 import { detachTransactionChildren } from './clear-output';
 
 export interface DuplicateCleanupPlan {
@@ -68,11 +68,15 @@ export function applyDuplicateCleanup(db: DB): DuplicateCleanupResult {
   db.transaction((tx) => {
     detachTransactionChildren(tx, candidateIds);
     for (const pair of plan.pairs) {
+      // The fingerprint is what lets a later reparse honour this removal
+      // instead of silently resurrecting the row (see duplicate-decisions.ts).
+      const fingerprint = rowFingerprint(pair.candidate);
       tx.insert(duplicateCandidates)
         .values({
           id: pair.id,
           keeperTransactionId: pair.keeper.id,
           candidateTransactionId: pair.candidate.id,
+          candidateFingerprint: fingerprint,
           basis: pair.basis,
           status: 'removed',
           updatedAt: Date.now(),
@@ -81,6 +85,7 @@ export function applyDuplicateCleanup(db: DB): DuplicateCleanupResult {
           target: duplicateCandidates.id,
           set: {
             keeperTransactionId: pair.keeper.id,
+            candidateFingerprint: fingerprint,
             basis: pair.basis,
             status: 'removed',
             updatedAt: Date.now(),

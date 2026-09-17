@@ -30,7 +30,15 @@ export async function POST(req: Request): Promise<Response> {
     if (body?.reparse) {
       db.update(attachments).set({ status: 'pending' }).where(eq(attachments.status, 'extracted')).run();
       const result = await runIngest(db);
-      return json({ ok: true, reparsed: true, documents: result.documents, transactions: result.transactions, duplicatesDropped: result.duplicatesDropped });
+      return json({
+        ok: true,
+        reparsed: true,
+        documents: result.documents,
+        transactions: result.transactions,
+        duplicatesDropped: result.duplicatesDropped,
+        duplicatesSuspected: result.duplicatesSuspected,
+        duplicatesReRemoved: result.duplicatesReRemoved,
+      });
     }
 
     const result = await reclassifyAll(db);
