@@ -64,6 +64,13 @@
       "when": 1783833395263,
       "tag": "0008_tense_blue_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789673099693,
+      "tag": "0009_wooden_klaw",
+      "breakpoints": true
     }
   ]
 }

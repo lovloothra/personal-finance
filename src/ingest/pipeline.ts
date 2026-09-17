@@ -14,11 +14,12 @@ import 'server-only';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '@/db/client';
-import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard, counterparties as counterpartiesTable, duplicateCandidates } from '@/db/schema';
+import { attachments, gmailMessages, parsedDocuments, transactions, reviewItems, documentPasswords, internalTransferLinks, accountsBank, accountsCard, counterparties as counterpartiesTable } from '@/db/schema';
 import { resolveOwnAccount, type OwnAccountRow } from './account-reconcile';
 import { relinkTransfersLedgerWide } from './relink-transfers';
 import { clearDocumentOutput } from './clear-output';
 import { dedupKey, dedupeAcrossDocuments, detectSuspectedDuplicates, type SuspectedDedupRow } from './dedup';
+import { reconcileDuplicateDecisions, type DuplicateReconcileResult } from './duplicate-decisions';
 import { tryUnlock, qpdfAvailable } from '@/pdf/unlock';
 import { extractText, LockedPdfError } from '@/pdf/extract';
 import { buildPasswordCandidates } from '@/pdf/candidates';
@@ -51,7 +52,10 @@ export interface IngestResult {
   reviewItems: number;
   byFy: Record<string, number>;
   duplicatesDropped: number;
+  /** Weak-match pairs now awaiting review (newly opened, or sent back). */
   duplicatesSuspected: number;
+  /** Rows deleted again because this reparse resurrected a removed duplicate. */
+  duplicatesReRemoved: number;
 }
 
 let seq = 0;
@@ -308,6 +312,7 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       ownAccountId: r.ownAccountId,
     })),
   );
+  let duplicateReconcile: DuplicateReconcileResult = { opened: 0, reRemoved: 0, reopened: 0, reRemovedIds: [] };
 
   const rawTxns: RawTxn[] = dedupedParsed.map((p) => ({
     id: p.id,
@@ -370,10 +375,14 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     { selfNames },
   );
 
+  // Re-removed duplicates are backed out of byFy/txnCount after reconciliation.
+  const fyByTxnId = new Map<string, string>();
+
   db.transaction((tx) => {
     for (const { raw, meta, c, deterministic, decision } of results) {
       const fyKey = fyForDate(raw.date);
       byFy[fyKey] = (byFy[fyKey] ?? 0) + 1;
+      fyByTxnId.set(raw.id, fyKey);
       const accountClassification = transfer.accountClassifications.get(raw.id);
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
       const isSuspectedTransfer = !isTransfer && transfer.suspectedIds.has(raw.id);
@@ -449,27 +458,25 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
       txnCount++;
     }
 
-    for (const pair of suspectedDuplicates) {
-      tx.insert(duplicateCandidates)
-        .values({
-          id: pair.id,
-          keeperTransactionId: pair.keeper.id,
-          candidateTransactionId: pair.candidate.id,
-          basis: pair.basis,
-          status: 'open',
-        })
-        // Existing open/kept/removed rows are durable decisions. In
-        // particular, a reparse must never reopen a pair the user kept.
-        .onConflictDoNothing()
-        .run();
+    // Existing kept/removed rows are durable decisions: a kept pair is never
+    // reopened, and a removed row that this reparse just re-inserted under its
+    // old positional id is removed again rather than silently returning to the
+    // ledger under a record the review queue no longer lists.
+    duplicateReconcile = reconcileDuplicateDecisions(tx, suspectedDuplicates);
+    txnCount -= duplicateReconcile.reRemoved;
+    for (const id of duplicateReconcile.reRemovedIds) {
+      const fyKey = fyByTxnId.get(id);
+      if (fyKey) byFy[fyKey] -= 1;
     }
-
   });
 
+  const reRemovedIds = new Set(duplicateReconcile.reRemovedIds);
   for (const { raw, decision } of results) {
-    if (!transfer.transferIds.has(raw.id) && !transfer.accountClassifications.has(raw.id)) {
-      recordLocalDecision(db, raw.id, decision);
-    }
+    if (transfer.transferIds.has(raw.id) || transfer.accountClassifications.has(raw.id)) continue;
+    // A re-removed duplicate no longer exists; its prediction row would fail
+    // the transactions foreign key.
+    if (reRemovedIds.has(raw.id)) continue;
+    recordLocalDecision(db, raw.id, decision);
   }
 
   // 5b. Ledger-wide transfer relink: batch linking above only pairs legs that
@@ -486,6 +493,16 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   // subscription merchants + recurring unknowns), grouped by canonical merchant.
   detectSubscriptions(db);
 
-  onProgress({ phase: 'done', message: `Ingest complete (${duplicatesDropped} exact duplicates removed, ${suspectedDuplicates.length} suspected)`, documents: docCount, transactions: txnCount });
-  return { documents: docCount, transactions: txnCount, reviewItems: reviewCount, byFy, duplicatesDropped, duplicatesSuspected: suspectedDuplicates.length };
+  const duplicatesSuspected = duplicateReconcile.opened + duplicateReconcile.reopened;
+  const reRemovedNote = duplicateReconcile.reRemoved ? `, ${duplicateReconcile.reRemoved} previously removed` : '';
+  onProgress({ phase: 'done', message: `Ingest complete (${duplicatesDropped} exact duplicates removed, ${duplicatesSuspected} suspected${reRemovedNote})`, documents: docCount, transactions: txnCount });
+  return {
+    documents: docCount,
+    transactions: txnCount,
+    reviewItems: reviewCount,
+    byFy,
+    duplicatesDropped,
+    duplicatesSuspected,
+    duplicatesReRemoved: duplicateReconcile.reRemoved,
+  };
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `duplicate_candidates` ADD `candidate_fingerprint` text;

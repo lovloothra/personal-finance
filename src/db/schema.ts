@@ -385,6 +385,12 @@ export const transactions = sqliteTable(
  * Transaction ids are intentionally not foreign keys: a kept/removed decision
  * must survive reparse or deletion so the same deterministic candidate id is
  * not reopened on the next ingest.
+ *
+ * `candidateFingerprint` is the content key (`dedupKey`) of the candidate row
+ * at decision time. Transaction ids are positional, so a parser change can
+ * point the same id at a different transaction; re-applying a `removed`
+ * decision requires the fingerprint to still match. Null on rows written
+ * before the column existed — those are re-confirmed once.
  */
 export const duplicateCandidates = sqliteTable(
   'duplicate_candidates',
@@ -392,6 +398,7 @@ export const duplicateCandidates = sqliteTable(
     id: text('id').primaryKey(),
     keeperTransactionId: text('keeper_transaction_id').notNull(),
     candidateTransactionId: text('candidate_transaction_id').notNull(),
+    candidateFingerprint: text('candidate_fingerprint'),
     basis: text('basis').notNull().default('signature_token_prefix'),
     status: text('status').$type<DuplicateCandidateStatus>().notNull().default('open'),
     createdAt: createdAt(),
