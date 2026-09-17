@@ -360,7 +360,9 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
         rawDescription: raw.rawDescription,
         documentId: meta.docId,
         flow: deterministic.flow,
+        category: deterministic.category,
         ownAccountId: meta.ownAccountId,
+        ownAccountKind: meta.ownAccountKind,
         counterpartyKind: cp.counterpartyKind,
         merchant: deterministic.merchant ?? null,
       };
@@ -372,12 +374,14 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
     for (const { raw, meta, c, deterministic, decision } of results) {
       const fyKey = fyForDate(raw.date);
       byFy[fyKey] = (byFy[fyKey] ?? 0) + 1;
+      const accountClassification = transfer.accountClassifications.get(raw.id);
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
       const isSuspectedTransfer = !isTransfer && transfer.suspectedIds.has(raw.id);
-      const final = isTransfer ? deterministic : c;
-      const flow = isTransfer ? 'transfer' : final.flow;
+      const final = accountClassification ?? (isTransfer ? deterministic : c);
+      const flow = accountClassification?.flow ?? (isTransfer ? 'transfer' : final.flow);
+      const internalTransfer = accountClassification?.isInternalTransfer ?? isTransfer;
       const acceptedPredictionId =
-        !isTransfer && decision.source === 'local_ml' && decision.localPrediction
+        !accountClassification && !isTransfer && decision.source === 'local_ml' && decision.localPrediction
           ? predictionIdFor(raw.id, decision.localPrediction.modelVersion)
           : null;
 
@@ -391,18 +395,18 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           amount: raw.amount,
           currency: raw.currency,
           rawDescription: raw.rawDescription,
-          merchant: final.merchant ?? final.subcategory ?? null,
+          merchant: accountClassification || final.category === 'cc_payment' ? null : (final.merchant ?? final.subcategory ?? null),
           flow,
-          category: isTransfer ? transferStorageCategory(final.category) : final.category,
+          category: internalTransfer ? transferStorageCategory(final.category) : final.category,
           subcategory: final.subcategory,
           confidence: final.confidence,
           classificationReason: final.reason,
           profileSignalUsed: final.signal,
           layer: final.layer,
-          classificationSource: isTransfer ? 'deterministic' : decision.source,
+          classificationSource: accountClassification || isTransfer ? 'deterministic' : decision.source,
           acceptedPredictionId,
-          reviewRequired: isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
-          isInternalTransfer: isTransfer,
+          reviewRequired: accountClassification || isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
+          isInternalTransfer: internalTransfer,
           isRecurring: final.isRecurring ?? false,
           projectId: final.projectId ?? null,
           taxSection: final.taxSection ?? null,
@@ -418,16 +422,17 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
           target: transactions.id,
           set: {
             flow,
-            category: isTransfer ? transferStorageCategory(final.category) : final.category,
+            merchant: accountClassification || final.category === 'cc_payment' ? null : (final.merchant ?? final.subcategory ?? null),
+            category: internalTransfer ? transferStorageCategory(final.category) : final.category,
             subcategory: final.subcategory,
             confidence: final.confidence,
             classificationReason: final.reason,
             profileSignalUsed: final.signal,
             layer: final.layer,
-            classificationSource: isTransfer ? 'deterministic' : decision.source,
+            classificationSource: accountClassification || isTransfer ? 'deterministic' : decision.source,
             acceptedPredictionId,
-            reviewRequired: isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
-            isInternalTransfer: isTransfer,
+            reviewRequired: accountClassification || isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
+            isInternalTransfer: internalTransfer,
             isRecurring: final.isRecurring ?? false,
             projectId: final.projectId ?? null,
             taxSection: final.taxSection ?? null,
@@ -462,7 +467,9 @@ export async function runIngest(db: DB, opts: { onProgress?: IngestProgressFn } 
   });
 
   for (const { raw, decision } of results) {
-    if (!transfer.transferIds.has(raw.id)) recordLocalDecision(db, raw.id, decision);
+    if (!transfer.transferIds.has(raw.id) && !transfer.accountClassifications.has(raw.id)) {
+      recordLocalDecision(db, raw.id, decision);
+    }
   }
 
   // 5b. Ledger-wide transfer relink: batch linking above only pairs legs that

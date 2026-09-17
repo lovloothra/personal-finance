@@ -194,3 +194,88 @@ test('autopay alone is not a pairing signal for coincidental equal amounts', () 
   const { transferIds } = linkInternalTransfers(txns);
   assert.ok(!transferIds.has('n4'), 'netflix mandate must not pair away into a transfer');
 });
+
+test('exact same-day bank debit and card credit square off as a credit-card payment', () => {
+  const debit: LinkTxn = {
+    id: 'bank-payment', date: '2025-05-01', amount: -24559400,
+    rawDescription: 'BIL/ONL/001004853181/RAZORPAY/QPAH8LTJJIOT UY/MKS-10000092650',
+    documentId: 'doc_bank', ownAccountId: 'bank_1', ownAccountKind: 'bank',
+    flow: 'expense', category: 'uncategorised',
+  };
+  const credit: LinkTxn = {
+    id: 'card-credit', date: '2025-05-01', amount: 24559400,
+    rawDescription: '14:05:55 TELE TRANSFER CREDIT (Ref# ST251220093000010564549)',
+    documentId: 'doc_card', ownAccountId: 'card_1', ownAccountKind: 'card',
+    flow: 'income', category: 'uncategorised',
+  };
+
+  const result = linkInternalTransfers([credit, debit]);
+  assert.deepEqual(result.links, [{ debitId: 'bank-payment', creditId: 'card-credit', kind: 'cc_payment' }]);
+  for (const id of ['bank-payment', 'card-credit']) {
+    const classification = result.accountClassifications.get(id)!;
+    assert.equal(classification.flow, 'transfer');
+    assert.equal(classification.category, 'cc_payment');
+    assert.equal(classification.subcategory, 'Credit card payment');
+    assert.equal(classification.signal, 'transfer.cc_payment_pair');
+    assert.equal(classification.isInternalTransfer, true);
+  }
+});
+
+test('a classified bank card payment pairs to a later card credit within the window', () => {
+  const result = linkInternalTransfers([
+    {
+      id: 'bank-payment', date: '2025-07-01', amount: -8136600,
+      rawDescription: 'OPAQUE BANK DEBIT', documentId: 'doc_bank',
+      ownAccountId: 'bank_1', ownAccountKind: 'bank', category: 'cc_payment', flow: 'transfer',
+    },
+    {
+      id: 'card-credit', date: '2025-07-03', amount: 8136600,
+      rawDescription: 'OPAQUE CREDIT', documentId: 'doc_card',
+      ownAccountId: 'card_1', ownAccountKind: 'card', flow: 'income',
+    },
+  ]);
+  assert.deepEqual(result.links, [{ debitId: 'bank-payment', creditId: 'card-credit', kind: 'cc_payment' }]);
+});
+
+test('single-sided TELE TRANSFER CREDIT on a card statement is a payment, never income', () => {
+  const result = linkInternalTransfers([{
+    id: 'card-credit', date: '2025-08-30', amount: 25449300,
+    rawDescription: '00:55:28 TELE TRANSFER CREDIT (Ref# ST252430083000010276524)',
+    documentId: 'doc_card', ownAccountId: 'card_2663', ownAccountKind: 'card', flow: 'income',
+  }]);
+  assert.ok(result.transferIds.has('card-credit'));
+  const classification = result.accountClassifications.get('card-credit')!;
+  assert.equal(classification.category, 'cc_payment');
+  assert.equal(classification.signal, 'transfer.card_payment_credit');
+});
+
+test('other inbound card credits become refunds and cannot be suspected income', () => {
+  const result = linkInternalTransfers([{
+    id: 'card-refund', date: '2025-09-10', amount: 50000000,
+    rawDescription: 'MERCHANT REVERSAL REF 123', documentId: 'doc_card',
+    ownAccountId: 'card_1', ownAccountKind: 'card', flow: 'income',
+  }]);
+  assert.equal(result.transferIds.has('card-refund'), false);
+  assert.equal(result.suspectedIds.has('card-refund'), false);
+  const classification = result.accountClassifications.get('card-refund')!;
+  assert.equal(classification.flow, 'income');
+  assert.equal(classification.category, 'refund');
+  assert.equal(classification.signal, 'account.card_credit_refund');
+});
+
+test('a card purchase and equal card credit do not pair merely because both accounts are known', () => {
+  const result = linkInternalTransfers([
+    {
+      id: 'card-purchase', date: '2025-09-10', amount: -100000,
+      rawDescription: 'SHOP PURCHASE', documentId: 'doc_card_a',
+      ownAccountId: 'card_a', ownAccountKind: 'card', flow: 'expense',
+    },
+    {
+      id: 'card-refund', date: '2025-09-10', amount: 100000,
+      rawDescription: 'MERCHANT REVERSAL', documentId: 'doc_card_b',
+      ownAccountId: 'card_b', ownAccountKind: 'card', flow: 'income',
+    },
+  ]);
+  assert.equal(result.links.length, 0);
+  assert.equal(result.accountClassifications.get('card-refund')?.category, 'refund');
+});

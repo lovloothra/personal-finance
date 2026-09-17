@@ -17,6 +17,7 @@
  * Pure & deterministic.
  */
 import { isCredBillDeskCcPayment } from './cc-payment-signals';
+import { LAYER, type Classification } from './types';
 
 /** Explicit transfer rails (not generic UPI, which is mostly real spending).
  * "autopay" is deliberately NOT here: UPI AUTOPAY is the mandate rail for
@@ -41,6 +42,11 @@ const ROUND_TRANSFER_STEP_PAISE = 10_000 * 100; // ₹10,000
  * turned every UPI-AUTOPAY merchant mandate into a vanished expense. */
 const CC_PAYMENT_RE = /\b(cc payment|credit card payment|card payment|card bill)\b|cred\.club/i;
 
+/** Credit-side wording used by card issuers for bill payments. This is only
+ * trusted when the transaction sits on an attributed credit-card statement;
+ * the same generic words on a bank account are not sufficient. */
+const CARD_PAYMENT_CREDIT_RE = /\b(payment received|tele transfer credit|payment thank ?you|online payment)\b/i;
+
 /** True when the description is a card-bill payment signal. */
 function isCcPayment(desc: string): boolean {
   return CC_PAYMENT_RE.test(desc) || CARD_AUTOPAY_RE.test(desc) || isCredBillDeskCcPayment(desc);
@@ -55,6 +61,10 @@ export interface LinkTxn {
   flow?: string;
   /** The own account this txn sits in (from document reconciliation). */
   ownAccountId?: string | null;
+  /** Whether the source statement belongs to a bank account or credit card. */
+  ownAccountKind?: 'bank' | 'card' | null;
+  /** Deterministic category before the account-aware linking pass. */
+  category?: string | null;
   /** Resolved counterparty kind, when known. */
   counterpartyKind?: 'own_account' | 'known_own' | 'external' | 'unknown';
   /** Resolved merchant, used by the suspected-transfer heuristic (Task 9). */
@@ -71,6 +81,9 @@ export interface TransferResult {
   transferIds: Set<string>;
   suspectedIds: Set<string>;
   links: TransferLink[];
+  /** Account-aware post-classifications for card credits and both legs of a
+   * matched card payment. These outrank generic income/expense guesses. */
+  accountClassifications: Map<string, Classification>;
 }
 
 const DAY = 86_400_000;
@@ -102,10 +115,63 @@ function isCandidate(t: LinkTxn, selfNames: string[]): boolean {
     t.counterpartyKind === 'own_account' ||
     t.counterpartyKind === 'known_own' ||
     !!t.ownAccountId ||
+    !!t.ownAccountKind ||
     TRANSFER_RE.test(t.rawDescription) ||
     CARD_AUTOPAY_RE.test(t.rawDescription) ||
     selfNameHit(t.rawDescription, selfNames)
   );
+}
+
+function isExactBankToCardPair(debit: LinkTxn, credit: LinkTxn): boolean {
+  return debit.ownAccountKind === 'bank'
+    && credit.ownAccountKind === 'card'
+    && debit.date === credit.date;
+}
+
+function isBankCardPaymentToCardCredit(debit: LinkTxn, credit: LinkTxn): boolean {
+  return debit.ownAccountKind === 'bank'
+    && credit.ownAccountKind === 'card'
+    && (debit.category === 'cc_payment' || isCcPayment(debit.rawDescription));
+}
+
+function isCcPair(debit: LinkTxn, credit: LinkTxn): boolean {
+  return credit.ownAccountKind === 'card'
+    || isExactBankToCardPair(debit, credit)
+    || debit.category === 'cc_payment'
+    || credit.category === 'cc_payment'
+    || isCcPayment(debit.rawDescription)
+    || isCcPayment(credit.rawDescription)
+    || CARD_PAYMENT_CREDIT_RE.test(credit.rawDescription);
+}
+
+function ccPaymentClassification(reason: string, signal: string): Classification {
+  return {
+    flow: 'transfer',
+    category: 'cc_payment',
+    subcategory: 'Credit card payment',
+    merchant: null,
+    confidence: 'high',
+    reason,
+    signal,
+    layer: LAYER.TRANSFER_DEDUPE,
+    reviewRequired: false,
+    isInternalTransfer: true,
+  };
+}
+
+function cardRefundClassification(): Classification {
+  return {
+    flow: 'income',
+    category: 'refund',
+    subcategory: 'Credit card refund / reversal',
+    merchant: null,
+    confidence: 'high',
+    reason: 'Credit on an attributed credit-card statement with no matching bank-payment leg; classified as a refund or reversal, never salary or other income.',
+    signal: 'account.card_credit_refund',
+    layer: LAYER.TRANSFER_DEDUPE,
+    reviewRequired: false,
+    isInternalTransfer: false,
+  };
 }
 
 /**
@@ -121,6 +187,7 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
   const transferIds = new Set<string>();
   const suspectedIds = new Set<string>();
   const links: TransferLink[] = [];
+  const accountClassifications = new Map<string, Classification>();
 
   const debits = txns.filter((t) => t.amount < 0 && isCandidate(t, selfNames));
   const credits = txns.filter((t) => t.amount > 0 && isCandidate(t, selfNames));
@@ -128,8 +195,8 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
 
   // 1. Pair debit↔credit across different statements (same amount, near dates).
   for (const d of debits) {
-    const match = credits.find(
-      (c) =>
+    const candidates = credits.filter(
+        (c) =>
         !usedCredit.has(c.id) &&
         Math.abs(c.amount) === Math.abs(d.amount) &&
         within(c.date, d.date, windowDays) &&
@@ -138,15 +205,35 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
         // resolved merchant on either leg. Requiring bare legs prevents
         // coincidental equal-amount expense/income (e.g. rent debit from HDFC
         // and salary credit into ICICI) from being mislinked as a transfer.
-        ((!!d.ownAccountId && !!c.ownAccountId && d.ownAccountId !== c.ownAccountId && !d.merchant && !c.merchant) ||
+        (isExactBankToCardPair(d, c) ||
+          isBankCardPaymentToCardCredit(d, c) ||
+          (c.ownAccountKind !== 'card' && !!d.ownAccountId && !!c.ownAccountId && d.ownAccountId !== c.ownAccountId && !d.merchant && !c.merchant) ||
           (hasExplicitSignal(d, selfNames) && hasExplicitSignal(c, selfNames))),
-    );
+      );
+    const cardCandidates = candidates
+      .filter((c) => isExactBankToCardPair(d, c) || isBankCardPaymentToCardCredit(d, c))
+      .sort((a, b) => {
+        const exactA = isExactBankToCardPair(d, a) ? 0 : 1;
+        const exactB = isExactBankToCardPair(d, b) ? 0 : 1;
+        const gapA = Math.abs(new Date(a.date).getTime() - new Date(d.date).getTime());
+        const gapB = Math.abs(new Date(b.date).getTime() - new Date(d.date).getTime());
+        return exactA - exactB || gapA - gapB || a.id.localeCompare(b.id);
+      });
+    const match = cardCandidates[0] ?? candidates[0];
     if (match) {
       usedCredit.add(match.id);
       transferIds.add(d.id);
       transferIds.add(match.id);
-      const kind = isCcPayment(d.rawDescription) || isCcPayment(match.rawDescription) ? 'cc_payment' : 'account_transfer';
+      const kind = isCcPair(d, match) ? 'cc_payment' : 'account_transfer';
       links.push({ debitId: d.id, creditId: match.id, kind });
+      if (kind === 'cc_payment') {
+        const classification = ccPaymentClassification(
+          'Credit-card payment: matched a bank-statement debit to a credit-card-statement credit by signed amount and posting date. Both legs are excluded from income and spending.',
+          'transfer.cc_payment_pair',
+        );
+        accountClassifications.set(d.id, classification);
+        accountClassifications.set(match.id, classification);
+      }
     }
   }
 
@@ -158,7 +245,29 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
     if (!transferIds.has(d.id) && isCcPayment(d.rawDescription)) transferIds.add(d.id);
   }
   for (const c of credits) {
-    if (!transferIds.has(c.id) && /\bpayment received\b/i.test(c.rawDescription)) transferIds.add(c.id);
+    if (!transferIds.has(c.id) && /\bpayment received\b/i.test(c.rawDescription)) {
+      transferIds.add(c.id);
+    }
+    if (!transferIds.has(c.id) && c.ownAccountKind === 'card' && CARD_PAYMENT_CREDIT_RE.test(c.rawDescription)) {
+      transferIds.add(c.id);
+    }
+    if (transferIds.has(c.id)
+      && !accountClassifications.has(c.id)
+      && c.ownAccountKind === 'card'
+      && CARD_PAYMENT_CREDIT_RE.test(c.rawDescription)) {
+      accountClassifications.set(c.id, ccPaymentClassification(
+        'Credit-card payment: the attributed card statement records an inbound payment credit. Excluded from income even when the bank-side statement is unavailable.',
+        'transfer.card_payment_credit',
+      ));
+    }
+  }
+
+  // 2b. Every other inbound credit on an attributed card statement is a
+  //     refund/reversal by ledger semantics. It must never enter salary,
+  //     interest, dividend, or other-income classification paths.
+  for (const c of credits) {
+    if (c.ownAccountKind !== 'card' || transferIds.has(c.id)) continue;
+    accountClassifications.set(c.id, cardRefundClassification());
   }
 
   // 3. Own-entity counterparty: a transfer by definition, even single-sided.
@@ -174,6 +283,7 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
   //    merchant and no resolved counterparty, not already confirmed transfers.
   for (const c of txns.filter((t) => t.amount > 0)) {
     if (transferIds.has(c.id)) continue;
+    if (accountClassifications.has(c.id)) continue;
     if (c.merchant) continue;
     if (c.counterpartyKind && c.counterpartyKind !== 'unknown') continue;
     if (c.amount >= ROUND_TRANSFER_MIN_PAISE && c.amount % ROUND_TRANSFER_STEP_PAISE === 0) {
@@ -181,5 +291,5 @@ export function linkInternalTransfers(txns: LinkTxn[], opts: { windowDays?: numb
     }
   }
 
-  return { transferIds, suspectedIds, links };
+  return { transferIds, suspectedIds, links, accountClassifications };
 }

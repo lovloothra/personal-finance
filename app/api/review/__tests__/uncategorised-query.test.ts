@@ -28,6 +28,11 @@ before(async () => {
     { id: 's1', txnDate: '2024-06-02', amount: -9000, rawDescription: 'UPI/NEWSPAPER/sub', ...base },
     { id: 's2', txnDate: '2024-06-03', amount: -9000, rawDescription: 'UPI/NEWSPAPER/sub', ...base },
     { id: 's3', txnDate: '2024-06-04', amount: -9000, rawDescription: 'UPI/NEWSPAPER/sub', ...base },
+    {
+      id: 'card-credit', txnDate: '2024-06-05', amount: 100000,
+      rawDescription: 'OPAQUE CREDIT ON CARD', ...base,
+      flow: 'income', ownAccountId: 'card-1', ownAccountKind: 'card',
+    },
   ]).run();
   db.insert(duplicateCandidates).values({
     id: 'dup_rent',
@@ -56,4 +61,12 @@ test('response includes open suspected duplicate pairs with both transaction des
   assert.equal(data.suspectedDuplicates[0].keeper.transactionId, 'r1');
   assert.equal(data.suspectedDuplicates[0].candidate.transactionId, 'r2');
   assert.match(data.suspectedDuplicates[0].keeper.rawDescription, /RASHMI/);
+});
+
+test('card-statement credit review groups offer refund only, never income categories', async () => {
+  const res = await GET(new Request('http://x/api/review/uncategorised?q=opaque%20credit'));
+  const data = await res.json();
+  assert.equal(data.groups.length, 1);
+  assert.equal(data.groups[0].ownAccountKind, 'card');
+  assert.deepEqual(data.groups[0].ranked, ['refund']);
 });

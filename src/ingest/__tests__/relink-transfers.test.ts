@@ -68,3 +68,42 @@ test('the pass is additive: unrelated spending and existing transfers are untouc
   assert.equal(userTransfer.flow, 'transfer');
   assert.equal(userTransfer.layer, 1, 'user-override transfer left exactly as it was');
 });
+
+test('cross-run bank payments and card credits are squared off with card-payment provenance', () => {
+  db.insert(parsedDocuments).values([
+    { id: 'doc_bank_card_payment', docType: 'bank_statement', ownAccountId: 'bank-1', ownAccountKind: 'bank' },
+    { id: 'doc_card_payment_credit', docType: 'card_statement', ownAccountId: 'card-1', ownAccountKind: 'card' },
+    { id: 'doc_card_refund_credit', docType: 'card_statement', ownAccountId: 'card-1', ownAccountKind: 'card' },
+  ]).run();
+  db.insert(transactions).values([
+    txn('bank_card_payment', 'doc_bank_card_payment', '2026-06-01', -8508300, 'OPAQUE BANK DEBIT', {
+      ownAccountId: 'bank-1', ownAccountKind: 'bank', reviewRequired: true,
+    }),
+    txn('card_payment_credit', 'doc_card_payment_credit', '2026-06-01', 8508300, 'OPAQUE CARD CREDIT', {
+      ownAccountId: 'card-1', ownAccountKind: 'card', reviewRequired: true,
+    }),
+    txn('card_refund_credit', 'doc_card_refund_credit', '2026-06-02', 432100, 'MERCHANT REVERSAL', {
+      ownAccountId: 'card-1', ownAccountKind: 'card', reviewRequired: true,
+    }),
+  ]).run();
+
+  const result = relinkTransfersLedgerWide(db);
+  assert.ok(result.accountClassified >= 3);
+
+  for (const id of ['bank_card_payment', 'card_payment_credit']) {
+    const row = db.select().from(transactions).where(eq(transactions.id, id)).get()!;
+    assert.equal(row.flow, 'transfer');
+    assert.equal(row.category, 'cc_payment');
+    assert.equal(row.isInternalTransfer, true);
+    assert.equal(row.profileSignalUsed, 'transfer.cc_payment_pair');
+  }
+  const refund = db.select().from(transactions).where(eq(transactions.id, 'card_refund_credit')).get()!;
+  assert.equal(refund.category, 'refund');
+  assert.equal(refund.isInternalTransfer, false);
+  assert.equal(refund.profileSignalUsed, 'account.card_credit_refund');
+
+  const link = db.select().from(internalTransferLinks)
+    .where(eq(internalTransferLinks.creditTxnId, 'card_payment_credit')).get()!;
+  assert.equal(link.debitTxnId, 'bank_card_payment');
+  assert.equal(link.kind, 'cc_payment');
+});

@@ -45,7 +45,10 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
       category: transactions.category,
       flow: transactions.flow,
       merchant: transactions.merchant,
+      classificationReason: transactions.classificationReason,
+      profileSignalUsed: transactions.profileSignalUsed,
       ownAccountId: transactions.ownAccountId,
+      ownAccountKind: transactions.ownAccountKind,
       counterpartyRaw: transactions.counterpartyRaw,
     })
     .from(transactions)
@@ -96,7 +99,9 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
         rawDescription: raw.rawDescription,
         documentId: prev.documentId ?? '',
         flow: deterministic.flow,
+        category: deterministic.category,
         ownAccountId: prev.ownAccountId ?? null,
+        ownAccountKind: prev.ownAccountKind ?? null,
         counterpartyKind: cp.counterpartyKind,
         merchant: deterministic.merchant ?? null,
       };
@@ -107,16 +112,25 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
   let changed = 0;
   db.transaction((tx) => {
     for (const { raw, prev, c, deterministic, decision } of results) {
+      const accountClassification = transfer.accountClassifications.get(raw.id);
       const isTransfer = transfer.transferIds.has(raw.id) || c.isInternalTransfer || c.flow === 'transfer';
       const isSuspectedTransfer = !isTransfer && transfer.suspectedIds.has(raw.id);
-      const final = isTransfer ? deterministic : c;
-      const flow = isTransfer ? 'transfer' : final.flow;
-      const category = isTransfer
+      const final = accountClassification ?? (isTransfer ? deterministic : c);
+      const flow = accountClassification?.flow ?? (isTransfer ? 'transfer' : final.flow);
+      const internalTransfer = accountClassification?.isInternalTransfer ?? isTransfer;
+      const category = internalTransfer
         ? transferStorageCategory(final.category, prev.flow === 'transfer' ? (prev.category ?? undefined) : undefined)
         : final.category;
-      const merchant = final.merchant ?? final.subcategory ?? null;
+      const merchant = accountClassification || final.category === 'cc_payment'
+        ? null
+        : (final.merchant ?? final.subcategory ?? null);
+      const classificationReason = final.signal === 'user.override'
+        && prev.profileSignalUsed === 'user.override'
+        && prev.classificationReason
+        ? prev.classificationReason
+        : final.reason;
       const acceptedPredictionId =
-        !isTransfer && decision.source === 'local_ml' && decision.localPrediction
+        !accountClassification && !isTransfer && decision.source === 'local_ml' && decision.localPrediction
           ? predictionIdFor(raw.id, decision.localPrediction.modelVersion)
           : null;
       const cp = resolveCounterparty(raw.counterpartyRaw, cpRegistry);
@@ -129,13 +143,13 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
           category,
           subcategory: final.subcategory,
           confidence: final.confidence,
-          classificationReason: final.reason,
+          classificationReason,
           profileSignalUsed: final.signal,
           layer: final.layer,
-          classificationSource: isTransfer ? 'deterministic' : decision.source,
+          classificationSource: accountClassification || isTransfer ? 'deterministic' : decision.source,
           acceptedPredictionId,
-          reviewRequired: isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
-          isInternalTransfer: isTransfer,
+          reviewRequired: accountClassification || isTransfer ? false : (final.reviewRequired || isSuspectedTransfer),
+          isInternalTransfer: internalTransfer,
           isRecurring: final.isRecurring ?? false,
           projectId: final.projectId ?? null,
           taxSection: final.taxSection ?? null,
@@ -161,7 +175,9 @@ export async function reclassifyAll(db: DB): Promise<ReclassifyResult> {
   });
 
   for (const { raw, decision } of results) {
-    if (!transfer.transferIds.has(raw.id)) recordLocalDecision(db, raw.id, decision);
+    if (!transfer.transferIds.has(raw.id) && !transfer.accountClassifications.has(raw.id)) {
+      recordLocalDecision(db, raw.id, decision);
+    }
   }
 
   // Subscriptions + review items are projections of the updated ledger.
